@@ -1,25 +1,65 @@
 // middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import jwt from "jsonwebtoken";
 
 export function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
-console.log("Token in middleware:", token);
 
-  // If user tries to access /dashboard without token → redirect to /login
-  if (req.nextUrl.pathname.startsWith("/dashboard") && !token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  // No token → always send to login
+  if (!token) {
+    if (req.nextUrl.pathname !== "/login") {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    return NextResponse.next();
   }
 
-  // If logged in and tries to access /login → redirect to /dashboard
-  if (req.nextUrl.pathname.startsWith("/login") && token) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
+      role: string;
+    };
 
-  return NextResponse.next();
+    const { pathname } = req.nextUrl;
+
+    // 🔐 Role-based route protection
+    if (pathname.startsWith("/superadmin") && decoded.role !== "Superadmin") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (pathname.startsWith("/admin") && decoded.role !== "Admin") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (pathname.startsWith("/teacher") && decoded.role !== "Teacher") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (pathname.startsWith("/student") && decoded.role !== "Student") {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // Prevent logged-in users from visiting /login again
+    if (pathname.startsWith("/login")) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    return NextResponse.next();
+  } catch {
+    // Invalid/expired token → force logout
+    const res = NextResponse.redirect(new URL("/login", req.url));
+    res.cookies.delete("token");
+    return res;
+  }
 }
 
-// ✅ Apply only to certain routes
+// ✅ Apply to all protected routes
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: [
+    "/",
+    "/superadmin/:path*",
+    "/admin/:path*",
+    "/teacher/:path*",
+    "/student/:path*",
+    "/login",
+  ],
 };
