@@ -5,8 +5,10 @@ import connectDB from "./src/config/db.js";
 
 // Import routes
 import authRoutes from "./src/routes/auth.js";
-import instituteRoutes from "./src/routes/institute.js";
-import userRoutes from "./src/routes/user.js";
+import instituteRoutes from "./src/routes/instituteRoutes.js";
+import userRoutes from "./src/routes/userRoutes.js";
+import hrRoutes from "./src/routes/hrRoutes.js";            
+import employeeRoutes from "./src/routes/employeeRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -19,6 +21,8 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/institutes", instituteRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/hr", hrRoutes);             // ✅ HR endpoints
+app.use("/api/employees", employeeRoutes); // ✅ Employee endpoints
 
 app.get("/", (req, res) => {
   res.send("🚀 HRM Backend Running Successfully!");

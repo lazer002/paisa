@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import User from "../models/user.js";
+import { User } from "../models/user.js";
 
 export const register = async (req, res) => {
   try {
@@ -24,7 +24,10 @@ export const register = async (req, res) => {
       instituteId: instituteId || null,
     });
 
-    res.status(201).json({ message: "User registered successfully", user });
+    // remove password before sending response
+    const { passwordHash: _, ...safeUser } = user.toObject();
+
+    res.status(201).json({ message: "User registered successfully", user: safeUser });
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({ message: "Server error" });
@@ -54,7 +57,10 @@ export const login = async (req, res) => {
       sameSite: "strict",
     });
 
-    res.json({ message: "Login successful", user });
+    // remove password before sending response
+    const { passwordHash: _, ...safeUser } = user.toObject();
+
+    res.json({ message: "Login successful", user: safeUser });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
