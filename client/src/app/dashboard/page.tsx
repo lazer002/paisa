@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useRouter } from "next/navigation";
 
 interface User {
   userId: string;
@@ -13,34 +12,24 @@ interface User {
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const res = await axios.get("/api/me", { withCredentials: true });
-        console.log("Response from /api/me:", res);
-        const userData = res.data.user;
-
-        setUser(userData);
-
-        // Optional: Redirect by role if user lands on /dashboard
-        if (userData.role === "teacher") router.push("/teacher/home");
-        else if (userData.role === "student") router.push("/student/home");
-        // super_admin stays on /dashboard
-
-      } catch {
-        router.push("/login"); // token invalid or missing
+        setUser(res.data.user); // just save user info for display
+      } catch (err) {
+        console.error("Failed to fetch user:", err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchUser();
-  }, [router]);
+  }, []);
 
   if (loading) return <p>Loading...</p>;
-  if (!user) return null; // just in case
+  if (!user) return <p>No user data available</p>;
 
   return (
     <div className="p-6">

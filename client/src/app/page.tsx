@@ -1,3 +1,4 @@
+// client/src/app/page.tsx
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import jwt from "jsonwebtoken";
@@ -10,22 +11,19 @@ export default async function HomePage() {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { role: string };
 
-    switch (decoded.role) {
-      case "super_admin":
-        redirect("/dashboard");
-      case "admin":
-        redirect("/admin");
-      case "teacher":
-        redirect("/teacher");
-      case "student":
-        redirect("/student");
-      case "hr":
-        redirect("/hr");
-      case "employee":
-        redirect("/employee");
-      default:
-        redirect("/dashboard");
-    }
+    // Map roles to their respective routes
+    const roleRouteMap: Record<string, string> = {
+      super_admin: "/dashboard",
+      admin: "/admin",
+      teacher: "/teacher",
+      student: "/student",
+      hr: "/hr",
+      employee: "/employee",
+    };
+
+    const redirectPath = roleRouteMap[decoded.role] || "/dashboard";
+    redirect(redirectPath);
+
   } catch {
     redirect("/login");
   }

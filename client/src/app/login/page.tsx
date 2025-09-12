@@ -1,5 +1,7 @@
-"use client";
+// client/src/app/login/page.tsx
 
+"use client";
+// Login page for user authentication
 import { useState } from "react";
 import axios, { AxiosError } from "axios";
 import { useRouter } from "next/navigation";
