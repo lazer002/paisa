@@ -1,4 +1,3 @@
-// src/app/login/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -14,8 +13,24 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post("/api/login", { email, password });
-      router.push("/dashboard"); // redirect after login
+      const res = await axios.post("/api/login", { email, password });
+
+      // 🔹 Extract role from response
+      const role = res.data.role as string;
+
+      // 🔹 Map roles to redirect paths
+      const roleRouteMap: Record<string, string> = {
+        super_admin: "/dashboard",
+        teacher: "/teacher/home",
+        student: "/student/home",
+        hr: "/hr/home",
+        employee: "/employee/home",
+      };
+
+      // 🔹 Redirect based on role (fallback to /dashboard)
+      const redirectPath = roleRouteMap[role] || "/dashboard";
+      router.push(redirectPath);
+
     } catch (err) {
       const axiosError = err as AxiosError<{ error: string }>;
       setError(axiosError.response?.data?.error || "Login failed");

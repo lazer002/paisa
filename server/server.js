@@ -2,7 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./src/config/db.js";
-
+import cookieParser from "cookie-parser";
 // Import routes
 import authRoutes from "./src/routes/auth.js";
 import instituteRoutes from "./src/routes/instituteRoutes.js";
@@ -13,8 +13,12 @@ import employeeRoutes from "./src/routes/employeeRoutes.js";
 dotenv.config();
 const app = express();
 
-// Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000", // frontend origin
+  credentials: true,
+}));
+
+app.use(cookieParser());
 app.use(express.json());
 
 // Routes

@@ -37,29 +37,41 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// ✅ Login
 router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const isMatch = await bcrypt.compare(password, user.passwordHash);
+  if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+
+  const token = jwt.sign(
+    { userId: user._id, role: user.role, instituteId: user.instituteId },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" }
+  );
+
+  // ✅ Return token in response (frontend API will set cookie)
+  res.json({ token, role: user.role, instituteId: user.instituteId });
+});
+
+
+
+router.get("/me", async (req, res) => {
+  // Get token from cookie or Authorization header
+  const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
+
+  if (!token) return res.status(401).json({ message: "Not authenticated" });
+
   try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
-
-    // Sign JWT with userId, role, and instituteId
-    const token = jwt.sign(
-      { userId: user._id, role: user.role, instituteId: user.instituteId },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    res.json({ token, role: user.role, instituteId: user.instituteId });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // remove ": any"
+    const user = await User.findById(decoded.userId).select("-passwordHash");
+    res.json(user); // return user info to frontend
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: err.message });
+    console.error("Error in /me route:", err);
+    res.status(401).json({ message: "Invalid token" });
   }
 });
+
 
 export default router;

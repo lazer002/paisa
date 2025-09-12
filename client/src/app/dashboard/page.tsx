@@ -1,46 +1,52 @@
-// src/app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
-// Define the expected User type
 interface User {
-  id: string;
-  name: string;
+  userId: string;
   role: string;
-  email?: string; // optional if your API sends it
+  instituteId?: string | null;
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    axios
-      .get("/api/me")
-      .then((res) => setUser(res.data.user as User)) // cast to User
-      .catch(() => router.push("/login"));
+    const fetchUser = async () => {
+      try {
+        const res = await axios.get("/api/me", { withCredentials: true });
+        console.log("Response from /api/me:", res);
+        const userData = res.data.user;
+
+        setUser(userData);
+
+        // Optional: Redirect by role if user lands on /dashboard
+        if (userData.role === "teacher") router.push("/teacher/home");
+        else if (userData.role === "student") router.push("/student/home");
+        // super_admin stays on /dashboard
+
+      } catch {
+        router.push("/login"); // token invalid or missing
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
   }, [router]);
 
-  const handleLogout = async () => {
-    await axios.post("/api/logout");
-    router.push("/login");
-  };
-
-  if (!user) return <p>Loading...</p>;
+  if (loading) return <p>Loading...</p>;
+  if (!user) return null; // just in case
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl">Welcome, {user.name} 👑</h1>
-      <p className="mb-4">Role: {user.role}</p>
-      <button
-        onClick={handleLogout}
-        className="bg-red-500 text-white px-4 py-2 rounded"
-      >
-        Logout
-      </button>
+      <h1 className="text-2xl font-bold">Welcome, {user.role}</h1>
+      <p>User ID: {user.userId}</p>
+      {user.instituteId && <p>Institute ID: {user.instituteId}</p>}
     </div>
   );
 }

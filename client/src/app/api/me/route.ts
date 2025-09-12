@@ -1,21 +1,21 @@
-// src/app/api/me/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
 export async function GET() {
-  const token = (await cookies()).get("token")?.value;
-
+  // ✅ Await cookies() to get the CookieStore
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  // console.log("Token in /api/me:", token);
+  // console.log("cookieStore:", cookieStore);
   if (!token) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
   try {
-    // 🔐 verify JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
     return NextResponse.json({ user: decoded });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 }
