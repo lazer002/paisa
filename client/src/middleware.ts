@@ -14,8 +14,7 @@ const roleRouteMap: Record<string, string> = {
 
 export function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
-  const role = req.cookies.get("role")?.value; // save role cookie on login
-
+  const role = req.cookies.get("role")?.value;
   const { pathname } = req.nextUrl;
 
   // 1️⃣ Redirect unauthenticated users to /login
@@ -26,21 +25,30 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2️⃣ Protect role-specific routes
-  if (role) {
-    for (const [r, prefix] of Object.entries(roleRouteMap)) {
-      if (pathname.startsWith(prefix) && role !== r) {
-        // redirect unauthorized role to its default page
-        const redirectPath = roleRouteMap[role] || "/";
-        return NextResponse.redirect(new URL(redirectPath, req.url));
-      }
+  // 2️⃣ Handle root "/" → send to role home
+  if (pathname === "/") {
+    if (role && roleRouteMap[role]) {
+      return NextResponse.redirect(new URL(roleRouteMap[role], req.url));
     }
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   // 3️⃣ Prevent logged-in users from visiting /login
   if (pathname === "/login") {
-    const redirectPath = role ? roleRouteMap[role] || "/" : "/";
-    return NextResponse.redirect(new URL(redirectPath, req.url));
+    if (role && roleRouteMap[role]) {
+      return NextResponse.redirect(new URL(roleRouteMap[role], req.url));
+    }
+    // fallback if token exists but role missing
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // 4️⃣ Protect role-specific routes
+  if (role) {
+    for (const [r, prefix] of Object.entries(roleRouteMap)) {
+      if (pathname.startsWith(prefix) && role !== r) {
+        return NextResponse.redirect(new URL(roleRouteMap[role], req.url));
+      }
+    }
   }
 
   return NextResponse.next();
