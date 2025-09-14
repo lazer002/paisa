@@ -8,17 +8,66 @@ import {
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 
-function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
+type PaginationProps = {
+  total: number
+  page: number
+    pageSize: number 
+  onPageChange: (page: number) => void
+  className?: string
+   children?: React.ReactNode 
+}
+
+function Pagination({
+  total,
+  page,
+  pageSize = 5,
+  onPageChange,
+  className,
+  children, // ✅ include children if you plan to use them
+}: PaginationProps) {
+  const totalPages = Math.ceil(total / pageSize)
+
   return (
     <nav
       role="navigation"
       aria-label="pagination"
       data-slot="pagination"
       className={cn("mx-auto flex w-full justify-center", className)}
-      {...props}
-    />
+    >
+      {children ? (
+        children
+      ) : (
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={() => page > 1 && onPageChange(page - 1)}
+            />
+          </PaginationItem>
+
+          {[...Array(totalPages)].map((_, i) => (
+            <PaginationItem key={i}>
+              <PaginationLink
+                isActive={page === i + 1}
+                onClick={() => onPageChange(i + 1)}
+                href="#"
+              >
+                {i + 1}
+              </PaginationLink>
+            </PaginationItem>
+          ))}
+
+          <PaginationItem>
+            <PaginationNext
+              onClick={() => page < totalPages && onPageChange(page + 1)}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      )}
+    </nav>
   )
 }
+
+
 
 function PaginationContent({
   className,
