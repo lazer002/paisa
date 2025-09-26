@@ -80,7 +80,7 @@ export default function ClassesPage() {
               }}
               className="max-w-sm pl-10"
             />
-            <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
+            {/* <Search className="absolute left-3 h-4 w-4 text-muted-foreground" /> */}
           </div>
 
           {/* Table */}
