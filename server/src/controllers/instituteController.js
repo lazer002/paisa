@@ -1,65 +1,102 @@
 import Institute from "../models/institute.js";
 import {User} from "../models/user.js";
-import { getNextSequence } from "../utils/sequence.js"; // 👈 import sequence helper
 
 // 👉 Create Institute
 export const createInstitute = async (req, res) => {
   try {
-    const { name, type, address, contactEmail, contactPhone, ownerId } = req.body;
+    const { name, type, address, contactEmail, contactPhone } = req.body;
 
-    // check if owner exists
-    const owner = await User.findById(ownerId);
-    if (!owner || owner.role !== "admin") {
-      return res.status(400).json({ message: "Invalid institute owner" });
+    // 🔒 Basic validation
+    if (!name || !type) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and type are required",
+      });
     }
 
-    // generate unique institute code
-    const seqNum = await getNextSequence("instituteId");
-    const instituteCode = `INST-${seqNum.toString().padStart(4, "0")}`;
+    // 🔒 Prevent admin from creating multiple institutes (optional rule)
+    if (req.user.role === "admin" && req.user.instituteId) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin already owns an institute",
+      });
+    }
 
+    // 🔥 Create institute (code auto-generated in schema)
     const institute = await Institute.create({
       name,
       type,
       address,
       contactEmail,
       contactPhone,
-      owner: owner._id,
-      instituteCode, // 👈 new field
+      owner: req.user._id,
     });
 
-    res.status(201).json({ message: "Institute created", institute });
+    await User.findByIdAndUpdate(req.user._id, {
+      instituteId: institute._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Institute created successfully",
+      data: institute,
+    });
   } catch (err) {
     console.error("Create institute error:", err);
-    res.status(500).json({ message: "Server error" });
+
+    // 🔥 Handle duplicate errors
+    if (err.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Institute already exists",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
 // 👉 Get all institutes
 export const getInstitutes = async (req, res) => {
   try {
-    const institutes = await Institute.find()
-      .populate("owner", "name email role")
-      .populate("teachers", "name email")
-      .populate("students", "name email");
+    let query = {};
 
-    res.json(institutes);
+    // 🔥 Admin sees only their institute
+    if (req.user.role === "admin") {
+      query.owner = req.user._id;
+    }
+
+    const institutes = await Institute.find(query);
+
+    res.json({
+      success: true,
+      data: institutes,
+    });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 // 👉 Get institute by ID
 export const getInstituteById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const institute = await Institute.findById(id)
-      .populate("owner", "name email role")
-      .populate("teachers", "name email")
-      .populate("students", "name email");
+    const institute = await Institute.findById(req.params.id);
 
-    if (!institute) return res.status(404).json({ message: "Not found" });
+    if (!institute) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
-    res.json(institute);
+    // 🔥 Admin can only access own institute
+    if (
+      req.user.role === "admin" &&
+      institute.owner.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    res.json({ success: true, data: institute });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
@@ -85,6 +122,11 @@ export const deleteInstitute = async (req, res) => {
   try {
     const { id } = req.params;
     await Institute.findByIdAndDelete(id);
+
+    if (!institute) {
+  return res.status(404).json({ message: "Not found" });
+}
+
     res.json({ message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Server error" });

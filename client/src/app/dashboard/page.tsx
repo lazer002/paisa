@@ -15,7 +15,7 @@ import {
   Activity
 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
-import { institutesAPI, usersAPI } from "@/lib/api";
+import API  from "@/lib/api/index";
 
 interface DashboardStats {
   institutes: number;
@@ -39,8 +39,8 @@ export default function DashboardPage() {
         
         // Fetch data based on user role
         const [institutesRes, usersRes] = await Promise.all([
-          institutesAPI.getInstitutes(),
-          usersAPI.getUsers()
+          API.institutes.getInstitutes(),
+          API.users.getUsers()
         ]);
 
         // Calculate stats

@@ -34,7 +34,8 @@ export const register = asyncHandler(async (req, res) => {
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  // Find user and include password for comparison
+
+
   const user = await User.findOne({ email }).select('+passwordHash');
   if (!user) {
     return sendError(res, 401, "Invalid credentials");

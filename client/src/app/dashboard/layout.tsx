@@ -70,7 +70,7 @@ export default function DashboardLayout({
         )}
       >
         {/* Logo / Collapse */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <div className={`flex items-center ${!collapsed ? "justify-between" : "justify-center"} p-4 border-b border-gray-800`}>
           <span className={cn("font-bold text-xl", collapsed && "hidden")}>
             Admin Panel
           </span>
@@ -93,7 +93,7 @@ export default function DashboardLayout({
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-2 rounded-lg transition-colors",
+                      "flex items-center gap-3 px-5 py-2 rounded-lg transition-colors",
                       active
                         ? "bg-gray-800 text-white"
                         : "text-gray-400 hover:bg-gray-800 hover:text-white"

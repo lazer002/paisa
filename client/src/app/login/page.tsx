@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
-import { authAPI } from "@/lib/api";
+import * as authAPI from "@/lib/api/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,36 +21,40 @@ export default function LoginPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
+  setLoading(true);
 
-    try {
-      const response = await authAPI.login(formData.email, formData.password);
-      
-      if (response.success) {
-        login(response.data.user, response.data.token);
-        
-        // Redirect based on role
-        const roleRouteMap: Record<string, string> = {
-          super_admin: "/dashboard",
-          admin: "/dashboard",
-          teacher: "/teacher",
-          student: "/student", 
-          hr: "/hr",
-          employee: "/employee",
-        };
+  try {
+ const res = await authAPI.login(formData);
 
-        const redirectPath = roleRouteMap[response.data.user.role] || "/dashboard";
-        router.push(redirectPath);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const user = res.data.user;
+
+  login(user);
+
+    const roleRouteMap: Record<string, string> = {
+      super_admin: "/dashboard",
+      admin: "/dashboard",
+      teacher: "/teacher",
+      student: "/student",
+      hr: "/hr",
+      employee: "/employee",
+    };
+
+    const redirectPath = roleRouteMap[user.role] || "/dashboard";
+    router.push(redirectPath);
+
+  } catch (err: any) {
+setError(
+  err?.response?.data?.message || 
+  err?.message || 
+  "Login failed. Please try again."
+);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -60,7 +64,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mb-4">

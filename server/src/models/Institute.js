@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import { getNextSequence } from "../utils/sequence.js"; // 🔑 helper for sequential IDs
+import { getNextSequence } from "../utils/sequence.js";
 
 const instituteSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
 
     type: {
       type: String,
@@ -11,51 +11,48 @@ const instituteSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🔑 Unique Institute Code
-    instituteCode: { type: String, unique: true },
+    orgCode: { type: String, unique: true },
 
-    address: { type: String },
-    contactEmail: { type: String },
-    contactPhone: { type: String },
+    address: String,
+    contactEmail: { type: String, lowercase: true },
+    contactPhone: String,
 
-    // 👤 The owner (main admin / institute owner)
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-
-    // 🏫 Educational roles
-    teachers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
-    // 🏢 Company roles
-    employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    hrManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
-    // 🔧 Dynamic meta (only required fields per type)
-    meta: {
-      industry: { type: String },        // company
-      registrationNo: { type: String },  // company
-      board: { type: String },           // school/college
-      affiliationNo: { type: String },   // school/college
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
 
-    // ✅ Active / Inactive
-    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    meta: {
+      industry: String,
+      registrationNo: String,
+      board: String,
+      affiliationNo: String,
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
   },
   { timestamps: true }
 );
 
-// 🎯 Auto-generate instituteCode like INST-0001, INST-0002
+// 🔥 indexes
+instituteSchema.index({ owner: 1 });
+instituteSchema.index({ type: 1 });
+
+// 🎯 Auto code
 instituteSchema.pre("save", async function (next) {
-  if (this.isNew && !this.instituteCode) {
+  if (this.isNew && !this.orgCode) {
     const seq = await getNextSequence("Institute");
-    this.instituteCode = `INST-${String(seq).padStart(4, "0")}`;
+    this.orgCode = `ORG-${String(seq).padStart(4, "0")}`;
   }
   next();
 });
 
-// 🧩 Auto-population middleware (optional)
-instituteSchema.pre(/^find/, function (next) {
-  this.populate("owner", "name email role");
-  next();
-});
-
-export default mongoose.model("Institute", instituteSchema);
+// ✅ FIX overwrite error
+export default mongoose.models.Institute ||
+  mongoose.model("Institute", instituteSchema);
