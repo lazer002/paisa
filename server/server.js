@@ -7,7 +7,7 @@ import { globalErrorHandler } from "./src/utils/errorHandler.js";
 
 // Import routes
 import authRoutes from "./src/routes/auth.js";
-import instituteRoutes from "./src/routes/instituteRoutes.js";
+import organization from "./src/routes/organizationRoutes.js"; // renamed from instituteRoutes
 import userRoutes from "./src/routes/userRoutes.js";
 import hrRoutes from "./src/routes/hrRoutes.js";            
 import employeeRoutes from "./src/routes/employeeRoutes.js";
@@ -39,7 +39,7 @@ app.get("/health", (req, res) => {
 
 // API Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/institutes", instituteRoutes);
+app.use("/api/organizations", organization);
 app.use("/api/users", userRoutes);
 app.use("/api/hr", hrRoutes);
 app.use("/api/employees", employeeRoutes);

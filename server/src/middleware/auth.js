@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { User, RolePermissions } from "../models/user.js";
-import Institute from "../models/Institute.js";
+import Institute from "../models/organization.js";
 
 //
 // 🔐 AUTH MIDDLEWARE

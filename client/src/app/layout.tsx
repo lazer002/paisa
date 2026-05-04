@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 const bodyClass = `${geistSans.variable} ${geistMono.variable} antialiased`;
 
 export const metadata: Metadata = {
-  title: "Paisa ERP",
+  title: "...",
   description: "Manage institutes, employees, and HR in one platform",
 };
 

@@ -28,6 +28,7 @@ import axios from "axios";
 
 const sidebarItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Organizations", href: "/dashboard/organization", icon: Building2 },
   { name: "Institutes", href: "/dashboard/institutes", icon: School },
   { name: "Companies", href: "/dashboard/companies", icon: Building2 },
   { name: "Users", href: "/dashboard/users", icon: Users },

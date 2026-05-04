@@ -1,3 +1,5 @@
+// policies.js
+
 import { authMiddleware, allowRoles, authorize } from "./auth.js";
 import { allowDomains } from "./domain.js";
 
@@ -19,11 +21,11 @@ export const companyDomain = [
   allowDomains("company"),
 ];
 
-// 🔹 institute management (education only)
-export const manageInstitutes = withAuth(
+// 🔹 organization management (education only)
+export const manageOrganizations = withAuth(
   allowRoles("admin", "super_admin"),
   allowDomains("school", "college", "coaching"),
-  authorize("manage_institutes")
+  authorize("manage_organizations")
 );
 
 // 🔹 company management
@@ -36,5 +38,5 @@ export const manageCompany = withAuth(
 // 🔹 super admin only
 export const superAdminOnly = withAuth(
   allowRoles("super_admin"),
-  authorize("manage_institutes")
+  authorize("manage_organizations")
 );

@@ -1,388 +1,384 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+
+import { API } from "@/lib/api";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pagination } from "@/components/ui/pagination";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/dashboard/page-header";
-import { SearchBar } from "@/components/dashboard/search-bar";
-import { DataTable } from "@/components/dashboard/data-table";
-import { StatsCard } from "@/components/dashboard/stats-card";
-import { 
-  UserPlus, 
-  Users, 
-  UserCheck, 
-  UserX, 
-  Shield,
-  Mail,
-  Phone,
-  Calendar,
-  Activity
-} from "lucide-react";
-import { usersAPI } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: "active" | "inactive";
-  userCode: string;
-  profile?: {
-    phone?: string;
-    address?: string;
-    avatarUrl?: string;
-  };
-  createdAt: string;
-  lastLogin?: string;
-}
+import { Pencil, Trash2 } from "lucide-react";
 
 export default function UsersPage() {
-  const { user } = useAuthStore();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Form state
-  const [form, setForm] = useState({
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+
+  const [newUser, setNewUser] = useState({
     name: "",
     email: "",
-    role: "employee",
-    status: "active" as "active" | "inactive",
     password: "",
+    role: "student",
   });
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 10;
-
-  // Stats state
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    inactive: 0,
-    admins: 0,
+  // 🔹 Fetch users
+  const { data, isLoading } = useQuery({
+    queryKey: ["users"],
+    queryFn: API.users.getUsers,
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, [currentPage, search]);
+  const users = data?.data || [];
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await usersAPI.getUsers({
-        page: currentPage,
-        limit: pageSize,
-        search: search || undefined
+  // 🔹 Create
+  const createMutation = useMutation({
+    mutationFn: API.users.createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setOpen(false);
+      setNewUser({
+        name: "",
+        email: "",
+        password: "",
+        role: "student",
       });
+    },
+  });
 
-      if (response.success) {
-        const usersData = response.data.users || [];
-        setUsers(usersData);
-        setTotalPages(Math.ceil((response.data.total || 0) / pageSize));
-        
-        // Calculate stats
-        setStats({
-          total: usersData.length,
-          active: usersData.filter(u => u.status === 'active').length,
-          inactive: usersData.filter(u => u.status === 'inactive').length,
-          admins: usersData.filter(u => u.role === 'admin' || u.role === 'super_admin').length,
-        });
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to fetch users");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 🔹 Update
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: any) =>
+      API.users.updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setEditOpen(false);
+      setEditingUser(null);
+    },
+  });
 
-  const handleEdit = (user: User) => {
-    setSelectedUser(user);
-    setForm({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      password: "",
-    });
-    setOpenDialog(true);
-  };
+  // 🔹 Delete
+  const deleteMutation = useMutation({
+    mutationFn: API.users.deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
 
-  const handleAdd = () => {
-    setSelectedUser(null);
-    setForm({
-      name: "",
-      email: "",
-      role: "employee",
-      status: "active",
-      password: "",
-    });
-    setOpenDialog(true);
-  };
+  // 🔹 Filter
+  const filteredUsers = users.filter((u: any) =>
+    [u.name, u.email]
+      .join(" ")
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.email || !form.role) return;
-
-    try {
-      setActionLoading(true);
-      setError(null);
-
-      if (selectedUser) {
-        // Update existing user
-        const response = await usersAPI.updateUser(selectedUser._id, {
-          name: form.name,
-          email: form.email,
-          role: form.role,
-          status: form.status,
-        });
-
-        if (response.success) {
-          await fetchUsers();
-          setOpenDialog(false);
-        }
-      } else {
-        // Create new user
-        const response = await usersAPI.createUser({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          role: form.role,
-          status: form.status,
-        });
-
-        if (response.success) {
-          await fetchUsers();
-          setOpenDialog(false);
-        }
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to save user");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDelete = async (user: User) => {
-    if (!confirm(`Are you sure you want to delete ${user.name}?`)) return;
-
-    try {
-      setActionLoading(true);
-      const response = await usersAPI.deleteUser(user._id);
-      
-      if (response.success) {
-        await fetchUsers();
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to delete user");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const columns = [
-    { key: 'avatar', label: 'User', sortable: false },
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'role', label: 'Role', sortable: true },
-    { key: 'status', label: 'Status', sortable: true },
-    { key: 'userCode', label: 'User Code', sortable: true },
-    { key: 'createdAt', label: 'Created', sortable: true },
-  ];
+  // 🔹 Loading
+  if (isLoading) {
+    return (
+      <div className="p-8 text-muted-foreground">
+        Loading users...
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <PageHeader
-        title="Users"
-        description="Manage system users and their permissions"
-        badge={{ text: `${stats.total} total`, variant: "secondary" }}
-        action={{
-          label: "Add User",
-          onClick: handleAdd,
-          icon: <UserPlus className="w-4 h-4" />,
-        }}
-      />
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total Users"
-          value={stats.total}
-          icon={Users}
-          iconColor="text-blue-500"
-          change={{ value: "+12", type: "positive" }}
-        />
-        <StatsCard
-          title="Active Users"
-          value={stats.active}
-          icon={UserCheck}
-          iconColor="text-green-500"
-          change={{ value: "+8", type: "positive" }}
-        />
-        <StatsCard
-          title="Inactive Users"
-          value={stats.inactive}
-          icon={UserX}
-          iconColor="text-red-500"
-          change={{ value: "+2", type: "negative" }}
-        />
-        <StatsCard
-          title="Administrators"
-          value={stats.admins}
-          icon={Shield}
-          iconColor="text-purple-500"
-          change={{ value: "+1", type: "positive" }}
-        />
+    <div className="p-8 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Users</h1>
+        <Button onClick={() => setOpen(true)}>+ Add User</Button>
       </div>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Search and Filters */}
-      <div className="flex items-center justify-between">
-        <SearchBar
-          placeholder="Search users by name, email, or role..."
-          value={search}
-          onChange={setSearch}
-          showFilter={true}
-          onFilter={() => console.log('Filter clicked')}
-        />
-        
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Activity className="w-4 h-4" />
-          <span>Last updated: {new Date().toLocaleTimeString()}</span>
-        </div>
-      </div>
-
-      {/* Data Table */}
-      <DataTable
-        data={users}
-        columns={columns}
-        loading={loading}
-        error={error}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onView={(user) => console.log('View user:', user)}
+      {/* Search */}
+      <Input
+        placeholder="Search users..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="max-w-sm"
       />
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center">
-          <Pagination
-            total={totalPages}
-            page={currentPage}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-          />
-        </div>
-      )}
+      {/* Table */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Code</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="sm:max-w-md">
+        <TableBody>
+          {filteredUsers.map((u: any) => (
+            <TableRow key={u._id}>
+              <TableCell className="font-mono text-xs text-muted-foreground">
+                {u.userCode}
+              </TableCell>
+
+              <TableCell className="font-medium">
+                {u.name}
+              </TableCell>
+
+              <TableCell>{u.email}</TableCell>
+
+              <TableCell>
+                <Badge variant="outline" className="capitalize">
+                  {u.role.replace("_", " ")}
+                </Badge>
+              </TableCell>
+
+              <TableCell>
+                <Badge
+                  variant={
+                    u.status === "active"
+                      ? "default"
+                      : "destructive"
+                  }
+                  className="capitalize"
+                >
+                  {u.status}
+                </Badge>
+              </TableCell>
+
+              {/* Actions */}
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  {/* Edit */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingUser(
+                        JSON.parse(JSON.stringify(u))
+                      );
+                      setEditOpen(true);
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </Button>
+
+                  {/* Delete */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-red-600"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      if (!confirm("Delete user?")) return;
+                      deleteMutation.mutate(u._id);
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+
+          {/* Empty state */}
+          {filteredUsers.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={6}
+                className="text-center py-6 text-muted-foreground"
+              >
+                No users found
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      {/* CREATE */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {selectedUser ? "Edit User" : "Add New User"}
-            </DialogTitle>
+            <DialogTitle>Add User</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Full Name</label>
+          <div className="space-y-4">
+            <Input
+              placeholder="Name"
+              value={newUser.name}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  name: e.target.value,
+                })
+              }
+            />
+
+            <Input
+              placeholder="Email"
+              value={newUser.email}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  email: e.target.value,
+                })
+              }
+            />
+
+            <Input
+              placeholder="Password"
+              type="password"
+              value={newUser.password}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  password: e.target.value,
+                })
+              }
+            />
+
+            {/* Role */}
+            <Select
+              value={newUser.role}
+              onValueChange={(value) =>
+                setNewUser({ ...newUser, role: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value="teacher">Teacher</SelectItem>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="hr">HR</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setOpen(false)}>Cancel</Button>
+
+            <Button
+              onClick={() => createMutation.mutate(newUser)}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending
+                ? "Creating..."
+                : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT */}
+      <Dialog
+        open={editOpen}
+        onOpenChange={(val) => {
+          setEditOpen(val);
+          if (!val) setEditingUser(null);
+        }}
+      >
+        {editingUser && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
               <Input
-                placeholder="Enter full name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
+                value={editingUser.name}
+                onChange={(e) =>
+                  setEditingUser({
+                    ...editingUser,
+                    name: e.target.value,
+                  })
+                }
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
               <Input
-                type="email"
-                placeholder="Enter email address"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
+                value={editingUser.email}
+                onChange={(e) =>
+                  setEditingUser({
+                    ...editingUser,
+                    email: e.target.value,
+                  })
+                }
               />
-            </div>
 
-            {!selectedUser && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Password</label>
-                <Input
-                  type="password"
-                  placeholder="Enter password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  required
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full p-2 border rounded-md"
-                required
+              {/* Status */}
+              <Select
+                value={editingUser.status}
+                onValueChange={(value) =>
+                  setEditingUser({
+                    ...editingUser,
+                    status: value,
+                  })
+                }
               >
-                <option value="employee">Employee</option>
-                <option value="hr">HR Manager</option>
-                <option value="admin">Admin</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-            </div>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as "active" | "inactive" })}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                <SelectContent>
+                  <SelectItem value="active">
+                    Active
+                  </SelectItem>
+                  <SelectItem value="inactive">
+                    Inactive
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpenDialog(false)}>
+              <Button onClick={() => setEditOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    {selectedUser ? "Updating..." : "Creating..."}
-                  </>
-                ) : (
-                  selectedUser ? "Update User" : "Create User"
-                )}
+
+              <Button
+                onClick={() =>
+                  updateMutation.mutate({
+                    id: editingUser._id,
+                    data: editingUser,
+                  })
+                }
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending
+                  ? "Saving..."
+                  : "Save"}
               </Button>
             </DialogFooter>
-          </form>
-        </DialogContent>
+          </DialogContent>
+        )}
       </Dialog>
     </div>
   );

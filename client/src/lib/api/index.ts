@@ -1,7 +1,7 @@
-import { instituteAPI } from "./institute";
+import { organizationAPI } from "./organization";
 import { userAPI } from "./user";
 
 export const API = {
-  institutes: instituteAPI,
+  organizations: organizationAPI,
   users: userAPI,
 };
