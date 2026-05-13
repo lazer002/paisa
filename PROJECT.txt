@@ -1,0 +1,914 @@
+================================================================================
+  PAISA — Multi-Tenant Education & Organization Management SaaS Platform
+================================================================================
+  Full-stack SaaS application for schools, colleges, coaching institutes,
+  companies, and startups. Combines ERP + HRMS + LMS into one platform.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+  TABLE OF CONTENTS
+────────────────────────────────────────────────────────────────────────────────
+
+  1.  Project Overview
+  2.  Technology Stack
+  3.  Directory Structure
+  4.  Environment Variables
+  5.  Roles & Permissions
+  6.  Authentication & Sessions
+  7.  Multi-Tenancy Architecture
+  8.  Backend — API Reference
+  9.  Database Models
+  10. Frontend — Pages & Routes
+  11. Security Implementation
+  12. Permission Matrix (Full)
+  13. Data Flow & Request Lifecycle
+  14. Known Limitations
+
+
+════════════════════════════════════════════════════════════════════════════════
+  1. PROJECT OVERVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+Paisa is a multi-tenant SaaS platform where multiple independent organizations
+(schools, colleges, companies, etc.) can sign up and manage their operations.
+
+Each organization operates in complete isolation — users, classes, attendance,
+payroll, and all data are scoped to that organization only.
+
+Key modules:
+  - User & Role Management      (super_admin, admin, teacher, student, hr, employee)
+  - Class & Subject Management  (create classes, enroll students, assign teachers)
+  - Assignment & Submission     (create, submit, grade, feedback)
+  - Attendance Tracking         (mark per class/date, view personal history)
+  - Study Materials             (upload PDFs, videos, links per class)
+  - Announcements               (role-targeted notices with expiry)
+  - Leave Management            (apply, approve, reject with audit trail)
+  - Payroll / Payslips          (process salary, allowances, deductions)
+  - Department Management       (HR structure for companies)
+  - Billing (admin)             (subscription plan display, invoice history)
+  - Reports (HR)                (payroll trends, leave breakdown, dept overview)
+  - Statistics Dashboards       (role-specific stats via a single /stats endpoint)
+
+
+════════════════════════════════════════════════════════════════════════════════
+  2. TECHNOLOGY STACK
+════════════════════════════════════════════════════════════════════════════════
+
+  FRONTEND
+  ─────────────────────────────────────────────────────
+  Framework       Next.js 15 (App Router)
+  Language        TypeScript
+  Styling         Tailwind CSS v4
+  UI Components   Shadcn/ui (Radix UI primitives)
+  State           Zustand (with localStorage persistence)
+  Server State    TanStack React Query v5
+  HTTP Client     Axios (withCredentials: true)
+  Auth Guard      Next.js Middleware (Edge Runtime) + jose JWT verification
+  Icons           Lucide React
+
+  BACKEND
+  ─────────────────────────────────────────────────────
+  Runtime         Node.js (ES Modules)
+  Framework       Express.js 5
+  Database        MongoDB (via Mongoose 8)
+  Auth            JWT in httpOnly cookies + Bearer header fallback
+  Password Hash   bcryptjs (12 rounds)
+  Rate Limiting   express-rate-limit
+  Validation      Joi schemas (via validate() middleware)
+  Error Handling  asyncHandler wrapper + centralized AppError
+
+  INFRASTRUCTURE
+  ─────────────────────────────────────────────────────
+  Database Host   MongoDB Atlas
+  Dev Server      Node (server) + Next.js dev (client) — both local
+
+
+════════════════════════════════════════════════════════════════════════════════
+  3. DIRECTORY STRUCTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  paisa/
+  ├── client/                         Next.js frontend
+  │   ├── src/
+  │   │   ├── app/                    App Router pages (per role)
+  │   │   │   ├── login/              Public login page
+  │   │   │   ├── dashboard/          Super Admin dashboard
+  │   │   │   ├── admin/              Admin dashboard + sub-pages
+  │   │   │   ├── teacher/            Teacher dashboard + sub-pages
+  │   │   │   ├── student/            Student dashboard + sub-pages
+  │   │   │   ├── hr/                 HR dashboard + sub-pages
+  │   │   │   └── employee/           Employee dashboard + sub-pages
+  │   │   ├── components/
+  │   │   │   └── ui/                 Shadcn components (Button, Card, etc.)
+  │   │   ├── lib/
+  │   │   │   ├── api/                Axios API client modules (one per resource)
+  │   │   │   │   ├── axios.ts        Base axios instance (baseURL, interceptors)
+  │   │   │   │   ├── index.ts        Barrel export — API object
+  │   │   │   │   ├── user.ts
+  │   │   │   │   ├── classes.ts
+  │   │   │   │   ├── assignments.ts
+  │   │   │   │   ├── submissions.ts
+  │   │   │   │   ├── attendance.ts
+  │   │   │   │   ├── leaves.ts
+  │   │   │   │   ├── payroll.ts
+  │   │   │   │   ├── announcements.ts
+  │   │   │   │   ├── departments.ts
+  │   │   │   │   ├── stats.ts
+  │   │   │   │   ├── studyMaterials.ts
+  │   │   │   │   ├── organization.ts
+  │   │   │   │   └── institute.ts
+  │   │   │   ├── store.ts            Zustand auth store
+  │   │   │   ├── permissions.ts      Role capability matrix + can() helper
+  │   │   │   └── utils.ts            Tailwind cn() helper
+  │   │   └── middleware.ts           Route guard (JWT verify + role-based redirect)
+  │   ├── .env                        NEXT_PUBLIC_API_URL, JWT_SECRET
+  │   └── package.json
+  │
+  └── server/                         Express.js backend
+      ├── server.js                   Entry point, routes mounted here
+      ├── src/
+      │   ├── controllers/            Business logic (one file per resource)
+      │   │   ├── authController.js
+      │   │   ├── userController.js
+      │   │   ├── classController.js
+      │   │   ├── assignmentController.js
+      │   │   ├── submissionController.js
+      │   │   ├── attendanceController.js
+      │   │   ├── leaveController.js
+      │   │   ├── payrollController.js
+      │   │   ├── announcementController.js
+      │   │   ├── departmentController.js
+      │   │   ├── studyMaterialController.js
+      │   │   ├── statsController.js
+      │   │   └── organizationController.js
+      │   ├── routes/                 Express routers
+      │   │   ├── auth.js             (rate-limited)
+      │   │   ├── userRoutes.js
+      │   │   ├── classRoutes.js
+      │   │   ├── assignmentRoutes.js
+      │   │   ├── submissionRoutes.js
+      │   │   ├── attendanceRoutes.js
+      │   │   ├── leaveRoutes.js
+      │   │   ├── payrollRoutes.js
+      │   │   ├── announcementRoutes.js
+      │   │   ├── departmentRoutes.js
+      │   │   ├── studyMaterialRoutes.js
+      │   │   ├── statsRoutes.js
+      │   │   └── organizationRoutes.js
+      │   ├── middleware/
+      │   │   ├── auth.js             authMiddleware, allowRoles, authorize
+      │   │   ├── policies.js         Combined domain + role policies
+      │   │   ├── domain.js           allowDomains() — school vs company
+      │   │   └── ownership.js        checkOwnership() — resource ownership
+      │   ├── models/                 Mongoose schemas
+      │   │   ├── user.js
+      │   │   ├── organization.js
+      │   │   ├── Class.js
+      │   │   ├── Assignment.js
+      │   │   ├── Submission.js
+      │   │   ├── Attendance.js
+      │   │   ├── Leave.js
+      │   │   ├── Payroll.js
+      │   │   ├── Announcement.js
+      │   │   ├── Department.js
+      │   │   └── StudyMaterial.js
+      │   └── utils/
+      │       ├── errorHandler.js     asyncHandler + AppError class
+      │       ├── response.js         sendSuccess, sendError, sendForbidden, etc.
+      │       ├── validation.js       Joi schemas + validate() middleware
+      │       └── sequence.js         Auto-increment for userCode generation
+      ├── .env                        MONGO_URI, JWT_SECRET, JWT_EXPIRES_IN
+      └── package.json
+
+
+════════════════════════════════════════════════════════════════════════════════
+  4. ENVIRONMENT VARIABLES
+════════════════════════════════════════════════════════════════════════════════
+
+  server/.env
+  ───────────────────────────────────────────────────────────
+  MONGO_URI         MongoDB Atlas connection string
+  JWT_SECRET        Secret for signing/verifying JWT tokens (keep private)
+  JWT_EXPIRES_IN    Token lifetime (default: 7d)
+  PORT              Server port (default: 5000)
+  NODE_ENV          development | production
+
+  client/.env
+  ───────────────────────────────────────────────────────────
+  NEXT_PUBLIC_API_URL   Backend API base URL (e.g. http://localhost:5000/api)
+  JWT_SECRET            Same value as server JWT_SECRET
+                        (used by Next.js Edge middleware to verify tokens;
+                         NOT exposed to the browser — server-side only)
+
+  IMPORTANT: JWT_SECRET must be identical in both .env files.
+  Never prefix JWT_SECRET with NEXT_PUBLIC_ — that would expose it to browsers.
+
+
+════════════════════════════════════════════════════════════════════════════════
+  5. ROLES & PERMISSIONS
+════════════════════════════════════════════════════════════════════════════════
+
+  The platform has 6 roles arranged in a strict hierarchy.
+  Higher roles can manage lower roles. No role can escalate itself.
+
+  ┌──────────────┬─────────────────────────────────────────────────────────┐
+  │ Role         │ Description                                             │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ super_admin  │ Platform owner. Full access to everything across all    │
+  │              │ organizations. Can create admin accounts. Bypasses all  │
+  │              │ institute/tenant checks.                                │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ admin        │ Organization owner/manager. Full control within their   │
+  │              │ institute only. Can create teachers, students, hr,      │
+  │              │ employees. Cannot create other admins.                  │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ teacher      │ Can manage their own classes, create assignments for    │
+  │              │ their classes, mark attendance, upload study materials, │
+  │              │ and grade student submissions.                          │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ student      │ Read-only access to enrolled classes, published         │
+  │              │ assignments, study materials. Can submit assignments     │
+  │              │ and view their own attendance.                          │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ hr           │ Manages payroll (create, process, mark paid), leave     │
+  │              │ requests (approve/reject), and departments. Cannot       │
+  │              │ manage academic data (classes, assignments).            │
+  ├──────────────┼─────────────────────────────────────────────────────────┤
+  │ employee     │ Can view their own payslips, apply for leave, view      │
+  │              │ announcements, and update their profile. No management  │
+  │              │ capabilities.                                           │
+  └──────────────┴─────────────────────────────────────────────────────────┘
+
+  Role Hierarchy (lowest → highest power):
+    employee → student → hr → teacher → admin → super_admin
+
+  Role Creation Rules:
+    super_admin  →  can create: super_admin, admin, teacher, student, hr, employee
+    admin        →  can create: teacher, student, hr, employee
+    teacher/student/hr/employee  →  cannot create any users
+
+  Organization Type vs Allowed Roles:
+    school / college / coaching  →  admin, teacher, student
+    company / startup            →  admin, hr, employee
+
+
+════════════════════════════════════════════════════════════════════════════════
+  6. AUTHENTICATION & SESSIONS
+════════════════════════════════════════════════════════════════════════════════
+
+  LOGIN FLOW
+  ──────────────────────────────────────────────────────────────
+  1. User submits email + password to POST /api/auth/login
+  2. Rate limiter checks: max 10 requests per 15 minutes per IP
+  3. User is found by email (case-insensitive)
+  4. Account lockout check: if lockedUntil > now → reject with countdown
+  5. Account status check: must be "active"
+  6. bcrypt.compare() verifies password (12-round hash)
+  7. On failure: failedAttempts++ → at 5 failures → lock for 30 minutes
+  8. On success: failedAttempts=0, lockedUntil=null, lastLogin=now
+  9. JWT signed with: { id, role, email } — 7 day expiry
+  10. Token stored in httpOnly cookie (sameSite: strict in production)
+  11. Token also returned in response body (for clients without cookie support)
+  12. Frontend stores user object in Zustand (persisted to localStorage)
+  13. Middleware reads token → verifies with jose (signature check) → redirects
+
+  LOGOUT FLOW
+  ──────────────────────────────────────────────────────────────
+  1. POST /api/auth/logout → clears the httpOnly cookie
+  2. Frontend calls logout() → clears Zustand store + localStorage
+
+  ROUTE PROTECTION
+  ──────────────────────────────────────────────────────────────
+  Backend:
+    Every protected route uses authMiddleware first:
+      - Reads token from cookie OR Authorization: Bearer header
+      - jwt.verify() checks signature and expiry
+      - Loads user from DB (checks status: active)
+      - Attaches req.user = { _id, name, email, role, status, instituteId, ... }
+    Then allowRoles(...) checks if req.user.role is permitted
+
+  Frontend (Next.js Middleware — Edge Runtime):
+    - Runs before every request to protected routes
+    - Reads token cookie → jwtVerify() with jose (real signature check)
+    - Forged tokens are rejected (not just decoded, but verified)
+    - Redirects to /login if no token or invalid token
+    - Redirects to role-home if trying to access wrong role's section
+    - Clears cookie if token is invalid
+
+  JWT Payload:
+    { id: string, role: string, email: string, iat: number, exp: number }
+
+  Token Expiry:
+    7 days. No automatic refresh. On expiry, user is redirected to /login.
+
+
+════════════════════════════════════════════════════════════════════════════════
+  7. MULTI-TENANCY ARCHITECTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  Every user (except super_admin) belongs to exactly one Organization via
+  the `instituteId` field on the User model.
+
+  DATA ISOLATION PATTERN (applied in every controller):
+  ──────────────────────────────────────────────────────────────
+
+    if (req.user.role !== "super_admin") {
+      query.instituteId = req.user.instituteId;
+    }
+
+  This ensures:
+    - Admin A cannot see, edit, or delete data from Organization B
+    - A teacher from Institute A cannot see students from Institute B
+    - HR from Company X cannot access payroll of Company Y
+
+  SUPER_ADMIN BYPASS:
+    super_admin skips the instituteId filter and can query all data globally.
+    It also bypasses all allowRoles() and authorize() checks.
+
+  ORGANIZATION TYPES:
+    Organizations have a `type` field that determines which roles are allowed:
+      school / college / coaching  →  academic roles (teacher, student)
+      company                      →  business roles (hr, employee)
+
+    The User model's pre-save hook validates this on user creation.
+
+  USER → ORGANIZATION LINKING:
+    When a user is created, they are:
+    1. Assigned instituteId from the creator's instituteId
+    2. Added to the relevant array on the Organization document
+       (teachers[], students[], employees[], hrManagers[])
+
+
+════════════════════════════════════════════════════════════════════════════════
+  8. BACKEND — API REFERENCE
+════════════════════════════════════════════════════════════════════════════════
+
+  Base URL: http://localhost:5000/api
+
+  All protected routes require:
+    Cookie: token=<jwt>   OR   Authorization: Bearer <jwt>
+
+  Response format (always JSON):
+    { success: true, message: "...", data: {...} }       — success
+    { success: false, message: "..." }                   — error
+
+  ── AUTH (/api/auth) ─────────────────────────────────────────────────────────
+  POST   /auth/register          Create account (rate: 5/hr)
+  POST   /auth/login             Login (rate: 10/15min)
+  POST   /auth/logout            Clear cookie [protected]
+  GET    /auth/me                Get current user profile [protected]
+  PUT    /auth/profile           Update own name/phone/address [protected]
+
+  ── USERS (/api/users) ───────────────────────────────────────────────────────
+  GET    /users                  List users [super_admin, admin]
+                                   Query: ?role=teacher&status=active&search=
+  POST   /users                  Create user [super_admin, admin]
+  GET    /users/:id              Get user by ID [super_admin, admin]
+  PUT    /users/:id              Update user [super_admin, admin]
+                                   Admin: name, profile, status only
+                                   Super_admin: + role, email, instituteId
+  DELETE /users/:id              Deactivate user (soft delete) [super_admin]
+
+  ── ORGANIZATIONS (/api/organizations) ───────────────────────────────────────
+  GET    /organizations          List organizations
+  POST   /organizations          Create organization
+  GET    /organizations/:id      Get by ID or slug
+  PUT    /organizations/:id      Update [owner or super_admin]
+  DELETE /organizations/:id      Soft delete [owner or super_admin]
+
+  ── CLASSES (/api/classes) ───────────────────────────────────────────────────
+  GET    /classes                List [all roles] — scoped by role
+                                   teacher: only their classes
+                                   student: only enrolled classes
+  POST   /classes                Create [super_admin, admin, teacher]
+                                   teacher: always assigned to themselves
+  GET    /classes/:id            Get with students populated [all roles]
+  PUT    /classes/:id            Update [super_admin, admin, teacher-own-only]
+  DELETE /classes/:id            Delete [super_admin, admin]
+  POST   /classes/:id/enroll     Enroll student [super_admin, admin]
+  DELETE /classes/:id/students/:studentId  Remove student [super_admin, admin]
+
+  ── ASSIGNMENTS (/api/assignments) ───────────────────────────────────────────
+  GET    /assignments            List — scoped by role
+                                   teacher: only their assignments
+                                   student: only published in enrolled classes
+  POST   /assignments            Create [super_admin, admin, teacher]
+                                   teacher: must own the class
+  GET    /assignments/:id        Get single
+  PUT    /assignments/:id        Update [super_admin, admin, teacher-own-only]
+  DELETE /assignments/:id        Delete [super_admin, admin, teacher-own-only]
+
+  ── SUBMISSIONS (/api/submissions) ───────────────────────────────────────────
+  GET    /submissions            List — scoped by role
+                                   student: own submissions only
+                                   teacher: submissions for own assignments only
+  POST   /submissions            Submit assignment [student only]
+                                   Must be enrolled; cannot resubmit graded work
+  GET    /submissions/:id        Get single submission
+  PUT    /submissions/:id/grade  Grade submission [super_admin, admin, teacher]
+                                   teacher: must own the assignment
+
+  ── ATTENDANCE (/api/attendance) ─────────────────────────────────────────────
+  GET    /attendance/me          Own attendance + summary [all roles]
+  GET    /attendance             All records [super_admin, admin, teacher, hr]
+                                   Query: ?classId=&date=&month=&year=
+  POST   /attendance             Mark attendance (bulk) [super_admin, admin, teacher]
+
+  ── STUDY MATERIALS (/api/study-materials) ───────────────────────────────────
+  GET    /study-materials        List — scoped by institute
+                                   teacher: only their own materials
+  POST   /study-materials        Upload [super_admin, admin, teacher]
+  PUT    /study-materials/:id    Update [super_admin, admin, teacher-own-only]
+  DELETE /study-materials/:id    Delete [super_admin, admin, teacher-own-only]
+
+  ── ANNOUNCEMENTS (/api/announcements) ───────────────────────────────────────
+  GET    /announcements          List active — filtered by targetRoles + institute
+  POST   /announcements          Create [super_admin, admin only]
+  PUT    /announcements/:id      Update [super_admin, admin only]
+  DELETE /announcements/:id      Delete [super_admin, admin only]
+
+  ── PAYROLL (/api/payroll) ───────────────────────────────────────────────────
+  GET    /payroll                List — employee sees own only; HR sees all
+  POST   /payroll                Process payroll [super_admin, admin, hr]
+  PUT    /payroll/:id/status     Update status (processed/paid) [admin, hr]
+  DELETE /payroll/:id            Delete (only if not paid) [admin, hr]
+
+  ── LEAVES (/api/leaves) ─────────────────────────────────────────────────────
+  GET    /leaves                 List — employee/teacher/student see own only
+  POST   /leaves                 Apply for leave [all roles]
+  PUT    /leaves/:id/status      Approve/Reject [super_admin, admin, hr only]
+  DELETE /leaves/:id/cancel      Cancel own pending leave
+
+  ── DEPARTMENTS (/api/departments) ───────────────────────────────────────────
+  GET    /departments            List [super_admin, admin, hr]
+  POST   /departments            Create [super_admin, admin, hr]
+  PUT    /departments/:id        Update [super_admin, admin, hr — own institute]
+  DELETE /departments/:id        Delete [super_admin, admin, hr — own institute]
+
+  ── STATS (/api/stats) ───────────────────────────────────────────────────────
+  GET    /stats/superadmin       Platform-wide counts [super_admin]
+  GET    /stats/admin            Institute-wide counts [admin]
+  GET    /stats/teacher          Teacher-specific counts [teacher]
+  GET    /stats/student          Student-specific counts [student]
+  GET    /stats/hr               HR-specific counts [hr]
+  GET    /stats/employee         Employee-specific counts [employee]
+
+
+════════════════════════════════════════════════════════════════════════════════
+  9. DATABASE MODELS
+════════════════════════════════════════════════════════════════════════════════
+
+  USER (user.js)
+  ──────────────────────────────────────────────────────────────
+  _id             ObjectId
+  instituteId     ref: Organization (null for super_admin)
+  userCode        String — unique, auto-generated (e.g. TEA-0001, STU-0042)
+  name            String (required)
+  email           String (unique, lowercase)
+  passwordHash    String (bcrypt, select: false)
+  role            Enum: super_admin | admin | teacher | student | hr | employee
+  status          Enum: active | inactive (default: active)
+  lastLogin       Date
+  failedAttempts  Number (default: 0)
+  lockedUntil     Date (null = not locked)
+  profile         { phone, address, avatarUrl }
+  createdAt       Date
+  updatedAt       Date
+
+  ORGANIZATION (organization.js)
+  ──────────────────────────────────────────────────────────────
+  _id             ObjectId
+  name            String (required)
+  slug            String (auto-generated from name)
+  orgCode         String (auto-generated, unique)
+  type            Enum: school | college | coaching | company
+  owner           ref: User (required)
+  description     String
+  contact         { email, phone, website, address }
+  logo            String (URL)
+  teachers        [ref: User]
+  students        [ref: User]
+  employees       [ref: User]
+  hrManagers      [ref: User]
+  status          Enum: active | inactive
+  isDeleted       Boolean (soft delete)
+  settings        Object (custom config per org)
+
+  CLASS (Class.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization (required)
+  name            String (required)
+  subject         String (required)
+  description     String
+  teacherId       ref: User
+  studentIds      [ref: User]
+  schedule        { days: [String], startTime, endTime }
+  room            String
+  maxStudents     Number
+  status          Enum: active | inactive | completed
+
+  ASSIGNMENT (Assignment.js)
+  ──────────────────────────────────────────────────────────────
+  classId         ref: Class (required)
+  instituteId     ref: Organization
+  createdBy       ref: User (teacher)
+  title           String (required)
+  description     String
+  instructions    String
+  dueDate         Date
+  maxScore        Number (default: 100)
+  attachments     [String] (URLs)
+  status          Enum: draft | published | closed
+
+  SUBMISSION (Submission.js)
+  ──────────────────────────────────────────────────────────────
+  assignmentId    ref: Assignment (required)
+  studentId       ref: User (required)
+  content         String (required)
+  attachments     [String]
+  score           Number
+  feedback        String
+  status          Enum: pending | submitted | graded | late
+  submittedAt     Date
+  gradedAt        Date
+  gradedBy        ref: User
+  Unique index:   { assignmentId, studentId }
+
+  ATTENDANCE (Attendance.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization
+  classId         ref: Class
+  userId          ref: User (the attendee)
+  date            Date (required)
+  status          Enum: present | absent | late | leave
+  markedBy        ref: User (who marked it)
+  notes           String
+  Unique index:   { userId, date, classId }
+
+  LEAVE (Leave.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization
+  userId          ref: User (applicant)
+  type            Enum: sick | casual | earned | maternity | paternity | other
+  startDate       Date
+  endDate         Date
+  days            Number (auto-calculated)
+  reason          String
+  status          Enum: pending | approved | rejected | cancelled
+  approvedBy      ref: User (HR/admin)
+  approvedAt      Date
+  rejectionReason String
+
+  PAYROLL (Payroll.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization
+  employeeId      ref: User
+  month           Number (1–12)
+  year            Number
+  basicSalary     Number
+  allowances      { hra, transport, medical, other }
+  deductions      { pf, tax, other }
+  netSalary       Number (auto-calculated: basic + allowances - deductions)
+  status          Enum: draft | processed | paid
+  paidAt          Date
+  processedBy     ref: User
+  remarks         String
+  Unique index:   { employeeId, month, year }
+
+  ANNOUNCEMENT (Announcement.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization (null = platform-wide)
+  createdBy       ref: User
+  title           String
+  content         String
+  targetRoles     [String] — which roles can see it (e.g. ["teacher", "student"])
+                            "all" means everyone in the institute
+  priority        Enum: low | medium | high
+  expiresAt       Date (null = never expires)
+  isActive        Boolean (default: true)
+
+  DEPARTMENT (Department.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization (required)
+  name            String (required)
+  code            String
+  head            ref: User (department head)
+  description     String
+  status          Enum: active | inactive
+  employeeCount   Number
+
+  STUDYMATERIAL (StudyMaterial.js)
+  ──────────────────────────────────────────────────────────────
+  instituteId     ref: Organization
+  classId         ref: Class (optional — material can be institute-wide)
+  uploadedBy      ref: User (teacher)
+  title           String (required)
+  description     String
+  subject         String
+  type            Enum: pdf | video | document | link | image | other
+  url             String (required)
+  fileSize        Number (bytes)
+  isPublic        Boolean (default: true)
+
+
+════════════════════════════════════════════════════════════════════════════════
+  10. FRONTEND — PAGES & ROUTES
+════════════════════════════════════════════════════════════════════════════════
+
+  PUBLIC
+  ──────────────────────────────────────────────────────────────
+  /login             Login form → redirects to role-home after success
+
+  SUPER ADMIN  (/dashboard)   — gray-900 sidebar
+  ──────────────────────────────────────────────────────────────
+  /dashboard                  Platform stats (orgs, users, teachers, students)
+  /dashboard/organization     Manage all organizations
+  /dashboard/institutes       Education institutes
+  /dashboard/companies        Company organizations
+  /dashboard/users            All users across all orgs
+  /dashboard/teachers         All teachers
+  /dashboard/students         All students
+  /dashboard/classes          All classes
+  /dashboard/attendance       All attendance
+  /dashboard/announcements    Platform-wide announcements
+  /dashboard/employees        All employees
+  /dashboard/hr               HR managers
+  /dashboard/payroll          All payroll
+  /dashboard/billing          Billing & subscriptions
+  /dashboard/reports          Reports
+  /dashboard/settings         Settings
+
+  ADMIN  (/admin)   — blue-950 sidebar
+  ──────────────────────────────────────────────────────────────
+  /admin                      Institute stats (teachers, students, leaves)
+  /admin/users                Manage institute users (create/edit/deactivate)
+  /admin/classes              Manage classes (create, assign teachers, enroll)
+  /admin/attendance           View all attendance by class/date
+  /admin/announcements        Create/delete announcements (with targetRoles)
+  /admin/materials            Upload/delete study materials
+  /admin/billing              Subscription plan, payment, invoices
+  /admin/settings             Profile edit, notification toggles
+
+  TEACHER  (/teacher)   — emerald-950 sidebar
+  ──────────────────────────────────────────────────────────────
+  /teacher                    Stats (my classes, assignments, pending grading)
+  /teacher/classes            My classes + student roster
+  /teacher/assignments        Create assignments, view submissions, grade
+  /teacher/attendance         Mark attendance per class/date
+  /teacher/materials          Upload study materials for my classes
+  /teacher/announcements      View announcements (read-only)
+
+  STUDENT  (/student)   — purple-950 sidebar
+  ──────────────────────────────────────────────────────────────
+  /student                    Stats (enrolled classes, assignments, attendance%)
+  /student/classes            Enrolled class cards
+  /student/assignments        Submit assignments, view score/feedback
+  /student/attendance         Personal attendance history + summary
+  /student/materials          Browse study materials (read-only)
+  /student/announcements      View announcements (read-only)
+
+  HR  (/hr)   — orange-950 sidebar
+  ──────────────────────────────────────────────────────────────
+  /hr                         Stats (employees, leaves, payroll processed)
+  /hr/employees               Employee directory
+  /hr/payroll                 Process payroll, mark as paid
+  /hr/leaves                  Approve/reject leave requests
+  /hr/departments             Create/manage departments
+  /hr/reports                 Payroll trends, leave breakdown, dept overview
+
+  EMPLOYEE  (/employee)   — slate-800 sidebar
+  ──────────────────────────────────────────────────────────────
+  /employee                   Stats (my leaves, payslips, attendance%)
+  /employee/leaves            Apply for leave, cancel pending leaves
+  /employee/payslips          View salary breakdown per month
+  /employee/announcements     View announcements (read-only)
+  /employee/profile           Edit name, phone, address
+
+  ROUTE PROTECTION:
+    - /dashboard/* → super_admin only
+    - /admin/*     → admin only
+    - /teacher/*   → teacher only
+    - /student/*   → student only
+    - /hr/*        → hr only
+    - /employee/*  → employee only
+    Cross-role access redirects to that role's home, not /login.
+
+
+════════════════════════════════════════════════════════════════════════════════
+  11. SECURITY IMPLEMENTATION
+════════════════════════════════════════════════════════════════════════════════
+
+  AUTHENTICATION
+  ──────────────────────────────────────────────────────────────
+  • JWT in httpOnly cookies — inaccessible to JavaScript (XSS-safe)
+  • sameSite: strict (production) prevents CSRF via cross-site requests
+  • secure: true in production (HTTPS only)
+  • Passwords hashed with bcrypt (12 rounds)
+  • JWT signature verified by both backend (jsonwebtoken) and
+    frontend middleware (jose) — forged tokens are rejected
+
+  RATE LIMITING
+  ──────────────────────────────────────────────────────────────
+  • Login:    10 requests per 15 minutes per IP
+  • Register: 5 requests per hour per IP
+
+  ACCOUNT LOCKOUT
+  ──────────────────────────────────────────────────────────────
+  • 5 consecutive failed logins → account locked for 30 minutes
+  • Remaining attempts shown in error message ("2 attempts remaining")
+  • Countdown shown when locked ("Try again in 28 minutes")
+  • Auto-unlock after 30 minutes (no manual intervention needed)
+  • Reset on successful login
+
+  AUTHORIZATION (BACKEND)
+  ──────────────────────────────────────────────────────────────
+  Every protected route goes through:
+    1. authMiddleware       → verify token, load user, check status
+    2. allowRoles(...)      → check req.user.role is permitted
+    3. Controller logic     → additional checks:
+       - institute isolation (query.instituteId = req.user.instituteId)
+       - resource ownership  (teacher edits only their own classes)
+       - data scoping        (employee sees only their own payslips)
+
+  FIELD WHITELISTING (UPDATE ENDPOINTS)
+  ──────────────────────────────────────────────────────────────
+  All update endpoints use explicit field allowlists — never spread req.body
+  directly into the database update. This prevents:
+  • Role escalation (user changing their own role)
+  • Institute hopping (user changing their instituteId)
+  • Status manipulation (user activating a banned account)
+
+  SOFT DELETE
+  ──────────────────────────────────────────────────────────────
+  Users are never hard-deleted. Deletion sets status: "inactive".
+  Inactive users cannot log in (blocked in authMiddleware).
+
+  PAID PAYROLL PROTECTION
+  ──────────────────────────────────────────────────────────────
+  Payroll records with status "paid" cannot be deleted.
+  Status progression: draft → processed → paid (irreversible)
+
+  SUBMISSION PROTECTION
+  ──────────────────────────────────────────────────────────────
+  • Students can only submit to assignments in their enrolled classes
+  • Graded submissions cannot be re-submitted
+  • Only assignment's creator (teacher) can grade it
+
+
+════════════════════════════════════════════════════════════════════════════════
+  12. PERMISSION MATRIX (FULL)
+════════════════════════════════════════════════════════════════════════════════
+
+  Action                      super  admin  teacher  student  hr    employee
+  ─────────────────────────────────────────────────────────────────────────────
+  Create admin users            ✓      ✗       ✗        ✗      ✗       ✗
+  Create teacher/student users  ✓      ✓       ✗        ✗      ✗       ✗
+  Create employee/hr users      ✓      ✓       ✗        ✗      ✗       ✗
+  Edit any user                 ✓      ✓*      ✗        ✗      ✗       ✗
+  Deactivate user               ✓      ✓*      ✗        ✗      ✗       ✗
+  View all users                ✓      ✓*      ✗        ✗      ✗       ✗
+  Change user role              ✓      ✗       ✗        ✗      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  Create organization           ✓      ✓       ✗        ✗      ✗       ✗
+  Edit organization             ✓      ✓**     ✗        ✗      ✗       ✗
+  Delete organization           ✓      ✓**     ✗        ✗      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  Create class                  ✓      ✓       ✓***     ✗      ✗       ✗
+  Edit class                    ✓      ✓       ✓***     ✗      ✗       ✗
+  Delete class                  ✓      ✓       ✗        ✗      ✗       ✗
+  View classes                  ✓      ✓       ✓***     ✓****  ✗       ✗
+  Enroll students               ✓      ✓       ✗        ✗      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  Create assignment             ✓      ✓       ✓***     ✗      ✗       ✗
+  Edit/Delete assignment        ✓      ✓       ✓***     ✗      ✗       ✗
+  View assignments              ✓      ✓       ✓***     ✓****  ✗       ✗
+  Grade submission              ✓      ✓       ✓***     ✗      ✗       ✗
+  Submit assignment             ✗      ✗       ✗        ✓      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  Mark attendance               ✓      ✓       ✓***     ✗      ✗       ✗
+  View all attendance           ✓      ✓       ✓***     ✗      ✗       ✗
+  View own attendance           ✓      ✓       ✓        ✓      ✓       ✓
+  ─────────────────────────────────────────────────────────────────────────────
+  Create/delete announcement    ✓      ✓       ✗        ✗      ✗       ✗
+  View announcements            ✓      ✓       ✓****    ✓****  ✓****   ✓****
+  ─────────────────────────────────────────────────────────────────────────────
+  Upload study material         ✓      ✓       ✓***     ✗      ✗       ✗
+  Edit/delete material          ✓      ✓       ✓***     ✗      ✗       ✗
+  View materials                ✓      ✓       ✓        ✓      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  Apply for leave               ✗      ✗       ✓        ✓      ✗       ✓
+  Approve/reject leave          ✓      ✓       ✗        ✗      ✓       ✗
+  Cancel own leave              ✗      ✗       ✓        ✓      ✗       ✓
+  View all institute leaves     ✓      ✓       ✗        ✗      ✓       ✗
+  View own leaves               ✗      ✗       ✓        ✓      ✗       ✓
+  ─────────────────────────────────────────────────────────────────────────────
+  Process payroll               ✓      ✓       ✗        ✗      ✓       ✗
+  Mark payroll paid             ✓      ✓       ✗        ✗      ✓       ✗
+  Delete payroll                ✓      ✓       ✗        ✗      ✓       ✗
+  View all payroll              ✓      ✓       ✗        ✗      ✓       ✗
+  View own payslips             ✗      ✗       ✗        ✗      ✗       ✓
+  ─────────────────────────────────────────────────────────────────────────────
+  Create/edit department        ✓      ✓       ✗        ✗      ✓       ✗
+  Delete department             ✓      ✓       ✗        ✗      ✓       ✗
+  View departments              ✓      ✓       ✗        ✗      ✓       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+  View platform reports         ✓      ✗       ✗        ✗      ✗       ✗
+  View institute reports        ✓      ✓       ✗        ✗      ✓       ✗
+  View billing                  ✓      ✓       ✗        ✗      ✗       ✗
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Legend:
+    ✓    = Always allowed (subject to other constraints)
+    ✗    = Never allowed
+    *    = Own institute users only (not super_admins)
+    **   = Own organization only (ownership check)
+    ***  = Own resources only (teacher's classes/assignments/materials)
+    **** = Filtered by targetRoles / enrollment / scope
+
+
+════════════════════════════════════════════════════════════════════════════════
+  13. DATA FLOW & REQUEST LIFECYCLE
+════════════════════════════════════════════════════════════════════════════════
+
+  Example: Teacher marks attendance
+
+  1. Teacher is on /teacher/attendance (Next.js page)
+  2. Page calls API.attendance.markAttendance({ classId, date, records })
+  3. Axios sends POST /api/attendance with Cookie: token=<jwt>
+  4. Express receives request
+  5. authMiddleware runs:
+     a. Reads cookie → jwt.verify() → decoded { id, role }
+     b. User.findById(decoded.id) → loads full user doc
+     c. Checks status === "active"
+     d. Attaches req.user = { _id, name, role: "teacher", instituteId, ... }
+  6. allowRoles("super_admin", "admin", "teacher") → passes (role: teacher)
+  7. attendanceController.markAttendance runs:
+     a. const { classId, date, records } = req.body
+     b. const instituteId = req.user.instituteId
+     c. For each record: Attendance.findOneAndUpdate({ userId, date, classId, instituteId }, ...)
+        - upsert: true → creates if not exists, updates if exists
+        - markedBy: req.user._id
+  8. Returns 200 with updated attendance records
+  9. React Query invalidates ["teacher-attendance"] query cache
+  10. UI re-renders with fresh data
+
+  Example: Student submits assignment
+
+  1. Student clicks "Submit" on /student/assignments
+  2. API.submissions.submitAssignment({ assignmentId, content })
+  3. POST /api/submissions
+  4. authMiddleware: loads student user
+  5. allowRoles("student"): passes
+  6. submissionController.submitAssignment:
+     a. Check assignment exists and is "published"
+     b. Load the assignment's class
+     c. Check studentIds includes req.user._id (enrollment check)
+     d. Find existing submission → update or create new
+     e. Cannot resubmit if already graded
+  7. Returns submission document
+  8. Teacher sees it on /teacher/assignments → submissions panel
+
+
+════════════════════════════════════════════════════════════════════════════════
+  14. KNOWN LIMITATIONS
+════════════════════════════════════════════════════════════════════════════════
+
+  1. NO TOKEN REFRESH
+     Tokens expire after 7 days with no automatic renewal. Users must
+     log in again. Consider adding refresh token flow for production.
+
+  2. NO EMAIL VERIFICATION
+     Users can register without verifying their email address.
+     Add nodemailer + email OTP for production use.
+
+  3. NO FORGOT PASSWORD
+     No password reset via email is implemented.
+     Add forgot-password → email link → reset-password flow.
+
+  4. FILE UPLOADS ARE URL-ONLY
+     Study materials and assignment attachments store URLs only.
+     No actual file upload (S3/Cloudinary) is implemented.
+     Files must be hosted externally and linked by URL.
+
+  5. BILLING IS MOCK DATA
+     The /admin/billing page displays hardcoded mock invoice data.
+     Real billing would require Stripe/Razorpay integration.
+
+  6. NO REAL-TIME FEATURES
+     No WebSocket or SSE for live notifications, chat, or real-time
+     attendance. All data refreshes are polling-based via React Query.
+
+  7. SUPER_ADMIN HAS NO SEPARATE ORG CONTEXT
+     Super_admin operates globally. The platform has no concept of a
+     "platform admin organization" — super_admin bypasses all org checks.
+
+  8. TEACHER SEES ALL INSTITUTE MATERIALS
+     Teachers see only their own uploaded materials in the current
+     implementation. Institute-wide shared materials are not shown to
+     teachers. Adjust getStudyMaterials query to remove the uploadedBy
+     filter for teachers if cross-teacher sharing is desired.
+
+================================================================================
+  END OF DOCUMENTATION
+================================================================================

@@ -83,6 +83,22 @@ export const getSubmissions = asyncHandler(async (req, res) => {
   sendSuccess(res, "Submissions fetched", submissions);
 });
 
+export const getSubmission = asyncHandler(async (req, res) => {
+  const submission = await Submission.findById(req.params.id)
+    .populate("studentId", "name email userCode")
+    .populate("assignmentId", "title maxScore dueDate createdBy")
+    .populate("gradedBy", "name");
+
+  if (!submission) return sendNotFound(res, "Submission not found");
+
+  // Students can only view their own submission
+  if (req.user.role === "student" && String(submission.studentId._id || submission.studentId) !== String(req.user._id)) {
+    return sendForbidden(res, "Access denied");
+  }
+
+  sendSuccess(res, "Submission fetched", submission);
+});
+
 export const gradeSubmission = asyncHandler(async (req, res) => {
   if (!["super_admin", "admin", "teacher"].includes(req.user.role)) {
     return sendForbidden(res, "Only teachers or admins can grade submissions");

@@ -1,4 +1,4 @@
-import { User } from "../models/User.js";
+import { User } from "../models/user.js";
 import Organization from "../models/organization.js";
 import { Attendance } from "../models/Attendance.js";
 import { Assignment } from "../models/Assignment.js";
@@ -27,8 +27,8 @@ export const getSuperAdminStats = asyncHandler(async (req, res) => {
   }, {});
 
   sendSuccess(res, "Stats fetched", {
-    totalOrganizations: totalOrgs,
-    totalUsers,
+    organizations: totalOrgs,
+    users: totalUsers,
     institutes,
     companies,
     teachers: roleMap.teacher || 0,
