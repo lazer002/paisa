@@ -10,9 +10,9 @@ export interface CreateUserDTO {
 }
 
 export const userAPI = {
-  // ✅ Get all users
-  getUsers: async () => {
-    const res = await API.get("/users");
+  // ✅ Get all users (with optional filters)
+  getUsers: async (params?: Record<string, string>) => {
+    const res = await API.get("/users", { params });
     return res.data;
   },
 

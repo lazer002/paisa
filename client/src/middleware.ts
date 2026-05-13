@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 const roleRouteMap: Record<string, string> = {
   super_admin: "/dashboard",
@@ -10,61 +11,63 @@ const roleRouteMap: Record<string, string> = {
   employee: "/employee",
 };
 
-function getRoleFromToken(token: string): string | null {
+const protectedRoutes: Record<string, string[]> = {
+  "/dashboard": ["super_admin"],
+  "/admin": ["admin"],
+  "/teacher": ["teacher"],
+  "/student": ["student"],
+  "/hr": ["hr"],
+  "/employee": ["employee"],
+};
+
+async function verifyToken(token: string): Promise<{ role: string; id: string } | null> {
   try {
-    const payload = JSON.parse(
-      Buffer.from(token.split(".")[1], "base64").toString()
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return null;
+
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(secret)
     );
-    return payload.role || null;
+
+    if (!payload.role || !payload.id) return null;
+    return { role: payload.role as string, id: payload.id as string };
   } catch {
     return null;
   }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   const { pathname } = req.nextUrl;
 
-  const role = token ? getRoleFromToken(token) : null;
-
-  if (token && !role) {
+  // No token → redirect to login (except already on /login)
+  if (!token) {
+    if (pathname === "/login") return NextResponse.next();
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (!token) {
-    if (pathname !== "/login") {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-    return NextResponse.next();
+  // Verify signature — reject forged tokens
+  const payload = await verifyToken(token);
+
+  if (!payload) {
+    const res = NextResponse.redirect(new URL("/login", req.url));
+    res.cookies.delete("token");
+    return res;
   }
 
-  if (pathname === "/login") {
-    return NextResponse.redirect(
-      new URL(roleRouteMap[role!] || "/dashboard", req.url)
-    );
+  const { role } = payload;
+  const roleHome = roleRouteMap[role] || "/login";
+
+  // Already logged in → redirect away from /login
+  if (pathname === "/login" || pathname === "/") {
+    return NextResponse.redirect(new URL(roleHome, req.url));
   }
 
-  if (pathname === "/") {
-    return NextResponse.redirect(
-      new URL(roleRouteMap[role!] || "/dashboard", req.url)
-    );
-  }
-
-  // Role-based route protection
-  const protectedRoutes: Record<string, string[]> = {
-    "/dashboard": ["super_admin"],
-    "/admin": ["admin"],
-    "/teacher": ["teacher"],
-    "/student": ["student"],
-    "/hr": ["hr"],
-    "/employee": ["employee"],
-  };
-
+  // Role-based route guard
   for (const [route, allowedRoles] of Object.entries(protectedRoutes)) {
-    if (pathname.startsWith(route) && !allowedRoles.includes(role!)) {
-      return NextResponse.redirect(
-        new URL(roleRouteMap[role!] || "/login", req.url)
-      );
+    if (pathname.startsWith(route) && !allowedRoles.includes(role)) {
+      return NextResponse.redirect(new URL(roleHome, req.url));
     }
   }
 

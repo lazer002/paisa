@@ -2,13 +2,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface User {
-  id: string;
+  _id: string;
+  id?: string;
   name: string;
   email: string;
-  role: string;
+  role: "super_admin" | "admin" | "teacher" | "student" | "hr" | "employee";
   status: string;
   userCode: string;
   instituteId?: string;
+  domain?: string;
   profile?: {
     phone?: string;
     address?: string;

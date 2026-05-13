@@ -35,7 +35,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     const roleRouteMap: Record<string, string> = {
       super_admin: "/dashboard",
-      admin: "/dashboard",
+      admin: "/admin",
       teacher: "/teacher",
       student: "/student",
       hr: "/hr",
