@@ -1,18 +1,15 @@
-// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Role → default route
 const roleRouteMap: Record<string, string> = {
   super_admin: "/dashboard",
-  admin: "/admin/home",
-  teacher: "/teacher/home",
-  student: "/student/home",
-  hr: "/hr/home",
-  employee: "/employee/home",
+  admin: "/admin",
+  teacher: "/teacher",
+  student: "/student",
+  hr: "/hr",
+  employee: "/employee",
 };
 
-// 🔐 Extract role from JWT (no verify - edge safe)
 function getRoleFromToken(token: string): string | null {
   try {
     const payload = JSON.parse(
@@ -30,12 +27,10 @@ export function middleware(req: NextRequest) {
 
   const role = token ? getRoleFromToken(token) : null;
 
-  // 🔴 Invalid token → force logout
   if (token && !role) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // 🔴 Not authenticated
   if (!token) {
     if (pathname !== "/login") {
       return NextResponse.redirect(new URL("/login", req.url));
@@ -43,25 +38,32 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 🟢 Logged in → block login page
   if (pathname === "/login") {
     return NextResponse.redirect(
       new URL(roleRouteMap[role!] || "/dashboard", req.url)
     );
   }
 
-  // 🟢 Root redirect
   if (pathname === "/") {
     return NextResponse.redirect(
       new URL(roleRouteMap[role!] || "/dashboard", req.url)
     );
   }
 
-  // 🔐 Role-based route protection
-  for (const [r, route] of Object.entries(roleRouteMap)) {
-    if (pathname.startsWith(route) && role !== r) {
+  // Role-based route protection
+  const protectedRoutes: Record<string, string[]> = {
+    "/dashboard": ["super_admin"],
+    "/admin": ["admin"],
+    "/teacher": ["teacher"],
+    "/student": ["student"],
+    "/hr": ["hr"],
+    "/employee": ["employee"],
+  };
+
+  for (const [route, allowedRoles] of Object.entries(protectedRoutes)) {
+    if (pathname.startsWith(route) && !allowedRoles.includes(role!)) {
       return NextResponse.redirect(
-        new URL(roleRouteMap[role!] || "/dashboard", req.url)
+        new URL(roleRouteMap[role!] || "/login", req.url)
       );
     }
   }
@@ -69,7 +71,6 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// Apply only where needed
 export const config = {
   matcher: [
     "/",
