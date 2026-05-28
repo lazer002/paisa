@@ -1,24 +1,28 @@
-import axios from "axios";
+import axios from 'axios'
+import { useAuthStore } from '@/lib/store/authStore'
 
-const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
+const api = axios.create({
+  baseURL: 'http://localhost:5000/api',
   withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+})
 
-axiosInstance.interceptors.response.use(
+api.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-
-         if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
+      useAuthStore.getState().logout()
+      window.location.href = '/login'
     }
-    return Promise.reject(err.response?.data?.message || "Error");
-  }
-);
+    return Promise.reject(err)
+  },
+)
 
-export default axiosInstance;
+export default api

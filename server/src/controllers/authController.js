@@ -50,7 +50,7 @@ export const register = asyncHandler(async (req, res) => {
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
+console.log("Login attempt for email:", email,password);
   const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+passwordHash +failedAttempts +lockedUntil");
   if (!user) {
     // Generic message — don't reveal if email exists

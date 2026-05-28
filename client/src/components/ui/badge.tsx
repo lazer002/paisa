@@ -1,34 +1,30 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
+import { ReactNode } from 'react'
 
-const badgeVariants = cva(
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground",
-        secondary: "bg-secondary text-secondary-foreground",
-        destructive: "bg-destructive text-destructive-foreground",
-        outline: "border border-input text-foreground",
-        success: "bg-green-500 text-white", // ✅ custom success variant
-         warning: "bg-yellow-500 text-black",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
+type BadgeColor = 'green' | 'red' | 'yellow' | 'blue' | 'purple' | 'gray' | 'orange'
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
-
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  )
+interface BadgeProps {
+  children: ReactNode
+  color?: BadgeColor
 }
 
-export { Badge, badgeVariants }
+const colors: Record<BadgeColor, string> = {
+  green: 'bg-green-100 text-green-700',
+  red: 'bg-red-100 text-red-700',
+  yellow: 'bg-yellow-100 text-yellow-700',
+  blue: 'bg-blue-100 text-blue-700',
+  purple: 'bg-purple-100 text-purple-700',
+  gray: 'bg-gray-100 text-gray-600',
+  orange: 'bg-orange-100 text-orange-700',
+}
+
+export type { BadgeColor }
+
+export default function Badge({ children, color = 'gray' }: BadgeProps) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${colors[color]}`}
+    >
+      {children}
+    </span>
+  )
+}

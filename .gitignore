@@ -2,9 +2,9 @@
 
 # dependencies
 /node_modules
-
+/claude
 
 # env files (can opt-in for committing if needed)
 .env*
 
-
+.claude

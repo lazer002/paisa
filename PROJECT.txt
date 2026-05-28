@@ -912,3 +912,101 @@ Key modules:
 ================================================================================
   END OF DOCUMENTATION
 ================================================================================
+
+
+
+
+
+
+
+src/app/
+├── layout.tsx
+├── page.tsx
+├── providers.tsx
+├── globals.css
+├── favicon.ico
+│
+├── login/
+│   └── page.tsx
+│
+├── dashboard/                      # superadmin dashboard
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── DashboardShell.tsx
+│   ├── announcements/page.tsx
+│   ├── attendance/page.tsx
+│   ├── billing/page.tsx
+│   ├── classes/page.tsx
+│   ├── companies/page.tsx
+│   ├── employees/page.tsx
+│   ├── hr/page.tsx
+│   ├── institutes/page.tsx
+│   ├── organization/page.tsx
+│   ├── payments/page.tsx
+│   ├── payroll/page.tsx
+│   ├── reports/page.tsx
+│   ├── settings/page.tsx
+│   ├── students/page.tsx
+│   ├── study-material/page.tsx
+│   ├── teachers/page.tsx
+│   └── users/page.tsx
+│
+├── superadmin/
+│   ├── page.tsx
+│   └── institutes/
+│       ├── page.tsx
+│       └── create/page.tsx
+│
+├── admin/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── announcements/page.tsx
+│   ├── attendance/page.tsx
+│   ├── billing/page.tsx
+│   ├── classes/page.tsx
+│   ├── hr/page.tsx
+│   ├── materials/page.tsx
+│   ├── settings/page.tsx
+│   ├── students/page.tsx
+│   ├── teachers/page.tsx
+│   └── users/page.tsx
+│
+├── hr/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── departments/page.tsx
+│   ├── employees/page.tsx
+│   ├── leaves/page.tsx
+│   ├── payroll/page.tsx
+│   └── reports/page.tsx
+│
+├── teacher/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── announcements/page.tsx
+│   ├── assignments/page.tsx
+│   ├── attendance/page.tsx
+│   ├── classes/page.tsx
+│   └── materials/page.tsx
+│
+├── student/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── announcements/page.tsx
+│   ├── assignments/page.tsx
+│   ├── attendance/page.tsx
+│   ├── classes/page.tsx
+│   └── materials/page.tsx
+│
+├── employee/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── announcements/page.tsx
+│   ├── leaves/page.tsx
+│   ├── payslips/page.tsx
+│   └── profile/page.tsx
+│
+└── test/
+    └── page.tsx
+
+6 role-based sections: superadmin, dashboard, admin, hr, teacher, student, employee.
