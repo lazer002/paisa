@@ -1,19 +1,30 @@
 {
-  "name": "server",
-  "version": "1.0.0",
-  "main": "server.js",
+  "name": "paisa-server",
+  "version": "3.0.0",
+  "private": true,
   "type": "module",
+  "main": "server.js",
+  "description": "PAISA multi-tenant ERP, HRMS and LMS backend",
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "build": "echo 'Backend build completed'",
-    "seed": "echo 'Database seeding not implemented yet'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "echo \"Backend build completed\"",
+    "seed": "node src/utils/seed.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "check": "node --check server.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "paisa",
+    "saas",
+    "erp",
+    "hrms",
+    "lms",
+    "multi-tenant",
+    "education",
+    "organization-management"
+  ],
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
@@ -29,5 +40,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

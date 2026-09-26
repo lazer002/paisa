@@ -1,13 +1,50 @@
+// server/src/models/Payroll.js
+
 import mongoose from "mongoose";
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════
- *  PAYROLL — monthly payslip with component-level breakdown + audit trail
- * ═══════════════════════════════════════════════════════════════════════════
- */
+const ALLOWANCE_FIELDS = [
+  "hra",
+  "transport",
+  "medical",
+  "special",
+  "performance",
+  "overtime",
+  "bonus",
+  "other",
+];
+
+const DEDUCTION_FIELDS = [
+  "pf",
+  "esi",
+  "tax",
+  "professionalTax",
+  "loanRecovery",
+  "lopDays",
+  "lopAmount",
+  "other",
+];
+
+const PAYMENT_METHODS = [
+  "bank_transfer",
+  "cheque",
+  "cash",
+  "upi",
+];
+
+const PAYROLL_STATUSES = [
+  "draft",
+  "processed",
+  "approved",
+  "paid",
+  "cancelled",
+];
 
 const payrollSchema = new mongoose.Schema(
   {
+    /* ---------------------------------------------------------------------- */
+    /* TENANCY / EMPLOYEE                                                      */
+    /* ---------------------------------------------------------------------- */
+
     instituteId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
@@ -22,114 +59,881 @@ const payrollSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Period
-    month: { type: Number, required: true, min: 1, max: 12 },
-    year: { type: Number, required: true },
+    /* ---------------------------------------------------------------------- */
+    /* PAY PERIOD                                                               */
+    /* ---------------------------------------------------------------------- */
 
-    // Pay period boundaries for clarity
-    periodStart: { type: Date, default: null },
-    periodEnd: { type: Date, default: null },
+    month: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 12,
+    },
 
-    // ── EARNINGS (component-level) ───────────────────────────────────────────
-    basicSalary: { type: Number, required: true, min: 0 },
+    year: {
+      type: Number,
+      required: true,
+      min: 2000,
+      max: 2200,
+    },
+
+    periodStart: {
+      type: Date,
+      default: null,
+    },
+
+    periodEnd: {
+      type: Date,
+      default: null,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* EARNINGS                                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    basicSalary: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
     allowances: {
-      hra: { type: Number, default: 0 },
-      transport: { type: Number, default: 0 },
-      medical: { type: Number, default: 0 },
-      special: { type: Number, default: 0 },
-      performance: { type: Number, default: 0 },
-      overtime: { type: Number, default: 0 },
-      bonus: { type: Number, default: 0 },
-      other: { type: Number, default: 0 },
+      hra: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      transport: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      medical: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      special: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      performance: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      overtime: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      bonus: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      other: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
 
-    // ── DEDUCTIONS ───────────────────────────────────────────────────────────
+    /* ---------------------------------------------------------------------- */
+    /* DEDUCTIONS                                                               */
+    /* ---------------------------------------------------------------------- */
+
     deductions: {
-      pf: { type: Number, default: 0 },        // provident fund
-      esi: { type: Number, default: 0 },       // employee state insurance
-      tax: { type: Number, default: 0 },       // TDS
-      professionalTax: { type: Number, default: 0 },
-      loanRecovery: { type: Number, default: 0 },
-      lopDays: { type: Number, default: 0 },   // loss-of-pay days
-      lopAmount: { type: Number, default: 0 },
-      other: { type: Number, default: 0 },
+      pf: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      esi: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      tax: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      professionalTax: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      loanRecovery: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      lopDays: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      lopAmount: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      other: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
 
-    // Attendance context for the month
+    /* ---------------------------------------------------------------------- */
+    /* ATTENDANCE SNAPSHOT                                                     */
+    /* ---------------------------------------------------------------------- */
+
     attendanceSummary: {
-      workingDays: { type: Number, default: 0 },
-      presentDays: { type: Number, default: 0 },
-      paidLeaveDays: { type: Number, default: 0 },
-      unpaidLeaveDays: { type: Number, default: 0 },
+      workingDays: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      presentDays: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      paidLeaveDays: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      unpaidLeaveDays: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
 
-    // Computed (server-authoritative)
-    grossSalary: { type: Number, default: 0 },
-    totalDeductions: { type: Number, default: 0 },
-    netSalary: { type: Number, default: 0 },
+    /* ---------------------------------------------------------------------- */
+    /* SERVER-COMPUTED TOTALS                                                  */
+    /* ---------------------------------------------------------------------- */
 
-    // ── PAYMENT TRACKING ─────────────────────────────────────────────────────
+    grossSalary: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    totalDeductions: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    netSalary: {
+      type: Number,
+      default: 0,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* PAYMENT WORKFLOW                                                         */
+    /* ---------------------------------------------------------------------- */
+
     status: {
       type: String,
-      enum: { values: ["draft", "processed", "approved", "paid", "cancelled"], message: "Invalid status" },
+      enum: {
+        values: PAYROLL_STATUSES,
+        message: "Invalid payroll status",
+      },
       default: "draft",
       index: true,
     },
 
     payment: {
-      method: { type: String, enum: ["bank_transfer", "cheque", "cash", "upi", null], default: null },
-      referenceNo: { type: String, trim: true, default: null },
-      paidAt: { type: Date, default: null },
-      paidToAccount: { type: String, default: null }, // last 4 digits snapshot
-      utr: { type: String, trim: true, default: null },
+      method: {
+        type: String,
+        enum: [
+          ...PAYMENT_METHODS,
+          null,
+        ],
+        default: null,
+      },
+
+      referenceNo: {
+        type: String,
+        trim: true,
+        maxlength: 150,
+        default: null,
+      },
+
+      paidAt: {
+        type: Date,
+        default: null,
+      },
+
+      // Only store a masked/last-four representation.
+      paidToAccount: {
+        type: String,
+        trim: true,
+        maxlength: 20,
+        default: null,
+      },
+
+      utr: {
+        type: String,
+        trim: true,
+        maxlength: 100,
+        default: null,
+      },
     },
 
-    // ── WORKFLOW / AUDIT ─────────────────────────────────────────────────────
-    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-    approvedAt: { type: Date, default: null },
+    /* ---------------------------------------------------------------------- */
+    /* WORKFLOW / AUDIT                                                        */
+    /* ---------------------------------------------------------------------- */
 
-    remarks: { type: String, maxlength: 500 },
-    payslipUrl: { type: String, default: null }, // generated PDF link
+    processedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
-    revision: { type: Number, default: 1 }, // bumped on every edit
-    isFinalized: { type: Boolean, default: false }, // locked after payment
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+
+    remarks: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
+
+    payslipUrl: {
+      type: String,
+      trim: true,
+      maxlength: 2048,
+      default: null,
+    },
+
+    revision: {
+      type: Number,
+      min: 1,
+      default: 1,
+    },
+
+    isFinalized: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    finalizedAt: {
+      type: Date,
+      default: null,
+    },
+
+    finalizedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
-  { timestamps: true, versionKey: false }
+  {
+    timestamps: true,
+    versionKey: false,
+
+    toJSON: {
+      virtuals: true,
+    },
+
+    toObject: {
+      virtuals: true,
+    },
+  }
 );
 
-// One payslip per employee per month
-payrollSchema.index({ employeeId: 1, month: 1, year: 1 }, { unique: true });
-payrollSchema.index({ instituteId: 1, month: 1, year: 1 });
-payrollSchema.index({ instituteId: 1, status: 1 });
+/* -------------------------------------------------------------------------- */
+/* INDEXES                                                                    */
+/* -------------------------------------------------------------------------- */
 
-// ── Virtuals ─────────────────────────────────────────────────────────────────
-payrollSchema.virtual("periodLabel").get(function () {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[this.month - 1]} ${this.year}`;
-});
+payrollSchema.index(
+  {
+    instituteId: 1,
+    employeeId: 1,
+    month: 1,
+    year: 1,
+  },
+  {
+    unique: true,
+    name: "payroll_employee_period_unique",
+  }
+);
 
-payrollSchema.set("toJSON", { virtuals: true });
-payrollSchema.set("toObject", { virtuals: true });
+payrollSchema.index(
+  {
+    instituteId: 1,
+    month: 1,
+    year: 1,
+  },
+  {
+    name: "payroll_institute_period",
+  }
+);
 
-// ── Statics: compute totals from components ─────────────────────────────────
-payrollSchema.statics.computeTotals = function (doc) {
-  const allow = Object.values(doc.allowances ?? {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  const ded = Object.values(doc.deductions ?? {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  doc.grossSalary = Number(doc.basicSalary) + allow;
-  doc.totalDeductions = ded;
-  doc.netSalary = doc.grossSalary - ded;
-  return doc;
-};
+payrollSchema.index(
+  {
+    instituteId: 1,
+    status: 1,
+  },
+  {
+    name: "payroll_institute_status",
+  }
+);
 
-// Auto-compute totals on save
-payrollSchema.pre("save", function (next) {
-  const allow = Object.values(this.allowances ?? {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  const ded = Object.values(this.deductions ?? {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  this.grossSalary = Number(this.basicSalary) + allow;
-  this.totalDeductions = ded;
-  this.netSalary = this.grossSalary - ded;
-  next();
-});
+payrollSchema.index(
+  {
+    instituteId: 1,
+    employeeId: 1,
+    createdAt: -1,
+  },
+  {
+    name: "payroll_employee_history",
+  }
+);
 
-export const Payroll = mongoose.models.Payroll || mongoose.model("Payroll", payrollSchema);
+payrollSchema.index(
+  {
+    instituteId: 1,
+    isFinalized: 1,
+  },
+  {
+    name: "payroll_institute_finalized",
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* VIRTUALS                                                                   */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.virtual("periodLabel").get(
+  function () {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    return `${months[this.month - 1]} ${this.year}`;
+  }
+);
+
+payrollSchema.virtual("isPaid").get(
+  function () {
+    return this.status === "paid";
+  }
+);
+
+payrollSchema.virtual("isEditable").get(
+  function () {
+    return (
+      !this.isFinalized &&
+      this.status !== "paid" &&
+      this.status !== "cancelled"
+    );
+  }
+);
+
+payrollSchema.virtual("attendanceDaysAccounted").get(
+  function () {
+    const summary =
+      this.attendanceSummary || {};
+
+    return (
+      (summary.presentDays || 0) +
+      (summary.paidLeaveDays || 0) +
+      (summary.unpaidLeaveDays || 0)
+    );
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* HELPERS                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function sumComponents(
+  object,
+  fields
+) {
+  return fields.reduce(
+    (total, field) => {
+      const value = Number(
+        object?.[field]
+      );
+
+      return (
+        total +
+        (Number.isFinite(value)
+          ? value
+          : 0)
+      );
+    },
+    0
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* TOTAL CALCULATION                                                           */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.statics.computeTotals =
+  function (doc) {
+    const basicSalary =
+      Number(doc.basicSalary) || 0;
+
+    const allowances =
+      sumComponents(
+        doc.allowances,
+        ALLOWANCE_FIELDS
+      );
+
+    const deductions =
+      sumComponents(
+        doc.deductions,
+        DEDUCTION_FIELDS
+      );
+
+    doc.grossSalary =
+      Math.max(
+        0,
+        basicSalary + allowances
+      );
+
+    doc.totalDeductions =
+      Math.min(
+        doc.grossSalary,
+        Math.max(0, deductions)
+      );
+
+    doc.netSalary =
+      Math.max(
+        0,
+        doc.grossSalary -
+          doc.totalDeductions
+      );
+
+    return doc;
+  };
+
+/* -------------------------------------------------------------------------- */
+/* VALIDATION                                                                  */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.pre(
+  "validate",
+  function (next) {
+    if (
+      this.periodStart &&
+      this.periodEnd &&
+      this.periodEnd < this.periodStart
+    ) {
+      return next(
+        new Error(
+          "Payroll period end cannot be before period start"
+        )
+      );
+    }
+
+    const attendance =
+      this.attendanceSummary || {};
+
+    const accountedDays =
+      (attendance.presentDays || 0) +
+      (attendance.paidLeaveDays || 0) +
+      (attendance.unpaidLeaveDays || 0);
+
+    if (
+      attendance.workingDays > 0 &&
+      accountedDays >
+        attendance.workingDays
+    ) {
+      return next(
+        new Error(
+          "Attendance days cannot exceed working days"
+        )
+      );
+    }
+
+    if (
+      this.deductions?.lopDays >
+        attendance.workingDays
+    ) {
+      return next(
+        new Error(
+          "Loss-of-pay days cannot exceed working days"
+        )
+      );
+    }
+
+    if (
+      this.status === "approved" &&
+      (!this.approvedBy ||
+        !this.approvedAt)
+    ) {
+      return next(
+        new Error(
+          "Approved payroll must contain approval audit information"
+        )
+      );
+    }
+
+    if (
+      this.status === "paid" &&
+      (!this.payment?.paidAt ||
+        !this.payment?.method)
+    ) {
+      return next(
+        new Error(
+          "Paid payroll must contain payment information"
+        )
+      );
+    }
+
+    if (
+      this.isFinalized &&
+      this.status !== "paid"
+    ) {
+      return next(
+        new Error(
+          "Only paid payroll can be finalized"
+        )
+      );
+    }
+
+    if (
+      this.isFinalized &&
+      !this.finalizedAt
+    ) {
+      this.finalizedAt =
+        new Date();
+    }
+
+    next();
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* AUTO-COMPUTE TOTALS                                                         */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.pre(
+  "save",
+  function (next) {
+    const wasFinanciallyModified =
+      this.isNew ||
+      this.isModified(
+        "basicSalary"
+      ) ||
+      this.isModified(
+        "allowances"
+      ) ||
+      this.isModified(
+        "deductions"
+      );
+
+    if (
+      wasFinanciallyModified
+    ) {
+      const basicSalary =
+        Number(
+          this.basicSalary
+        ) || 0;
+
+      const allowances =
+        sumComponents(
+          this.allowances,
+          ALLOWANCE_FIELDS
+        );
+
+      const deductions =
+        sumComponents(
+          this.deductions,
+          DEDUCTION_FIELDS
+        );
+
+      this.grossSalary =
+        Math.max(
+          0,
+          basicSalary +
+            allowances
+        );
+
+      this.totalDeductions =
+        Math.min(
+          this.grossSalary,
+          Math.max(
+            0,
+            deductions
+          )
+        );
+
+      this.netSalary =
+        Math.max(
+          0,
+          this.grossSalary -
+            this.totalDeductions
+        );
+    }
+
+    next();
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* QUERY HELPERS                                                               */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.query.byInstitute =
+  function (instituteId) {
+    return this.where({
+      instituteId,
+    });
+  };
+
+payrollSchema.query.byPeriod =
+  function (month, year) {
+    return this.where({
+      month,
+      year,
+    });
+  };
+
+payrollSchema.query.byEmployee =
+  function (employeeId) {
+    return this.where({
+      employeeId,
+    });
+  };
+
+payrollSchema.query.active =
+  function () {
+    return this.where({
+      status: {
+        $nin: [
+          "cancelled",
+        ],
+      },
+    });
+  };
+
+payrollSchema.query.finalized =
+  function () {
+    return this.where({
+      isFinalized: true,
+    });
+  };
+
+/* -------------------------------------------------------------------------- */
+/* INSTANCE METHODS                                                            */
+/* -------------------------------------------------------------------------- */
+
+payrollSchema.methods.recalculate =
+  function () {
+    const basicSalary =
+      Number(
+        this.basicSalary
+      ) || 0;
+
+    const allowances =
+      sumComponents(
+        this.allowances,
+        ALLOWANCE_FIELDS
+      );
+
+    const deductions =
+      sumComponents(
+        this.deductions,
+        DEDUCTION_FIELDS
+      );
+
+    this.grossSalary =
+      Math.max(
+        0,
+        basicSalary +
+          allowances
+      );
+
+    this.totalDeductions =
+      Math.min(
+        this.grossSalary,
+        Math.max(
+          0,
+          deductions
+        )
+      );
+
+    this.netSalary =
+      Math.max(
+        0,
+        this.grossSalary -
+          this.totalDeductions
+      );
+
+    return this;
+  };
+
+payrollSchema.methods.canEdit =
+  function () {
+    return (
+      !this.isFinalized &&
+      this.status !== "paid" &&
+      this.status !== "cancelled"
+    );
+  };
+
+payrollSchema.methods.approve =
+  async function (userId) {
+    if (!this.canEdit()) {
+      throw new Error(
+        "Finalized payroll cannot be approved"
+      );
+    }
+
+    this.status = "approved";
+    this.approvedBy = userId;
+    this.approvedAt = new Date();
+    this.revision += 1;
+
+    return this.save();
+  };
+
+payrollSchema.methods.process =
+  async function (userId) {
+    if (!this.canEdit()) {
+      throw new Error(
+        "This payroll cannot be processed"
+      );
+    }
+
+    this.status = "processed";
+    this.processedBy = userId;
+    this.revision += 1;
+
+    return this.save();
+  };
+
+payrollSchema.methods.markPaid =
+  async function ({
+    method,
+    referenceNo = null,
+    utr = null,
+    paidToAccount = null,
+  } = {}) {
+    if (
+      this.status !== "approved"
+    ) {
+      throw new Error(
+        "Only approved payroll can be marked as paid"
+      );
+    }
+
+    if (
+      !PAYMENT_METHODS.includes(
+        method
+      )
+    ) {
+      throw new Error(
+        "Invalid payment method"
+      );
+    }
+
+    this.status = "paid";
+
+    this.payment.method =
+      method;
+
+    this.payment.referenceNo =
+      referenceNo;
+
+    this.payment.utr =
+      utr;
+
+    this.payment.paidToAccount =
+      paidToAccount;
+
+    this.payment.paidAt =
+      new Date();
+
+    this.isFinalized = true;
+    this.finalizedAt =
+      new Date();
+
+    this.revision += 1;
+
+    return this.save();
+  };
+
+payrollSchema.methods.cancel =
+  async function () {
+    if (this.isFinalized) {
+      throw new Error(
+        "Finalized payroll cannot be cancelled"
+      );
+    }
+
+    if (this.status === "paid") {
+      throw new Error(
+        "Paid payroll cannot be cancelled"
+      );
+    }
+
+    this.status = "cancelled";
+    this.revision += 1;
+
+    return this.save();
+  };
+
+/* -------------------------------------------------------------------------- */
+/* MODEL                                                                       */
+/* -------------------------------------------------------------------------- */
+
+export const Payroll =
+  mongoose.models.Payroll ||
+  mongoose.model(
+    "Payroll",
+    payrollSchema
+  );
+
+export default Payroll;

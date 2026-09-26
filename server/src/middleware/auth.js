@@ -1,130 +1,376 @@
+// server/src/middleware/auth.js
+
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { User, RolePermissions } from "../models/user.js";
+
+import { User, RolePermissions, Roles } from "../models/user.js";
 import Organization from "../models/organization.js";
+import { AppError } from "../utils/errorHandler.js";
 
-// ─── Boot-time invariants: fail fast if the deployment is misconfigured ──────
+const JWT_ALGORITHM = "HS256";
 
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-  console.error(
-    "❌ FATAL: JWT_SECRET missing or too short (min 32 chars). " +
-      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"'
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error(
+    "JWT_SECRET is missing or too short. JWT_SECRET must contain at least 32 characters."
   );
-  process.exit(1);
 }
 
-// ─── Token helpers ────────────────────────────────────────────────────────────
+/* -------------------------------------------------------------------------- */
+/* Token helpers                                                               */
+/* -------------------------------------------------------------------------- */
 
-/**
- * Short-lived access token. Carries identity claims only — authorization is
- * ALWAYS re-checked against the live DB, so a stale/stolen token grants
- * nothing once the account is deactivated or the role is downgraded.
- */
-export const signAccessToken = (user) =>
-  jwt.sign(
-    { sub: user._id, role: user.role, type: "access" },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_ACCESS_TTL || "15m" }
+const signAccessToken = (user) => {
+  if (!user?._id || !user?.role) {
+    throw new TypeError("User identity and role are required");
+  }
+
+  return jwt.sign(
+    {
+      sub: String(user._id),
+      role: user.role,
+      type: "access",
+    },
+    JWT_SECRET,
+    {
+      algorithm: JWT_ALGORITHM,
+      expiresIn: process.env.JWT_ACCESS_TTL || "15m",
+      issuer: process.env.JWT_ISSUER || "paisa-api",
+      audience: process.env.JWT_AUDIENCE || "paisa-client",
+    }
   );
+};
 
-/**
- * Long-lived refresh token. Opaque random value (not a JWT — nothing to
- * forge, nothing to decode). Only its sha256 hash is stored server-side.
- */
-export const generateRefreshToken = () =>
+const generateRefreshToken = () =>
   crypto.randomBytes(48).toString("hex");
 
-export const hashToken = (raw) =>
-  crypto.createHash("sha256").update(raw).digest("hex");
+const hashToken = (rawToken) => {
+  if (!rawToken || typeof rawToken !== "string") {
+    throw new TypeError("Token must be a non-empty string");
+  }
 
-// ─── Auth middleware ─────────────────────────────────────────────────────────
+  return crypto
+    .createHash("sha256")
+    .update(rawToken, "utf8")
+    .digest("hex");
+};
 
-export const authMiddleware = async (req, res, next) => {
+const extractAccessToken = (req) => {
+  const cookieToken = req.cookies?.token;
+
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authorization = req.headers?.authorization;
+
+  if (!authorization) {
+    return null;
+  }
+
+  const [scheme, credentials] = authorization.trim().split(/\s+/);
+
+  if (
+    scheme?.toLowerCase() !== "bearer" ||
+    !credentials
+  ) {
+    return null;
+  }
+
+  return credentials;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Authentication                                                             */
+/* -------------------------------------------------------------------------- */
+
+const authMiddleware = async (req, res, next) => {
   try {
-    let token = req.cookies?.token;
-
-    if (!token && req.headers.authorization?.startsWith("Bearer ")) {
-      token = req.headers.authorization.split(" ")[1];
-    }
+    const token = extractAccessToken(req);
 
     if (!token) {
-      return res.status(401).json({ success: false, message: "No token, access denied" });
+      throw new AppError(
+        "Authentication required",
+        401,
+        "UNAUTHORIZED"
+      );
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-      algorithms: ["HS256"], // prevent alg-confusion attacks
-    });
+    let decoded;
 
-    // Reject refresh tokens used as access tokens
-    if (decoded.type && decoded.type !== "access") {
-      return res.status(401).json({ success: false, message: "Invalid token" });
+    try {
+      decoded = jwt.verify(token, JWT_SECRET, {
+        algorithms: [JWT_ALGORITHM],
+        issuer: process.env.JWT_ISSUER || "paisa-api",
+        audience: process.env.JWT_AUDIENCE || "paisa-client",
+      });
+    } catch (error) {
+      if (error?.name === "TokenExpiredError") {
+        throw new AppError(
+          "Session expired, please log in again",
+          401,
+          "TOKEN_EXPIRED"
+        );
+      }
+
+      if (error?.name === "JsonWebTokenError") {
+        throw new AppError(
+          "Invalid authentication token",
+          401,
+          "INVALID_TOKEN"
+        );
+      }
+
+      throw error;
     }
 
-    // ALWAYS load fresh state from DB — never trust token claims for status/role
-    const user = await User.findById(decoded.id || decoded.sub)
-      .select("_id name email role status instituteId userCode")
+    if (
+      !decoded ||
+      decoded.type !== "access" ||
+      !decoded.sub
+    ) {
+      throw new AppError(
+        "Invalid authentication token",
+        401,
+        "INVALID_TOKEN"
+      );
+    }
+
+    const user = await User.findById(decoded.sub)
+      .select(
+        [
+          "_id",
+          "name",
+          "email",
+          "role",
+          "status",
+          "instituteId",
+          "userCode",
+        ].join(" ")
+      )
       .lean();
 
     if (!user) {
-      return res.status(401).json({ success: false, message: "User not found" });
+      throw new AppError(
+        "User account not found",
+        401,
+        "USER_NOT_FOUND"
+      );
     }
 
     if (user.status !== "active") {
-      return res.status(403).json({ success: false, message: "Account is inactive. Contact your administrator" });
+      throw new AppError(
+        "Account is inactive. Contact your administrator",
+        403,
+        "ACCOUNT_INACTIVE"
+      );
     }
 
-    // Attach organization domain (school / company)
+    /*
+     * Token role is intentionally NOT trusted.
+     * Authorization always uses the role currently stored in MongoDB.
+     */
+
     if (user.instituteId) {
-      const org = await Organization.findById(user.instituteId).select("type name").lean();
-      user.domain = org?.type;
-      user.orgName = org?.name;
+      const organization = await Organization.findById(
+        user.instituteId
+      )
+        .select("_id type name status")
+        .lean();
+
+      if (!organization) {
+        throw new AppError(
+          "Organization not found",
+          403,
+          "ORGANIZATION_NOT_FOUND"
+        );
+      }
+
+      if (
+        organization.status &&
+        organization.status !== "active"
+      ) {
+        throw new AppError(
+          "Organization is inactive",
+          403,
+          "ORGANIZATION_INACTIVE"
+        );
+      }
+
+      user.domain = organization.type;
+      user.orgName = organization.name;
+      user.organization = {
+        _id: organization._id,
+        type: organization.type,
+        name: organization.name,
+      };
     }
 
     req.user = user;
-    next();
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ success: false, message: "Session expired, please log in again" });
-    }
-    return res.status(401).json({ success: false, message: "Invalid token" });
+    req.auth = {
+      userId: user._id,
+      role: user.role,
+      instituteId: user.instituteId || null,
+      isSuperAdmin: user.role === Roles.SUPER_ADMIN,
+    };
+
+    return next();
+  } catch (error) {
+    return next(error);
   }
 };
 
-export const allowRoles = (...roles) => {
+/* -------------------------------------------------------------------------- */
+/* Role authorization                                                         */
+/* -------------------------------------------------------------------------- */
+
+const allowRoles = (...roles) => {
+  const allowedRoles = roles.flat().filter(Boolean);
+
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
+      return next(
+        new AppError(
+          "Authentication required",
+          401,
+          "UNAUTHORIZED"
+        )
+      );
     }
-    // super_admin bypasses all role checks
-    if (req.user.role === "super_admin") return next();
 
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: "Access denied" });
+    if (req.user.role === Roles.SUPER_ADMIN) {
+      return next();
     }
-    next();
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(
+        new AppError(
+          "Access denied",
+          403,
+          "FORBIDDEN"
+        )
+      );
+    }
+
+    return next();
   };
 };
 
-export const authorize = (...permissions) => {
+/* -------------------------------------------------------------------------- */
+/* Permission authorization                                                   */
+/* -------------------------------------------------------------------------- */
+
+const authorize = (...permissions) => {
+  const requiredPermissions = permissions
+    .flat()
+    .filter(Boolean);
+
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
+      return next(
+        new AppError(
+          "Authentication required",
+          401,
+          "UNAUTHORIZED"
+        )
+      );
     }
-    if (req.user.role === "super_admin") return next();
 
-    const userPermissions = RolePermissions[req.user.role] || [];
-    const hasPermission = permissions.some((p) => userPermissions.includes(p));
+    if (req.user.role === Roles.SUPER_ADMIN) {
+      return next();
+    }
+
+    if (!requiredPermissions.length) {
+      return next(
+        new AppError(
+          "No permissions configured for this resource",
+          403,
+          "FORBIDDEN"
+        )
+      );
+    }
+
+    const userPermissions =
+      RolePermissions?.[req.user.role] || [];
+
+    const hasPermission = requiredPermissions.some(
+      (permission) =>
+        userPermissions.includes(permission)
+    );
 
     if (!hasPermission) {
-      return res.status(403).json({ success: false, message: "Insufficient permissions" });
+      return next(
+        new AppError(
+          "Insufficient permissions",
+          403,
+          "INSUFFICIENT_PERMISSIONS"
+        )
+      );
     }
-    next();
+
+    return next();
   };
 };
 
-export const isSuperAdmin = allowRoles("super_admin");
-export const isAdmin = allowRoles("admin");
-export const isTeacher = allowRoles("teacher");
-export const isStudent = allowRoles("student");
-export const isHR = allowRoles("hr");
-export const isEmployee = allowRoles("employee");
+/* -------------------------------------------------------------------------- */
+/* Organization / tenant authorization                                        */
+/* -------------------------------------------------------------------------- */
+
+const requireInstitute = (req, res, next) => {
+  if (!req.user) {
+    return next(
+      new AppError(
+        "Authentication required",
+        401,
+        "UNAUTHORIZED"
+      )
+    );
+  }
+
+  if (req.user.role === Roles.SUPER_ADMIN) {
+    return next();
+  }
+
+  if (!req.user.instituteId) {
+    return next(
+      new AppError(
+        "Organization context is required",
+        403,
+        "INSTITUTE_REQUIRED"
+      )
+    );
+  }
+
+  return next();
+};
+
+/* -------------------------------------------------------------------------- */
+/* Convenience middleware                                                     */
+/* -------------------------------------------------------------------------- */
+
+const isSuperAdmin = allowRoles(Roles.SUPER_ADMIN);
+const isAdmin = allowRoles(Roles.ADMIN);
+const isTeacher = allowRoles(Roles.TEACHER);
+const isStudent = allowRoles(Roles.STUDENT);
+const isHR = allowRoles(Roles.HR);
+const isEmployee = allowRoles(Roles.EMPLOYEE);
+
+export {
+  signAccessToken,
+  generateRefreshToken,
+  hashToken,
+  extractAccessToken,
+
+  authMiddleware,
+  allowRoles,
+  authorize,
+  requireInstitute,
+
+  isSuperAdmin,
+  isAdmin,
+  isTeacher,
+  isStudent,
+  isHR,
+  isEmployee,
+};

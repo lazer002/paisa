@@ -1,38 +1,179 @@
-// Standardized API response utility
-export const sendResponse = (res, statusCode, success, message, data = null) => {
+// server/src/utils/response.js
+
+const sendSuccess = (
+  res,
+  {
+    data = null,
+    message = "Success",
+    statusCode = 200,
+    meta = null,
+  } = {}
+) => {
   const response = {
-    success,
+    success: true,
     message,
-    ...(data && { data })
+    data,
   };
-  
+
+  if (meta !== null) {
+    response.meta = meta;
+  }
+
   return res.status(statusCode).json(response);
 };
 
-export const sendSuccess = (res, message, data = null) => {
-  return sendResponse(res, 200, true, message, data);
+const sendCreated = (
+  res,
+  {
+    data = null,
+    message = "Created successfully",
+    meta = null,
+  } = {}
+) => {
+  return sendSuccess(res, {
+    data,
+    message,
+    statusCode: 201,
+    meta,
+  });
 };
 
-export const sendCreated = (res, message, data = null) => {
-  return sendResponse(res, 201, true, message, data);
+const sendNoContent = (res) => {
+  return res.status(204).send();
 };
 
-export const sendError = (res, statusCode, message) => {
-  return sendResponse(res, statusCode, false, message);
+const sendError = (
+  res,
+  {
+    message = "Something went wrong",
+    statusCode = 500,
+    code = "INTERNAL_SERVER_ERROR",
+    details = null,
+  } = {}
+) => {
+  const response = {
+    success: false,
+    message,
+    code,
+  };
+
+  if (details !== null) {
+    response.details = details;
+  }
+
+  return res.status(statusCode).json(response);
 };
 
-export const sendNotFound = (res, message = 'Resource not found') => {
-  return sendError(res, 404, message);
+const sendBadRequest = (
+  res,
+  message = "Bad request",
+  details = null
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 400,
+    code: "BAD_REQUEST",
+    details,
+  });
 };
 
-export const sendUnauthorized = (res, message = 'Unauthorized access') => {
-  return sendError(res, 401, message);
+const sendUnauthorized = (
+  res,
+  message = "Authentication required"
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 401,
+    code: "UNAUTHORIZED",
+  });
 };
 
-export const sendForbidden = (res, message = 'Access forbidden') => {
-  return sendError(res, 403, message);
+const sendForbidden = (
+  res,
+  message = "You do not have permission to perform this action"
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 403,
+    code: "FORBIDDEN",
+  });
 };
 
-export const sendValidationError = (res, message = 'Validation failed') => {
-  return sendError(res, 400, message);
+const sendNotFound = (
+  res,
+  message = "Resource not found"
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 404,
+    code: "NOT_FOUND",
+  });
+};
+
+const sendConflict = (
+  res,
+  message = "Resource already exists",
+  details = null
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 409,
+    code: "CONFLICT",
+    details,
+  });
+};
+
+const sendValidationError = (
+  res,
+  message = "Validation failed",
+  details = null
+) => {
+  return sendError(res, {
+    message,
+    statusCode: 422,
+    code: "VALIDATION_ERROR",
+    details,
+  });
+};
+
+const sendPaginated = (
+  res,
+  {
+    data = [],
+    page = 1,
+    limit = 20,
+    total = 0,
+    message = "Data fetched successfully",
+  } = {}
+) => {
+  const totalPages = Math.ceil(total / limit);
+
+  return sendSuccess(res, {
+    data,
+    message,
+    meta: {
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: Number(total),
+        totalPages,
+        hasNextPage: Number(page) < totalPages,
+        hasPreviousPage: Number(page) > 1,
+      },
+    },
+  });
+};
+
+export {
+  sendSuccess,
+  sendCreated,
+  sendNoContent,
+  sendError,
+  sendBadRequest,
+  sendUnauthorized,
+  sendForbidden,
+  sendNotFound,
+  sendConflict,
+  sendValidationError,
+  sendPaginated,
 };

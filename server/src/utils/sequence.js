@@ -1,20 +1,95 @@
-// src/models/counter.js
-import mongoose from "mongoose";
+// server/src/utils/sequence.js
 
-const counterSchema = new mongoose.Schema({
-  key: { type: String, required: true, unique: true },
-  seq: { type: Number, default: 0 },
-});
+import Counter from "../models/counter.js";
 
-const Counter = mongoose.model("Counter", counterSchema);
+const getNextSequence = async (key) => {
+  if (!key || typeof key !== "string") {
+    throw new TypeError("Sequence key must be a non-empty string");
+  }
 
-export async function getNextSequence(key) {
+  const normalizedKey = key.trim();
+
+  if (!normalizedKey) {
+    throw new TypeError("Sequence key must be a non-empty string");
+  }
+
   const counter = await Counter.findOneAndUpdate(
-    { key },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-  return counter.seq;
-}
+    { key: normalizedKey },
+    {
+      $inc: {
+        seq: 1,
+      },
+      $setOnInsert: {
+        key: normalizedKey,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+      runValidators: true,
+    }
+  ).lean();
 
-export default Counter;
+  if (!counter) {
+    throw new Error(`Failed to generate sequence for "${normalizedKey}"`);
+  }
+
+  return counter.seq;
+};
+
+const getCurrentSequence = async (key) => {
+  if (!key || typeof key !== "string") {
+    throw new TypeError("Sequence key must be a non-empty string");
+  }
+
+  const normalizedKey = key.trim();
+
+  const counter = await Counter.findOne({
+    key: normalizedKey,
+  })
+    .select({ seq: 1 })
+    .lean();
+
+  return counter?.seq ?? 0;
+};
+
+const resetSequence = async (key, value = 0) => {
+  if (!key || typeof key !== "string") {
+    throw new TypeError("Sequence key must be a non-empty string");
+  }
+
+  if (!Number.isInteger(value) || value < 0) {
+    throw new TypeError("Sequence value must be a non-negative integer");
+  }
+
+  const normalizedKey = key.trim();
+
+  const counter = await Counter.findOneAndUpdate(
+    { key: normalizedKey },
+    {
+      $set: {
+        seq: value,
+      },
+      $setOnInsert: {
+        key: normalizedKey,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+      runValidators: true,
+    }
+  ).lean();
+
+  return counter.seq;
+};
+
+export {
+  getNextSequence,
+  getCurrentSequence,
+  resetSequence,
+};
+
+export default getNextSequence;

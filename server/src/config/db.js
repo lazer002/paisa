@@ -1,26 +1,41 @@
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-dotenv.config();
 
 const connectDB = async () => {
-  const uri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/paisa";
+  const mongoUri = process.env.MONGO_URI;
 
-  try {
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000, // fail fast if Mongo is down
-      socketTimeoutMS: 45000,
-    });
-
-    console.log("✅ MongoDB connected");
-  } catch (error) {
-    console.error("❌ MongoDB connection error:", error.message);
-    console.error(`\n💡 Could not connect to ${uri}`);
-    console.error("   Is MongoDB running? Start it and try again:");
-    console.error("   - Windows service: net start MongoDB");
-    console.error("   - Or: mongod --dbpath <path>");
-    console.error("   - Or use Atlas: set MONGO_URI to your Atlas connection string\n");
-    process.exit(1);
+  if (!mongoUri) {
+    throw new Error("MONGO_URI is not defined");
   }
+
+  mongoose.set("strictQuery", true);
+
+  mongoose.connection.on("connected", () => {
+    console.log("MongoDB connected");
+  });
+
+  mongoose.connection.on("error", (error) => {
+    console.error("MongoDB error:", error);
+  });
+
+  mongoose.connection.on("disconnected", () => {
+    console.warn("MongoDB disconnected");
+  });
+
+  mongoose.connection.on("reconnected", () => {
+    console.log("MongoDB reconnected");
+  });
+
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE) || 20,
+    minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE) || 2,
+    maxIdleTimeMS: 30000,
+    retryWrites: true,
+    retryReads: true,
+  });
+
+  return mongoose.connection;
 };
 
 export default connectDB;
