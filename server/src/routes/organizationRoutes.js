@@ -7,11 +7,7 @@ import {
   updateOrganization,
 } from "../controllers/organizationController.js";
 
-import {
-  adminAccess,
-  manageOrganizations,
-  superAdminOnly,
-} from "../middleware/policies.js";
+import { adminAccess, superAdminOnly } from "../middleware/policies.js";
 
 const router = express.Router();
 
@@ -26,19 +22,19 @@ router.get("/", adminAccess, getOrganizations);
 router.get("/:id", adminAccess, getOrganization);
 
 //
-// 🔹 CREATE
+// 🔹 CREATE — platform-level action, super admin only
 //
-router.post("/", manageOrganizations, createOrganization);
+router.post("/", superAdminOnly, createOrganization);
 
 //
-// 🔹 UPDATE
+// 🔹 UPDATE — admin can update THEIR org (scoped in controller),
+//    field-level restrictions also enforced in controller
 //
-router.put("/:id", manageOrganizations, updateOrganization);
+router.put("/:id", adminAccess, updateOrganization);
 
 //
-// 🔹 DELETE
+// 🔹 DELETE — destroying an organization is super admin only
 //
-router.delete("/:id", manageOrganizations, deleteOrganization);
-// or use superAdminOnly if platform-controlled
+router.delete("/:id", superAdminOnly, deleteOrganization);
 
 export default router;

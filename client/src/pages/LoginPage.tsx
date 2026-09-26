@@ -34,10 +34,10 @@ export default function LoginPage() {
         password,
       })
 
-      const { user, token } = res.data.data
+      const { user, accessToken } = res.data.data
 
-      // Save auth to Redux (persisted to localStorage)
-      dispatch(setAuth({ user, token }))
+      // Access token goes to Redux memory; refresh token is an httpOnly cookie
+      dispatch(setAuth({ user, token: accessToken }))
 
       navigate('/dashboard')
     } catch (err: any) {

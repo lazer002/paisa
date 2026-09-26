@@ -9,54 +9,54 @@ export interface AuthUser {
 
 export interface AuthState {
   user: AuthUser | null
+  // Access token lives ONLY in memory (Redux). A page refresh clears it —
+  // the httpOnly refresh cookie silently restores it on boot.
+  // XSS can read memory too, but the token expires in 15 minutes and cannot
+  // be used to mint new ones — only the httpOnly cookie can, and scripts
+  // can never touch that.
   token: string | null
 }
 
-const STORAGE_KEY = 'auth-storage'
+const PROFILE_KEY = 'auth-profile'
 
-function loadPersisted(): AuthState {
+function loadPersistedUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { user: null, token: null }
-    const parsed = JSON.parse(raw)
-    const state = parsed?.state
-    if (state && typeof state === 'object' && 'user' in state) {
-      return { user: state.user ?? null, token: state.token ?? null }
-    }
-    return { user: null, token: null }
+    const raw = localStorage.getItem(PROFILE_KEY)
+    return raw ? (JSON.parse(raw) as AuthUser) : null
   } catch {
-    return { user: null, token: null }
+    return null
+  }
+}
+
+function persistUser(user: AuthUser | null) {
+  try {
+    if (user) localStorage.setItem(PROFILE_KEY, JSON.stringify(user))
+    else localStorage.removeItem(PROFILE_KEY)
+  } catch {
+    /* storage unavailable */
   }
 }
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState: loadPersisted,
-  // lazily read localStorage at store creation
+  initialState: { user: loadPersistedUser(), token: null } as AuthState,
   reducers: {
     setAuth(state, action: PayloadAction<{ user: AuthUser; token: string }>) {
       state.user = action.payload.user
       state.token = action.payload.token
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ state: { user: action.payload.user, token: action.payload.token }, version: 0 }),
-        )
-      } catch {
-        /* storage full / unavailable */
-      }
+      persistUser(action.payload.user)
+    },
+    // Silent refresh only renews the token; user may have been updated too
+    setToken(state, action: PayloadAction<string>) {
+      state.token = action.payload
     },
     logout(state) {
       state.user = null
       state.token = null
-      try {
-        localStorage.removeItem(STORAGE_KEY)
-      } catch {
-        /* ignore */
-      }
+      persistUser(null)
     },
   },
 })
 
-export const { setAuth, logout } = authSlice.actions
+export const { setAuth, setToken, logout } = authSlice.actions
 export default authSlice.reducer

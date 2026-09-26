@@ -65,6 +65,34 @@ export const createOrganization = async (req, res) => {
 };
 
 //
+// 🔐 SCOPING HELPERS — multi-tenant isolation
+//
+// super_admin → platform-wide (all orgs)
+// admin/staff → ONLY the org they belong to (instituteId)
+//
+const scopeQueryForUser = (user) => {
+  const query = {};
+
+  if (user.role === "super_admin") {
+    return query; // sees everything
+  }
+
+  if (!user.instituteId) {
+    // User not linked to any org → they own nothing platform-wide
+    query.owner = user._id;
+    return query;
+  }
+
+  // Admin/staff: their org only — whether they created it or were assigned to it
+  query.$or = [
+    { _id: user.instituteId },
+    { owner: user._id },
+  ];
+
+  return query;
+};
+
+//
 // 📥 GET ALL ORGANIZATIONS (with filters)
 //
 export const getOrganizations = async (req, res) => {
@@ -79,9 +107,7 @@ export const getOrganizations = async (req, res) => {
       status,
     } = req.query;
 
-    const query = {
-      owner: userId,
-    };
+    const query = scopeQueryForUser(req.user);
 
     if (type) query.type = type;
     if (status) query.status = status;
@@ -144,6 +170,18 @@ export const getOrganization = async (req, res) => {
       });
     }
 
+    // 🔒 Multi-tenant isolation: admins/staff can only view their own org
+    if (
+      req.user.role !== "super_admin" &&
+      String(org._id) !== String(req.user.instituteId) &&
+      String(org.owner) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
     return res.json({
       success: true,
       data: org,
@@ -166,10 +204,16 @@ export const updateOrganization = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const org = await Organization.findOne({
-      _id: id,
-      owner: userId,
-    });
+    // 🔒 Admins can only update their OWN org; super_admin any
+    const match = { _id: id };
+    if (req.user.role !== "super_admin") {
+      match.$or = [
+        { _id: req.user.instituteId },
+        { owner: userId },
+      ];
+    }
+
+    const org = await Organization.findOne(match);
 
     if (!org) {
       return res.status(404).json({
@@ -178,7 +222,11 @@ export const updateOrganization = async (req, res) => {
       });
     }
 
-    const allowedFields = [
+    // 🔒 Field-level permissions:
+    // super_admin → everything (name, type, plan, status, …)
+    // admin       → profile fields of their OWN org only
+    //             (cannot rename, re-type, upgrade plan, or self-approve status)
+    const SUPER_ADMIN_FIELDS = [
       "name",
       "description",
       "contact",
@@ -187,7 +235,38 @@ export const updateOrganization = async (req, res) => {
       "meta",
       "settings",
       "status",
+      "type",
+      "plan",
+      "planExpiresAt",
     ];
+
+    const ADMIN_FIELDS = [
+      "description",
+      "contact",
+      "website",
+      "logo",
+      "meta",
+      "settings",
+    ];
+
+    const allowedFields =
+      req.user.role === "super_admin" ? SUPER_ADMIN_FIELDS : ADMIN_FIELDS;
+
+    // Only reject if the admin actually CHANGED a protected value —
+    // sending back unchanged values (normal form submit) is fine
+    const attemptedForbidden =
+      req.user.role === "super_admin"
+        ? []
+        : ["name", "type", "plan", "status"].filter(
+            (f) => req.body[f] !== undefined && req.body[f] !== org[f]
+          );
+
+    if (attemptedForbidden.length > 0) {
+      return res.status(403).json({
+        success: false,
+        message: `You do not have permission to change: ${attemptedForbidden.join(", ")}`,
+      });
+    }
 
     // update only allowed fields
     allowedFields.forEach((field) => {
@@ -215,17 +294,22 @@ export const updateOrganization = async (req, res) => {
 };
 
 //
-// 🗑️ SOFT DELETE ORGANIZATION
+// 🗑️ SOFT DELETE ORGANIZATION (platform-level action)
 //
 export const deleteOrganization = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { id } = req.params;
 
-    const org = await Organization.findOne({
-      _id: id,
-      owner: userId,
-    });
+    // 🔒 Deleting an organization is a super_admin power —
+    // an admin must not destroy the org they manage.
+    if (req.user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only a super admin can delete organizations",
+      });
+    }
+
+    const org = await Organization.findOne({ _id: id });
 
     if (!org) {
       return res.status(404).json({

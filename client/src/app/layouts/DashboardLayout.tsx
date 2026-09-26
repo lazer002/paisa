@@ -70,6 +70,23 @@ const sidebarConfig = {
       path: '/dashboard/settings',
     },
   ],
+
+  // Org admins: only the pages that are fully functional —
+  // scoped to the org they manage
+  admin: [
+    {
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      path: '/dashboard',
+    },
+    { label: 'My Organization', path: '/dashboard/organizations', icon: Building2 },
+    { label: 'Users', path: '/dashboard/users', icon: Users },
+    {
+      label: 'Settings',
+      icon: Settings,
+      path: '/dashboard/settings',
+    },
+  ],
 }
 
 export default function DashboardLayout() {

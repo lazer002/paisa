@@ -1,6 +1,7 @@
 import { Building2, Users, TrendingUp, Activity, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useGetOrganizationsQuery } from '@/features/organizations/organizationsApi'
+import { useGetUsersQuery } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import Badge from '@/components/ui/badge'
 import type { Organization } from '@/features/organizations/types'
@@ -13,39 +14,61 @@ const STATUS_COLOR = {
 
 export default function DashboardHomePage() {
   const user = useAppSelector((s) => s.auth.user)
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const { data: orgsData, isLoading } = useGetOrganizationsQuery({ page: 1, limit: 6 })
 
-  const stats = [
-    {
-      label: 'Organizations',
-      value: isLoading ? '…' : String(orgsData?.total ?? 0),
-      icon: Building2,
-      color: 'bg-blue-50 text-blue-600',
-      link: '/dashboard/organizations',
-    },
-    {
-      label: 'Users',
-      value: '—',
-      icon: Users,
-      color: 'bg-purple-50 text-purple-600',
-      link: '/dashboard/users',
-    },
-    {
-      label: 'Revenue',
-      value: '—',
-      icon: TrendingUp,
-      color: 'bg-green-50 text-green-600',
-      link: '/dashboard/billing',
-    },
-    {
-      label: 'Activity',
-      value: '—',
-      icon: Activity,
-      color: 'bg-orange-50 text-orange-600',
-      link: '/dashboard/reports',
-    },
-  ]
+  // Backend scopes this automatically: super_admin → all, admin → own org
+  const { data: usersData } = useGetUsersQuery()
+
+  // 🔒 Role-based stat cards — admins never see platform-level Revenue/Activity
+  const stats = isSuperAdmin
+    ? [
+        {
+          label: 'Organizations',
+          value: isLoading ? '…' : String(orgsData?.total ?? 0),
+          icon: Building2,
+          color: 'bg-blue-50 text-blue-600',
+          link: '/dashboard/organizations',
+        },
+        {
+          label: 'Users',
+          value: usersData ? String(usersData.length) : '…',
+          icon: Users,
+          color: 'bg-purple-50 text-purple-600',
+          link: '/dashboard/users',
+        },
+        {
+          label: 'Revenue',
+          value: '—',
+          icon: TrendingUp,
+          color: 'bg-green-50 text-green-600',
+          link: '/dashboard/billing',
+        },
+        {
+          label: 'Activity',
+          value: '—',
+          icon: Activity,
+          color: 'bg-orange-50 text-orange-600',
+          link: '/dashboard/reports',
+        },
+      ]
+    : [
+        {
+          label: 'My Organization',
+          value: isLoading ? '…' : String(orgsData?.total ?? 0),
+          icon: Building2,
+          color: 'bg-blue-50 text-blue-600',
+          link: '/dashboard/organizations',
+        },
+        {
+          label: 'My Users',
+          value: usersData ? String(usersData.length) : '…',
+          icon: Users,
+          color: 'bg-purple-50 text-purple-600',
+          link: '/dashboard/users',
+        },
+      ]
 
   const firstName = user?.name?.split(' ')[0] ?? 'there'
 
@@ -53,7 +76,11 @@ export default function DashboardHomePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
-        <p className="text-sm text-gray-500">Here's what's happening across your platform</p>
+        <p className="text-sm text-gray-500">
+          {isSuperAdmin
+            ? "Here's what's happening across your platform"
+            : "Here's what's happening in your organization"}
+        </p>
       </div>
 
       {/* Stats */}
@@ -87,7 +114,9 @@ export default function DashboardHomePage() {
       {/* Recent Organizations */}
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Recent Organizations</h2>
+          <h2 className="font-semibold text-gray-900">
+            {isSuperAdmin ? 'Recent Organizations' : 'My Organization'}
+          </h2>
           <Link
             to="/dashboard/organizations"
             className="flex items-center gap-1 text-sm text-gray-400 transition hover:text-black"
@@ -106,12 +135,14 @@ export default function DashboardHomePage() {
           <div className="py-8 text-center">
             <Building2 size={32} className="mx-auto mb-2 text-gray-200" />
             <p className="text-sm text-gray-400">No organizations yet</p>
-            <Link
-              to="/dashboard/organizations"
-              className="mt-2 inline-block text-sm font-medium text-black hover:underline"
-            >
-              Create one →
-            </Link>
+            {isSuperAdmin && (
+              <Link
+                to="/dashboard/organizations"
+                className="mt-2 inline-block text-sm font-medium text-black hover:underline"
+              >
+                Create one →
+              </Link>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -131,15 +162,21 @@ export default function DashboardHomePage() {
         )}
       </div>
 
-      {/* Quick Links */}
+      {/* Quick Links — 🔒 role-based, mirrors the sidebar */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {[
-          { label: 'Users', path: '/dashboard/users' },
-          { label: 'Employees', path: '/dashboard/employees' },
-          { label: 'Payroll', path: '/dashboard/payroll' },
-          { label: 'Reports', path: '/dashboard/reports' },
-          { label: 'Settings', path: '/dashboard/settings' },
-        ].map((link) => (
+        {(isSuperAdmin
+          ? [
+              { label: 'Users', path: '/dashboard/users' },
+              { label: 'Employees', path: '/dashboard/employees' },
+              { label: 'Payroll', path: '/dashboard/payroll' },
+              { label: 'Reports', path: '/dashboard/reports' },
+              { label: 'Settings', path: '/dashboard/settings' },
+            ]
+          : [
+              { label: 'Users', path: '/dashboard/users' },
+              { label: 'Settings', path: '/dashboard/settings' },
+            ]
+        ).map((link) => (
           <Link
             key={link.path}
             to={link.path}

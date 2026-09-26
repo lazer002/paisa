@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+import { createApi } from '@reduxjs/toolkit/query/react'
+import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 import type { Organization, CreateOrgPayload, UpdateOrgPayload } from './types'
 
 export interface OrgListParams {
@@ -31,15 +32,7 @@ function normalizeListResponse(res: any): OrgListResult {
 
 export const organizationsApi = createApi({
   reducerPath: 'organizationsApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL ?? '/api',
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as any).auth?.token
-      if (token) headers.set('Authorization', `Bearer ${token}`)
-      return headers
-    },
-    // fetchBaseQuery throws on non-2xx; that's the behavior we want
-  }),
+  baseQuery: axiosBaseQuery,
   tagTypes: ['Organization'],
   endpoints: (builder) => ({
     getOrganizations: builder.query<OrgListResult, OrgListParams | void>({

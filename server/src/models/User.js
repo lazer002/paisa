@@ -203,6 +203,32 @@ userSchema.pre("save", async function (next) {
         Roles.HR,
         Roles.EMPLOYEE,
       ],
+      // Orgs created from the platform dashboard may not have a type-specific
+      // staff structure yet — allow the generic roles for these types.
+      institute: [
+        Roles.ADMIN,
+        Roles.TEACHER,
+        Roles.STUDENT,
+        Roles.HR,
+        Roles.EMPLOYEE,
+      ],
+      startup: [
+        Roles.ADMIN,
+        Roles.HR,
+        Roles.EMPLOYEE,
+      ],
+      ngo: [
+        Roles.ADMIN,
+        Roles.HR,
+        Roles.EMPLOYEE,
+      ],
+      others: [
+        Roles.ADMIN,
+        Roles.TEACHER,
+        Roles.STUDENT,
+        Roles.HR,
+        Roles.EMPLOYEE,
+      ],
     };
 
     if (!allowedRoles[org.type]?.includes(this.role)) {

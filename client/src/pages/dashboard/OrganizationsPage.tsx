@@ -11,6 +11,8 @@ import {
   Globe,
   AlertTriangle,
   RefreshCw,
+  UserPlus,
+  Lock,
 } from 'lucide-react'
 
 import {
@@ -19,6 +21,8 @@ import {
   useUpdateOrganizationMutation,
   useDeleteOrganizationMutation,
 } from '@/features/organizations/organizationsApi'
+import { useCreateUserMutation } from '@/features/users/usersApi'
+import { useAppSelector } from '@/app/store'
 import type {
   Organization,
   CreateOrgPayload,
@@ -62,19 +66,22 @@ const EMPTY_FORM: CreateOrgPayload = {
 
 // ─── Form Helpers ─────────────────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, locked = false, children }: { label: string; locked?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+      <label className={`mb-1 flex items-center gap-1 text-sm font-medium ${locked ? 'text-gray-400' : 'text-gray-700'}`}>
+        {label}
+        {locked && <Lock size={11} className="text-amber-500" />}
+      </label>
       {children}
     </div>
   )
 }
 
 function TextInput({
-  value, onChange, placeholder = '', type = 'text', required = false,
+  value, onChange, placeholder = '', type = 'text', required = false, disabled = false,
 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean; disabled?: boolean
 }) {
   return (
     <input
@@ -83,21 +90,23 @@ function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       required={required}
-      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+      disabled={disabled}
+      className={`w-full rounded-xl border border-dashed border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-400 italic ${disabled ? 'cursor-not-allowed' : ''}`}
     />
   )
 }
 
 function SelectInput({
-  value, onChange, options,
+  value, onChange, options, disabled = false,
 }: {
-  value: string; onChange: (v: string) => void; options: { value: string; label: string }[]
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-black"
+      disabled={disabled}
+      className={`w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none transition focus:border-black ${disabled ? 'cursor-not-allowed bg-gray-100 text-gray-400' : ''}`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
@@ -117,7 +126,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── OrgFormModal ─────────────────────────────────────────────────────────────
 
 function OrgFormModal({
-  open, onClose, initialData, onSubmit, loading, error,
+  open, onClose, initialData, onSubmit, loading, error, isSuperAdmin,
 }: {
   open: boolean
   onClose: () => void
@@ -125,6 +134,7 @@ function OrgFormModal({
   onSubmit: (data: CreateOrgPayload) => void
   loading: boolean
   error: string
+  isSuperAdmin: boolean
 }) {
   const [form, setForm] = useState<CreateOrgPayload>(EMPTY_FORM)
 
@@ -177,6 +187,26 @@ function OrgFormModal({
   const setSettings = (field: string, value: boolean | number) =>
     setForm((p) => ({ ...p, settings: { ...p.settings, [field]: value } }))
 
+  // Admins editing an existing org: name/type/plan are locked (super admin only).
+  const lockProtectedFields = !!initialData && !isSuperAdmin
+
+  // Admins only submit the fields they're allowed to change — avoids
+  // accidentally sending protected values back to the server
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!initialData || isSuperAdmin) {
+      onSubmit(form)
+      return
+    }
+    onSubmit({
+      description: form.description,
+      website: form.website,
+      contact: form.contact,
+      meta: form.meta,
+      settings: form.settings,
+    } as CreateOrgPayload)
+  }
+
   return (
     <Modal
       open={open}
@@ -184,22 +214,30 @@ function OrgFormModal({
       title={initialData ? `Edit — ${initialData.name}` : 'New Organization'}
       size="xl"
     >
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(form) }} className="space-y-7">
+      <form onSubmit={handleSubmit} className="space-y-7">
+
+        {lockProtectedFields && (
+          <div className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-700">
+            🔒 Name, Type and Plan can only be changed by the platform (super admin).
+            You can update all other details of your organization.
+          </div>
+        )}
 
         {/* Basic Info */}
         <div>
           <SectionTitle>Basic Information</SectionTitle>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-1">
-              <Field label="Organization Name *">
-                <TextInput value={form.name} onChange={(v) => setField('name', v)} placeholder="Acme Corp" required />
+              <Field label="Organization Name *" locked={lockProtectedFields}>
+                <TextInput value={form.name} onChange={(v) => setField('name', v)} placeholder="Acme Corp" required disabled={lockProtectedFields} />
               </Field>
             </div>
             <div className="sm:col-span-1">
-              <Field label="Type *">
+              <Field label="Type *" locked={lockProtectedFields}>
                 <SelectInput
                   value={form.type}
                   onChange={(v) => setField('type', v as OrgType)}
+                  disabled={lockProtectedFields}
                   options={ORG_TYPES.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
                 />
               </Field>
@@ -288,10 +326,11 @@ function OrgFormModal({
         <div>
           <SectionTitle>Plan & Settings</SectionTitle>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Plan">
+            <Field label="Plan" locked={lockProtectedFields}>
               <SelectInput
                 value={form.plan ?? 'free'}
                 onChange={(v) => setField('plan', v as OrgPlan)}
+                disabled={lockProtectedFields}
                 options={[
                   { value: 'free', label: 'Free' },
                   { value: 'pro', label: 'Pro' },
@@ -351,11 +390,13 @@ function OrgFormModal({
 // ─── OrgCard ──────────────────────────────────────────────────────────────────
 
 function OrgCard({
-  org, onEdit, onDelete,
+  org, onEdit, onDelete, onAddAdmin, isSuperAdmin,
 }: {
   org: Organization
   onEdit: () => void
   onDelete: () => void
+  onAddAdmin: () => void
+  isSuperAdmin: boolean
 }) {
   return (
     <div className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
@@ -370,12 +411,19 @@ function OrgCard({
           </div>
         </div>
         <div className="ml-2 flex flex-shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {isSuperAdmin && (
+            <button onClick={onAddAdmin} className="rounded-lg p-1.5 text-blue-500 transition hover:bg-blue-50" title="Add Admin">
+              <UserPlus size={14} />
+            </button>
+          )}
           <button onClick={onEdit} className="rounded-lg p-1.5 transition hover:bg-gray-100" title="Edit">
             <Edit2 size={14} />
           </button>
-          <button onClick={onDelete} className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
-            <Trash2 size={14} />
-          </button>
+          {isSuperAdmin && (
+            <button onClick={onDelete} className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -454,11 +502,74 @@ function DeleteConfirmModal({
   )
 }
 
+// ─── AddAdminModal ──────────────────────────────────────────────────────
+
+function AddAdminModal({
+  org, onClose, onSubmit, loading, error,
+}: {
+  org: Organization | null
+  onClose: () => void
+  onSubmit: (d: { name: string; email: string; password: string }) => void
+  loading: boolean
+  error: string
+}) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+
+  useEffect(() => {
+    if (org) { setName(''); setEmail(''); setPassword('') }
+  }, [org])
+
+  return (
+    <Modal
+      open={!!org}
+      onClose={onClose}
+      title={`Add Admin — ${org?.name ?? ''}`}
+      size="md"
+    >
+      <form
+        onSubmit={(e) => { e.preventDefault(); onSubmit({ name, email, password }) }}
+        className="space-y-4"
+      >
+        <Field label="Admin Name *">
+          <TextInput value={name} onChange={setName} placeholder="e.g. Priya Sharma" required />
+        </Field>
+        <Field label="Login Email *">
+          <TextInput value={email} onChange={setEmail} type="email" placeholder="admin@org.com" required />
+        </Field>
+        <Field label="Password *">
+          <TextInput value={password} onChange={setPassword} type="text" placeholder="Min 6 characters" required />
+        </Field>
+
+        <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">
+          This person will be able to log in with this email + password and manage
+          <strong> {org?.name}</strong> (role: <strong>admin</strong>, below super admin).
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+            <AlertTriangle size={16} /> {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 border-t pt-4">
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={loading}>Create Admin</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const LIMIT = 12
 
 export default function OrganizationsPage() {
+  const currentUser = useAppSelector((s) => s.auth.user)
+  const isSuperAdmin = currentUser?.role === 'super_admin'
+
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -468,7 +579,9 @@ export default function OrganizationsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editOrg, setEditOrg] = useState<Organization | null>(null)
   const [deleteOrg, setDeleteOrg] = useState<Organization | null>(null)
+  const [adminOrg, setAdminOrg] = useState<Organization | null>(null)
   const [mutError, setMutError] = useState('')
+  const [adminError, setAdminError] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 350)
@@ -490,6 +603,18 @@ export default function OrganizationsPage() {
   const [createOrg, { isLoading: createPending }] = useAddOrganizationMutation()
   const [updateOrg, { isLoading: updatePending }] = useUpdateOrganizationMutation()
   const [deleteOrgMut, { isLoading: deletePending }] = useDeleteOrganizationMutation()
+  const [createUser, { isLoading: createUserPending }] = useCreateUserMutation()
+
+  const handleAddAdmin = async (d: { name: string; email: string; password: string }) => {
+    if (!adminOrg) return
+    setAdminError('')
+    try {
+      await createUser({ ...d, role: 'admin', instituteId: adminOrg._id }).unwrap()
+      setAdminOrg(null) // closes modal
+    } catch (e: any) {
+      setAdminError(e?.data?.message ?? 'Failed to create admin user')
+    }
+  }
 
   const handleCreate = async (d: CreateOrgPayload) => {
     setMutError('')
@@ -537,10 +662,12 @@ export default function OrganizationsPage() {
               : 'Manage all organizations on the platform'}
           </p>
         </div>
-        <Button onClick={() => { setShowCreate(true); setMutError('') }}>
-          <Plus size={16} />
-          New Organization
-        </Button>
+        {isSuperAdmin && (
+          <Button onClick={() => { setShowCreate(true); setMutError('') }}>
+            <Plus size={16} />
+            New Organization
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -609,7 +736,7 @@ export default function OrganizationsPage() {
           <p className="mt-1 text-sm text-gray-400">
             {hasFilters ? 'Try adjusting or clearing your filters' : 'Create your first organization to get started'}
           </p>
-          {!hasFilters && (
+          {!hasFilters && isSuperAdmin && (
             <Button className="mt-4" onClick={() => setShowCreate(true)}>
               <Plus size={16} /> New Organization
             </Button>
@@ -622,8 +749,10 @@ export default function OrganizationsPage() {
               <OrgCard
                 key={org._id}
                 org={org}
+                isSuperAdmin={isSuperAdmin}
                 onEdit={() => { setEditOrg(org); setMutError('') }}
                 onDelete={() => setDeleteOrg(org)}
+                onAddAdmin={() => { setAdminOrg(org); setAdminError('') }}
               />
             ))}
           </div>
@@ -659,6 +788,7 @@ export default function OrganizationsPage() {
         onSubmit={handleCreate}
         loading={createPending}
         error={mutError}
+        isSuperAdmin={isSuperAdmin}
       />
 
       <OrgFormModal
@@ -671,6 +801,7 @@ export default function OrganizationsPage() {
         }}
         loading={updatePending}
         error={mutError}
+        isSuperAdmin={isSuperAdmin}
       />
 
       <DeleteConfirmModal
@@ -678,6 +809,14 @@ export default function OrganizationsPage() {
         onClose={() => setDeleteOrg(null)}
         onConfirm={() => { if (deleteOrg) handleDelete(deleteOrg._id) }}
         loading={deletePending}
+      />
+
+      <AddAdminModal
+        org={adminOrg}
+        onClose={() => setAdminOrg(null)}
+        onSubmit={handleAddAdmin}
+        loading={createUserPending}
+        error={adminError}
       />
     </div>
   )

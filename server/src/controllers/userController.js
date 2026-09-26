@@ -130,10 +130,23 @@ export const updateUser = async (req, res) => {
     const target = await User.findById(req.params.id).select("-passwordHash");
     if (!target) return res.status(404).json({ success: false, message: "User not found" });
 
-    // Admin can only update users in their institute
+    const isSelf = String(target._id) === String(req.user._id);
+
     if (req.user.role === "admin") {
-      if (String(target.instituteId) !== String(req.user.instituteId)) {
+      const sameOrg = String(target.instituteId ?? "") === String(req.user.instituteId ?? "");
+      if (!sameOrg) {
         return res.status(403).json({ success: false, message: "Access denied" });
+      }
+
+      const isBelowAdmin = ["teacher", "student", "hr", "employee"].includes(target.role);
+
+      // 🔒 Admins cannot manage OTHER admin/super_admin accounts —
+      // except their OWN (name/password only — email still locked below).
+      if (!isBelowAdmin && !isSelf) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin accounts can only be managed by a super admin",
+        });
       }
     }
 
@@ -142,10 +155,41 @@ export const updateUser = async (req, res) => {
       return res.status(403).json({ success: false, message: "You cannot assign this role" });
     }
 
+    // 🔒 EMAIL permission:
+    //   super_admin → anyone's email (incl. admins and their own)
+    //   admin       → only for roles BELOW admin (teacher/student/hr/employee)
+    //   admin's own email / other admins' emails → super_admin only
+    if (req.body.email !== undefined) {
+      const canChangeEmail =
+        req.user.role === "super_admin" || (!isSelf && canManageRole(req.user.role, target.role));
+      if (!canChangeEmail) {
+        return res.status(403).json({
+          success: false,
+          message: "Only a super admin can change this account's email",
+        });
+      }
+
+      const newEmail = String(req.body.email).toLowerCase().trim();
+      if (!/^\S+@\S+\.\S+$/.test(newEmail)) {
+        return res.status(400).json({ success: false, message: "Invalid email format" });
+      }
+
+      const taken = await User.findOne({ email: newEmail, _id: { $ne: target._id } });
+      if (taken) {
+        return res.status(400).json({ success: false, message: "That email is already in use by another account" });
+      }
+    }
+
     // Whitelist allowed update fields
-    const ADMIN_ALLOWED = ["name", "profile", "status", "role"];
-    const SUPER_ADMIN_ALLOWED = [...ADMIN_ALLOWED, "instituteId", "email"];
-    const allowedFields = req.user.role === "super_admin" ? SUPER_ADMIN_ALLOWED : ADMIN_ALLOWED;
+    // Self-edit (non-super-admin): name/profile only — never own email/role/status
+    let allowedFields;
+    if (req.user.role === "super_admin") {
+      allowedFields = ["name", "profile", "status", "role", "email", "instituteId"];
+    } else if (isSelf) {
+      allowedFields = ["name", "profile"];
+    } else {
+      allowedFields = ["name", "profile", "status", "role", "email"];
+    }
 
     const updates = {};
     for (const field of allowedFields) {

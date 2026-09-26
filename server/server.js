@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import helmet from "helmet";
 import connectDB from "./src/config/db.js";
 import cookieParser from "cookie-parser";
 import { globalErrorHandler } from "./src/utils/errorHandler.js";
@@ -29,16 +30,34 @@ import statsRoutes from "./src/routes/statsRoutes.js";
 dotenv.config();
 const app = express();
 
+// Behind a reverse proxy (Render/Heroku/Nginx) so req.ip is the real client IP
+app.set("trust proxy", 1);
+
+// ─── Security headers ────────────────────────────────────────────────────────
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // allow images from API origin
+  })
+);
+
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim());
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin(origin, callback) {
+    // Allow same-origin/no-origin (curl, Postman) and whitelisted frontends
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString(), uptime: process.uptime() });
@@ -66,7 +85,7 @@ app.use("/api/departments", departmentRoutes);
 app.use("/api/stats", statsRoutes);
 
 app.get("/", (req, res) => {
-  res.json({ message: "🚀 HRM Backend Running Successfully!", version: "2.0.0" });
+  res.json({ message: "🚀 HRM Backend Running Successfully!", version: "2.1.0" });
 });
 
 app.use(globalErrorHandler);
