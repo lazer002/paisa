@@ -314,7 +314,7 @@ function UserRow({
   canDeactivate: boolean
   canEdit: boolean
   onDeactivate: () => void
-  onEdit: () => void
+  onEdit: (() => void) | null
 }) {
   const orgName =
     typeof user.instituteId === 'object' && user.instituteId
@@ -322,7 +322,10 @@ function UserRow({
       : 'Platform'
 
   return (
-    <tr className="border-b border-gray-50 transition hover:bg-gray-50">
+    <tr
+      onClick={() => window.location.assign(`/dashboard/users/${user._id}`)}
+      className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50"
+    >
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
@@ -343,9 +346,9 @@ function UserRow({
         <Badge color={user.status === 'active' ? 'green' : 'red'}>{user.status ?? 'active'}</Badge>
       </td>
       <td className="px-4 py-3 text-right">
-        {canEdit && (
+        {canEdit && onEdit && (
           <button
-            onClick={onEdit}
+            onClick={(e) => { e.stopPropagation(); onEdit() }}
             className="mr-1 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-black"
             title="Edit user"
           >
@@ -354,7 +357,7 @@ function UserRow({
         )}
         {canDeactivate && user.status === 'active' && (
           <button
-            onClick={onDeactivate}
+            onClick={(e) => { e.stopPropagation(); onDeactivate() }}
             className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50"
             title="Deactivate"
           >

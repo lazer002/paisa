@@ -1,36 +1,64 @@
 import { User, Roles } from "../models/user.js";
+import { hashPassword, resolveInstitute, scopedQuery } from "../utils/peopleHelpers.js";
+import { sendSuccess, sendCreated, sendError } from "../utils/response.js";
 
-// Create HR
+// Create HR — admin (org-scoped) or super_admin (any org via instituteId)
 export const createHR = async (req, res) => {
   try {
-    const { name, email, password, instituteId } = req.body;
+    const { name, email, password, instituteId, profile } = req.body;
 
-    // Check if user exists
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: "User already exists" });
+    if (!name || !email || !password) {
+      return sendError(res, 400, "Name, email and password are required");
+    }
 
-    // Create HR
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) return sendError(res, 400, "User already exists");
+
+    const resolvedInstitute = await resolveInstitute(req.user, instituteId);
+    if (requestedButUnresolved(resolvedInstitute, instituteId)) {
+      return sendError(res, 400, "Invalid instituteId");
+    }
+
     const hr = await User.create({
       name,
-      email,
-      passwordHash: password, // password should be hashed via pre-save hook or bcrypt
+      email: normalizedEmail,
+      passwordHash: await hashPassword(password),
       role: Roles.HR,
-      instituteId: instituteId || null,
+      instituteId: resolvedInstitute,
+      profile: profile || {},
     });
 
-    res.status(201).json({ message: "HR created successfully", hr });
+    const safe = hr.toObject();
+    delete safe.passwordHash;
+
+    sendCreated(res, "HR created successfully", safe);
   } catch (err) {
     console.error("Create HR error:", err);
-    res.status(500).json({ message: "Server error" });
+    sendError(res, 500, "Server error");
   }
 };
 
-// Get all HRs
+// Get all HRs — scoped: super_admin all, others their own org only
 export const getHRs = async (req, res) => {
   try {
-    const hrs = await User.find({ role: Roles.HR }).populate("instituteId", "name type");
-    res.json(hrs);
+    if (!req.user.instituteId && req.user.role !== Roles.SUPER_ADMIN) {
+      return sendSuccess(res, "HRs fetched", []);
+    }
+
+    const hrs = await User.find({ role: Roles.HR, ...scopedQuery(req.user) })
+      .select("-passwordHash -failedAttempts -lockedUntil")
+      .populate("instituteId", "name type")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    sendSuccess(res, "HRs fetched", hrs);
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    console.error("Get HRs error:", err);
+    sendError(res, 500, "Server error");
   }
 };
+
+function requestedButUnresolved(resolved, requested) {
+  return requested && !resolved;
+}

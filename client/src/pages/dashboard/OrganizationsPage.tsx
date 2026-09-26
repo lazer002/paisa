@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus,
   Edit2,
@@ -390,16 +391,20 @@ function OrgFormModal({
 // ─── OrgCard ──────────────────────────────────────────────────────────────────
 
 function OrgCard({
-  org, onEdit, onDelete, onAddAdmin, isSuperAdmin,
+  org, onEdit, onDelete, onAddAdmin, onOpen, isSuperAdmin,
 }: {
   org: Organization
   onEdit: () => void
   onDelete: () => void
   onAddAdmin: () => void
+  onOpen: () => void
   isSuperAdmin: boolean
 }) {
   return (
-    <div className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <div
+      onClick={() => onOpen()}
+      className="group cursor-pointer rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+    >
       <div className="mb-4 flex items-start justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gray-900 text-lg font-bold text-white">
@@ -412,15 +417,15 @@ function OrgCard({
         </div>
         <div className="ml-2 flex flex-shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           {isSuperAdmin && (
-            <button onClick={onAddAdmin} className="rounded-lg p-1.5 text-blue-500 transition hover:bg-blue-50" title="Add Admin">
+            <button onClick={(e) => { e.stopPropagation(); onAddAdmin() }} className="rounded-lg p-1.5 text-blue-500 transition hover:bg-blue-50" title="Add Admin">
               <UserPlus size={14} />
             </button>
           )}
-          <button onClick={onEdit} className="rounded-lg p-1.5 transition hover:bg-gray-100" title="Edit">
+          <button onClick={(e) => { e.stopPropagation(); onEdit() }} className="rounded-lg p-1.5 transition hover:bg-gray-100" title="Edit">
             <Edit2 size={14} />
           </button>
           {isSuperAdmin && (
-            <button onClick={onDelete} className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
+            <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
               <Trash2 size={14} />
             </button>
           )}
@@ -569,6 +574,7 @@ const LIMIT = 12
 export default function OrganizationsPage() {
   const currentUser = useAppSelector((s) => s.auth.user)
   const isSuperAdmin = currentUser?.role === 'super_admin'
+  const navigate = useNavigate()
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -750,6 +756,7 @@ export default function OrganizationsPage() {
                 key={org._id}
                 org={org}
                 isSuperAdmin={isSuperAdmin}
+                onOpen={() => navigate(`/dashboard/organizations/${org._id}`)}
                 onEdit={() => { setEditOrg(org); setMutError('') }}
                 onDelete={() => setDeleteOrg(org)}
                 onAddAdmin={() => { setAdminOrg(org); setAdminError('') }}
