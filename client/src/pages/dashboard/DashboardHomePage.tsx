@@ -1,9 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
 import { Building2, Users, TrendingUp, Activity, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { orgApi } from '@/features/organizations/api'
-import { useAuthStore } from '@/lib/store/authStore'
-import Badge from '@/components/ui/Badge'
+import { useGetOrganizationsQuery } from '@/features/organizations/organizationsApi'
+import { useAppSelector } from '@/app/store'
+import Badge from '@/components/ui/badge'
 import type { Organization } from '@/features/organizations/types'
 
 const STATUS_COLOR = {
@@ -13,12 +12,9 @@ const STATUS_COLOR = {
 }
 
 export default function DashboardHomePage() {
-  const user = useAuthStore((s) => s.user)
+  const user = useAppSelector((s) => s.auth.user)
 
-  const { data: orgsData, isLoading } = useQuery({
-    queryKey: ['organizations', { page: 1, limit: 6 }],
-    queryFn: () => orgApi.list({ page: 1, limit: 6 }),
-  })
+  const { data: orgsData, isLoading } = useGetOrganizationsQuery({ page: 1, limit: 6 })
 
   const stats = [
     {

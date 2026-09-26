@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import {
   Plus,
   Edit2,
@@ -14,7 +13,12 @@ import {
   RefreshCw,
 } from 'lucide-react'
 
-import { orgApi } from '@/features/organizations/api'
+import {
+  useGetOrganizationsQuery,
+  useAddOrganizationMutation,
+  useUpdateOrganizationMutation,
+  useDeleteOrganizationMutation,
+} from '@/features/organizations/organizationsApi'
 import type {
   Organization,
   CreateOrgPayload,
@@ -22,8 +26,8 @@ import type {
   OrgStatus,
   OrgPlan,
 } from '@/features/organizations/types'
-import Button from '@/components/ui/Button'
-import Badge, { BadgeColor } from '@/components/ui/Badge'
+import Button from '@/components/ui/button'
+import Badge, { BadgeColor } from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -455,8 +459,6 @@ function DeleteConfirmModal({
 const LIMIT = 12
 
 export default function OrganizationsPage() {
-  const qc = useQueryClient()
-
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -473,43 +475,52 @@ export default function OrganizationsPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['organizations', { search: debouncedSearch, type: typeFilter, status: statusFilter, page }],
-    queryFn: () => orgApi.list({
-      search: debouncedSearch || undefined,
-      type: typeFilter || undefined,
-      status: statusFilter || undefined,
-      page,
-      limit: LIMIT,
-    }),
+  const { data, isLoading, isError, refetch } = useGetOrganizationsQuery({
+    search: debouncedSearch || undefined,
+    type: typeFilter || undefined,
+    status: statusFilter || undefined,
+    page,
+    limit: LIMIT,
   })
 
   const orgs: Organization[] = data?.data ?? []
   const total: number = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
-  const invalidate = useCallback(
-    () => qc.invalidateQueries({ queryKey: ['organizations'] }),
-    [qc],
-  )
+  const [createOrg, { isLoading: createPending }] = useAddOrganizationMutation()
+  const [updateOrg, { isLoading: updatePending }] = useUpdateOrganizationMutation()
+  const [deleteOrgMut, { isLoading: deletePending }] = useDeleteOrganizationMutation()
 
-  const createMut = useMutation({
-    mutationFn: orgApi.create,
-    onSuccess: () => { invalidate(); setShowCreate(false); setMutError('') },
-    onError: (e: any) => setMutError(e?.response?.data?.message ?? 'Failed to create organization'),
-  })
+  const handleCreate = async (d: CreateOrgPayload) => {
+    setMutError('')
+    try {
+      await createOrg(d).unwrap()
+      setShowCreate(false)
+      setMutError('')
+    } catch (e: any) {
+      setMutError(e?.data?.message ?? 'Failed to create organization')
+    }
+  }
 
-  const updateMut = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: CreateOrgPayload }) =>
-      orgApi.update(id, payload),
-    onSuccess: () => { invalidate(); setEditOrg(null); setMutError('') },
-    onError: (e: any) => setMutError(e?.response?.data?.message ?? 'Failed to update organization'),
-  })
+  const handleUpdate = async (id: string, d: CreateOrgPayload) => {
+    setMutError('')
+    try {
+      await updateOrg({ id, payload: d }).unwrap()
+      setEditOrg(null)
+      setMutError('')
+    } catch (e: any) {
+      setMutError(e?.data?.message ?? 'Failed to update organization')
+    }
+  }
 
-  const deleteMut = useMutation({
-    mutationFn: orgApi.delete,
-    onSuccess: () => { invalidate(); setDeleteOrg(null) },
-  })
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteOrgMut(id).unwrap()
+      setDeleteOrg(null)
+    } catch {
+      /* list refreshes; silent for delete */
+    }
+  }
 
   const hasFilters = !!(debouncedSearch || typeFilter || statusFilter)
 
@@ -645,8 +656,8 @@ export default function OrganizationsPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         initialData={null}
-        onSubmit={(d) => { setMutError(''); createMut.mutate(d) }}
-        loading={createMut.isPending}
+        onSubmit={handleCreate}
+        loading={createPending}
         error={mutError}
       />
 
@@ -656,18 +667,17 @@ export default function OrganizationsPage() {
         initialData={editOrg}
         onSubmit={(d) => {
           if (!editOrg) return
-          setMutError('')
-          updateMut.mutate({ id: editOrg._id, payload: d })
+          handleUpdate(editOrg._id, d)
         }}
-        loading={updateMut.isPending}
+        loading={updatePending}
         error={mutError}
       />
 
       <DeleteConfirmModal
         org={deleteOrg}
         onClose={() => setDeleteOrg(null)}
-        onConfirm={() => { if (deleteOrg) deleteMut.mutate(deleteOrg._id) }}
-        loading={deleteMut.isPending}
+        onConfirm={() => { if (deleteOrg) handleDelete(deleteOrg._id) }}
+        loading={deletePending}
       />
     </div>
   )

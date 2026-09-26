@@ -24,7 +24,8 @@ import {
 
 import { useState } from 'react'
 
-import { useAuthStore } from '@/lib/store/authStore'
+import { useAppSelector } from '@/app/store'
+import { logout } from '@/lib/store/authSlice'
 
 const sidebarConfig = {
   super_admin: [
@@ -81,9 +82,7 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] =
     useState(false)
 
-  const user = useAuthStore((s) => s.user)
-
-  const logout = useAuthStore((s) => s.logout)
+  const user = useAppSelector((s) => s.auth.user)
 
   if (!user) return null
 
@@ -92,7 +91,7 @@ export default function DashboardLayout() {
       user.role as keyof typeof sidebarConfig
     ] || []
 
-  const handleLogout = () => {
+  const logoutHandler = () => {
     logout()
     navigate('/login')
   }
@@ -256,7 +255,7 @@ export default function DashboardLayout() {
         {/* Logout */}
         <div className="border-t border-white/10 p-4">
           <button
-            onClick={handleLogout}
+            onClick={logoutHandler}
             className={`
               flex w-full items-center gap-3
               rounded-2xl bg-red-500/10 px-4 py-3

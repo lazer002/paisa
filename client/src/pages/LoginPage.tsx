@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 
+import { useAppDispatch, useAppSelector } from '@/app/store'
+import { setAuth } from '@/lib/store/authSlice'
 import api from '@/lib/api/axios'
-import { useAuthStore } from '@/lib/store/authStore'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const dispatch = useAppDispatch()
 
-  const user = useAuthStore((s) => s.user)
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const user = useAppSelector((s) => s.auth.user)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,28 +19,7 @@ export default function LoginPage() {
 
   // Redirect already logged-in users
   if (user) {
-    switch (user.role) {
-      case 'super_admin':
-        return <Navigate to="/dashboard" replace />
-
-      case 'admin':
-        return <Navigate to="/admin" replace />
-
-      case 'teacher':
-        return <Navigate to="/teacher" replace />
-
-      case 'student':
-        return <Navigate to="/student" replace />
-
-      case 'hr':
-        return <Navigate to="/hr" replace />
-
-      case 'employee':
-        return <Navigate to="/employee" replace />
-
-      default:
-        return <Navigate to="/" replace />
-    }
+    return <Navigate to="/dashboard" replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,38 +36,10 @@ export default function LoginPage() {
 
       const { user, token } = res.data.data
 
-      // Save auth to Zustand persist
-      setAuth(user, token)
+      // Save auth to Redux (persisted to localStorage)
+      dispatch(setAuth({ user, token }))
 
-      // Navigate by role
-      switch (user.role) {
-        case 'super_admin':
-          navigate('/dashboard')
-          break
-
-        case 'admin':
-          navigate('/admin')
-          break
-
-        case 'teacher':
-          navigate('/teacher')
-          break
-
-        case 'student':
-          navigate('/student')
-          break
-
-        case 'hr':
-          navigate('/hr')
-          break
-
-        case 'employee':
-          navigate('/employee')
-          break
-
-        default:
-          navigate('/')
-      }
+      navigate('/dashboard')
     } catch (err: any) {
       setError(
         err?.response?.data?.message || 'Login failed',

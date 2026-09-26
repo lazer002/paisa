@@ -4,7 +4,6 @@ import { getNextSequence } from "../utils/sequence.js";
 
 const organizationSchema = new mongoose.Schema(
   {
-    // 🔹 Basic Info
     name: {
       type: String,
       required: [true, "Organization name is required"],
@@ -16,7 +15,6 @@ const organizationSchema = new mongoose.Schema(
     slug: {
       type: String,
       unique: true,
-      index: true,
     },
 
     type: {
@@ -42,7 +40,7 @@ const organizationSchema = new mongoose.Schema(
     },
 
     logo: {
-      type: String, // cloudinary / s3 URL
+      type: String,
     },
 
     website: {
@@ -50,14 +48,12 @@ const organizationSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // 🔑 Public Identifier
     orgCode: {
       type: String,
       unique: true,
       index: true,
     },
 
-    // 🔹 Contact Info
     contact: {
       email: {
         type: String,
@@ -66,26 +62,30 @@ const organizationSchema = new mongoose.Schema(
         index: true,
         match: [/^\S+@\S+\.\S+$/, "Invalid email format"],
       },
+
       phone: {
         type: String,
         trim: true,
         match: [/^[0-9]{10,15}$/, "Invalid phone number"],
       },
+
       address: {
         type: String,
         trim: true,
         maxlength: 300,
       },
+
       city: String,
       state: String,
+
       country: {
         type: String,
         default: "India",
       },
+
       pincode: String,
     },
 
-    // 👤 Ownership
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -93,13 +93,11 @@ const organizationSchema = new mongoose.Schema(
       index: true,
     },
 
-    // 👥 Organization Members Count (fast analytics)
     membersCount: {
       type: Number,
       default: 1,
     },
 
-    // 🔹 Metadata (Flexible by type)
     meta: {
       industry: String,
       registrationNo: String,
@@ -109,7 +107,6 @@ const organizationSchema = new mongoose.Schema(
       establishedYear: Number,
     },
 
-    // 💰 Subscription / Plan (future SaaS billing)
     plan: {
       type: String,
       enum: ["free", "pro", "enterprise"],
@@ -119,23 +116,23 @@ const organizationSchema = new mongoose.Schema(
 
     planExpiresAt: Date,
 
-    // ⚙️ Settings (feature toggles)
     settings: {
       allowPublicJoin: {
         type: Boolean,
         default: false,
       },
+
       requireApproval: {
         type: Boolean,
         default: true,
       },
+
       maxMembers: {
         type: Number,
         default: 50,
       },
     },
 
-    // 🔒 Status
     status: {
       type: String,
       enum: ["active", "inactive", "suspended"],
@@ -143,7 +140,6 @@ const organizationSchema = new mongoose.Schema(
       index: true,
     },
 
-    // 🗑️ Soft Delete
     isDeleted: {
       type: Boolean,
       default: false,
@@ -152,7 +148,6 @@ const organizationSchema = new mongoose.Schema(
 
     deletedAt: Date,
 
-    // 📊 Audit Fields
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -169,75 +164,71 @@ const organizationSchema = new mongoose.Schema(
   }
 );
 
-//
-// 🔥 INDEXES (Performance + Constraints)
-//
+// Performance indexes
+organizationSchema.index(
+  { name: 1, owner: 1 },
+  { unique: true }
+);
 
-// prevent duplicate org name per owner
-organizationSchema.index({ name: 1, owner: 1 }, { unique: true });
+organizationSchema.index({
+  owner: 1,
+  type: 1,
+});
 
-// fast filtering
-organizationSchema.index({ owner: 1, type: 1 });
-
-// text search
 organizationSchema.index({
   name: "text",
   description: "text",
 });
 
-// slug uniqueness safety
-organizationSchema.index({ slug: 1 }, { unique: true });
+// REMOVED duplicate slug index.
+// `unique: true` on slug already creates the index.
 
-//
-// 🎯 PRE-SAVE HOOKS
-//
-
-// generate slug
+// Generate slug
 organizationSchema.pre("save", function (next) {
   if (this.isModified("name")) {
-    this.slug = slugify(this.name, { lower: true, strict: true });
+    this.slug = slugify(this.name, {
+      lower: true,
+      strict: true,
+    });
   }
+
   next();
 });
 
-// generate org code
+// Generate organization code
 organizationSchema.pre("save", async function (next) {
-  if (this.isNew && !this.orgCode) {
-    const seq = await getNextSequence("Organization");
-    this.orgCode = `ORG-${String(seq).padStart(5, "0")}`;
+  try {
+    if (this.isNew && !this.orgCode) {
+      const seq = await getNextSequence("Organization");
+      this.orgCode = `ORG-${String(seq).padStart(5, "0")}`;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
-//
-// 🛡️ GLOBAL QUERY FILTER (hide deleted)
-//
+// Hide deleted organizations
 organizationSchema.pre(/^find/, function (next) {
   this.where({ isDeleted: false });
   next();
 });
 
-//
-// 🔍 INSTANCE METHODS
-//
-
+// Soft delete
 organizationSchema.methods.softDelete = function () {
   this.isDeleted = true;
   this.deletedAt = new Date();
+
   return this.save();
 };
 
-//
-// 🔄 STATIC METHODS
-//
-
+// Find by slug
 organizationSchema.statics.findBySlug = function (slug) {
   return this.findOne({ slug });
 };
 
-//
-// 📤 CLEAN RESPONSE
-//
+// Clean response
 organizationSchema.set("toJSON", {
   transform: function (doc, ret) {
     delete ret.__v;
@@ -245,8 +236,5 @@ organizationSchema.set("toJSON", {
   },
 });
 
-//
-// ✅ EXPORT SAFE
-//
 export default mongoose.models.Organization ||
   mongoose.model("Organization", organizationSchema);
