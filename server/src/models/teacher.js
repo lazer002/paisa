@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const teacherSchema = new mongoose.Schema(
   {
     userId: {
@@ -18,7 +19,15 @@ const teacherSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `teac_${crypto.randomBytes(16).toString("base64url")}`,
+},
     employeeCode: {
       type: String,
       trim: true,

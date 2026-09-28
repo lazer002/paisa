@@ -27,6 +27,7 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -36,6 +37,7 @@
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
+    "redis": "^6.2.1",
     "slugify": "^1.6.9"
   },
   "devDependencies": {

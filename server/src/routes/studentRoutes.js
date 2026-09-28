@@ -1,13 +1,39 @@
+// server/src/routes/studentRoutes.js
+
 import express from "express";
-import { createStudent, getStudents } from "../controllers/studentController.js";
-import { authMiddleware, isSuperAdmin, isAdmin, isTeacher, allowRoles } from "../middleware/auth.js";
+
+import {
+  createStudent,
+  getStudents,
+} from "../controllers/studentController.js";
+
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-// ✅ Create student → Only super_admin, admin, or teacher
-router.post("/", authMiddleware, allowRoles("super_admin", "admin", "teacher"), createStudent);
+router.use(authenticate);
 
-// ✅ Get all students → Only super_admin, admin, or teacher
-router.get("/", authMiddleware, allowRoles("super_admin", "admin", "teacher"), getStudents);
+// Create student
+router.post(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher"
+  ),
+  createStudent
+);
+
+// Get students
+router.get(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher"
+  ),
+  getStudents
+);
 
 export default router;

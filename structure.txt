@@ -1,0 +1,203 @@
+paisa/
+│
+├── .gitignore
+├── README.md
+├── package.json
+│
+├── client/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── index.html
+│   ├── .env
+│   │
+│   └── src/
+│       ├── App.tsx
+│       ├── main.tsx
+│       ├── vite-env.d.ts
+│       │
+│       ├── app/
+│       │   ├── store.ts
+│       │   │
+│       │   ├── layouts/
+│       │   │   └── DashboardLayout.tsx
+│       │   │
+│       │   ├── providers/
+│       │   │   └── AppProviders.tsx
+│       │   │
+│       │   └── router/
+│       │       └── AppRouter.tsx
+│       │
+│       ├── components/
+│       │   ├── auth/
+│       │   │   ├── AuthGuard.tsx
+│       │   │   └── RoleGuard.tsx
+│       │   │
+│       │   └── ui/
+│       │       ├── badge.tsx
+│       │       ├── button.tsx
+│       │       ├── Modal.tsx
+│       │       ├── PageHeader.tsx
+│       │       ├── StatCard.tsx
+│       │       └── StateViews.tsx
+│       │
+│       ├── config/
+│       │   └── roles.ts
+│       │
+│       ├── features/
+│       │   ├── announcements/
+│       │   │   └── announcementsApi.ts
+│       │   │
+│       │   ├── assignments/
+│       │   │   └── assignmentsApi.ts
+│       │   │
+│       │   ├── attendance/
+│       │   │   └── attendanceApi.ts
+│       │   │
+│       │   ├── classes/
+│       │   │   └── classesApi.ts
+│       │   │
+│       │   ├── departments/
+│       │   │   └── departmentsApi.ts
+│       │   │
+│       │   ├── leaves/
+│       │   │   └── leavesApi.ts
+│       │   │
+│       │   ├── organizations/
+│       │   │   ├── organizationsApi.ts
+│       │   │   └── types.ts
+│       │   │
+│       │   ├── payroll/
+│       │   │   └── payrollApi.ts
+│       │   │
+│       │   ├── people/
+│       │   │   └── peopleApi.ts
+│       │   │
+│       │   ├── stats/
+│       │   │   └── statsApi.ts
+│       │   │
+│       │   ├── students/
+│       │   │   └── studentsApi.ts
+│       │   │
+│       │   └── users/
+│       │       ├── userDetailApi.ts
+│       │       └── usersApi.ts
+│       │
+│       ├── lib/
+│       │   ├── api/
+│       │   │   ├── axios.ts
+│       │   │   ├── axiosBaseQuery.ts
+│       │   │   └── refresh.ts
+│       │   │
+│       │   ├── auth/
+│       │   │   └── bootstrapAuth.ts
+│       │   │
+│       │   └── store/
+│       │       └── authSlice.ts
+│       │
+│       ├── pages/
+│       │   ├── LoginPage.tsx
+│       │   ├── NotFoundPage.tsx
+│       │   │
+│       │   └── dashboard/
+│       │       ├── AnnouncementsPage.tsx
+│       │       ├── AssignmentsPage.tsx
+│       │       ├── AttendancePage.tsx
+│       │       ├── BillingPage.tsx
+│       │       ├── ClassesPage.tsx
+│       │       ├── CompaniesPage.tsx
+│       │       ├── DashboardHomePage.tsx
+│       │       ├── DepartmentsPage.tsx
+│       │       ├── EmployeesPage.tsx
+│       │       ├── HRPage.tsx
+│       │       ├── InstitutesPage.tsx
+│       │       ├── LeavesPage.tsx
+│       │       ├── MaterialsPage.tsx
+│       │       ├── OrganizationDetailPage.tsx
+│       │       ├── OrganizationsPage.tsx
+│       │       ├── PayrollPage.tsx
+│       │       ├── ReportsPage.tsx
+│       │       ├── SettingsPage.tsx
+│       │       ├── StudentsPage.tsx
+│       │       ├── UserDetailPage.tsx
+│       │       └── UsersPage.tsx
+│       │
+│       └── styles/
+│           └── globals.css
+│
+└── server/
+    ├── package.json
+    ├── server.js
+    ├── .env
+    │
+    └── src/
+        ├── config/
+        │   └── db.js
+        │
+        ├── controllers/
+        │   ├── announcementController.js
+        │   ├── assignmentController.js
+        │   ├── attendanceController.js
+        │   ├── authController.js
+        │   ├── classController.js
+        │   ├── departmentController.js
+        │   ├── employeeController.js
+        │   ├── hrController.js
+        │   ├── leaveController.js
+        │   ├── organizationController.js
+        │   ├── payrollController.js
+        │   ├── statsController.js
+        │   ├── studentController.js
+        │   ├── studyMaterialController.js
+        │   ├── submissionController.js
+        │   ├── teacherController.js
+        │   ├── userController.js
+        │   └── userDetailController.js
+        │
+        ├── middleware/
+        │   ├── auth.js
+        │   ├── domain.js
+        │   ├── ownership.js
+        │   └── policies.js
+        │
+        ├── models/
+        │   ├── Announcement.js
+        │   ├── Assignment.js
+        │   ├── Attendance.js
+        │   ├── Class.js
+        │   ├── Department.js
+        │   ├── Leave.js
+        │   ├── organization.js
+        │   ├── Payroll.js
+        │   ├── RefreshSession.js
+        │   ├── student.js
+        │   ├── StudyMaterial.js
+        │   ├── Submission.js
+        │   ├── teacher.js
+        │   └── User.js
+        │
+        ├── routes/
+        │   ├── announcementRoutes.js
+        │   ├── assignmentRoutes.js
+        │   ├── attendanceRoutes.js
+        │   ├── auth.js
+        │   ├── classRoutes.js
+        │   ├── departmentRoutes.js
+        │   ├── employeeRoutes.js
+        │   ├── hrRoutes.js
+        │   ├── leaveRoutes.js
+        │   ├── organizationRoutes.js
+        │   ├── payrollRoutes.js
+        │   ├── statsRoutes.js
+        │   ├── studentRoutes.js
+        │   ├── studyMaterialRoutes.js
+        │   ├── submissionRoutes.js
+        │   ├── teacherRoutes.js
+        │   └── userRoutes.js
+        │
+        └── utils/
+            ├── errorHandler.js
+            ├── peopleHelpers.js
+            ├── response.js
+            ├── sequence.js
+            └── validation.js

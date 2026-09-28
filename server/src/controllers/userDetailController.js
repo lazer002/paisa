@@ -1,76 +1,230 @@
-import { User, RolePermissions } from "../models/user.js";
+// src/controllers/userDetailController.js
+
+import { User, RolePermissions } from "../models/User.js";
 import Organization from "../models/organization.js";
 import { Leave } from "../models/Leave.js";
 import { Payroll } from "../models/Payroll.js";
 import { Attendance } from "../models/Attendance.js";
 import { Class } from "../models/Class.js";
 import Student from "../models/student.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
-import { sendSuccess, sendNotFound, sendForbidden } from "../utils/response.js";
 
-/**
- * GET /api/users/:id/detail
- * Rich CRM-style profile: identity, org, role, permissions, and
- * cross-module activity. Access rules:
- *   - super_admin: anyone
- *   - admin: same-org users only (any role in their org)
- *   - everyone else: themselves only
- */
-export const getUserDetail = asyncHandler(async (req, res) => {
-  const targetId = req.params.id;
-  const actor = req.user;
+import {
+  sendSuccess,
+  sendNotFound,
+  sendForbidden,
+} from "../utils/response.js";
 
-  const isSelf = String(actor._id) === targetId;
+export const getUserDetail = asyncHandler(
+  async (req, res) => {
+    const targetPublicId =
+      req.params.publicId;
 
-  if (!isSelf) {
-    if (actor.role === "admin") {
-      const target = await User.findById(targetId).select("instituteId").lean();
-      if (!target || String(target.instituteId ?? "") !== String(actor.instituteId ?? "")) {
-        return sendForbidden(res, "Access denied");
-      }
-    } else if (actor.role !== "super_admin") {
-      return sendForbidden(res, "Access denied");
+    const actor = req.user;
+
+    const target =
+      await User.findOne({
+        publicId:
+          targetPublicId,
+      })
+        .select(
+          "_id publicId instituteId role"
+        )
+        .lean();
+
+    if (!target) {
+      return sendNotFound(
+        res,
+        "User not found"
+      );
     }
-  }
 
-  const user = await User.findById(targetId)
-    .select("-passwordHash -failedAttempts -lockedUntil")
-    .populate("instituteId", "name type orgCode status plan")
-    .lean();
+    const isSelf =
+      String(target._id) ===
+      String(actor._id);
 
-  if (!user) return sendNotFound(res, "User not found");
+    // ─────────────────────────────
+    // ACCESS CONTROL
+    // ─────────────────────────────
 
-  const orgId = user.instituteId?._id ?? user.instituteId;
+    if (!isSelf) {
+      if (
+        actor.role === "admin"
+      ) {
+        if (
+          String(
+            target.instituteId ??
+              ""
+          ) !==
+          String(
+            actor.instituteId ??
+              ""
+          )
+        ) {
+          return sendForbidden(
+            res,
+            "Access denied"
+          );
+        }
+      } else if (
+        actor.role !==
+        "super_admin"
+      ) {
+        return sendForbidden(
+          res,
+          "Access denied"
+        );
+      }
+    }
 
-  // Parallel aggregates — cheap queries, big CRM value
-  const [leaves, payrolls, attendance, teachingClasses, enrolledClasses, studentProfile] =
-    await Promise.all([
-      Leave.find({ userId: targetId }).sort({ createdAt: -1 }).limit(10).lean(),
-      Payroll.find({ employeeId: targetId }).sort({ year: -1, month: -1 }).limit(10).lean(),
-      Attendance.find({ userId: targetId }).sort({ date: -1 }).limit(30).lean(),
-      user.role === "teacher"
-        ? Class.find({ teacherId: targetId }).select("name subject status").lean()
-        : Promise.resolve([]),
-      Class.find({ studentIds: targetId }).select("name subject status").lean(),
-      Student.findOne({ userId: targetId }).populate("userId", "name").lean(),
-    ]);
+    // ─────────────────────────────
+    // USER
+    // ─────────────────────────────
 
-  const presentCount = attendance.filter((a) => a.status === "present").length;
-  const attendancePercent = attendance.length
-    ? Math.round((presentCount / attendance.length) * 100)
-    : null;
+    const user =
+      await User.findOne({
+        publicId:
+          targetPublicId,
+      })
+        .select(
+          "-passwordHash -failedAttempts -lockedUntil"
+        )
+        .populate(
+          "instituteId",
+          "name type orgCode status plan"
+        )
+        .lean();
 
-  sendSuccess(res, "User detail fetched", {
-    user,
-    permissions: RolePermissions[user.role] ?? [],
-    activity: {
+    if (!user) {
+      return sendNotFound(
+        res,
+        "User not found"
+      );
+    }
+
+    const userId =
+      user._id;
+
+    // ─────────────────────────────
+    // RELATED DATA
+    // ─────────────────────────────
+
+    const [
       leaves,
       payrolls,
-      attendancePercent,
-      recentAttendance: attendance.slice(0, 10),
+      attendance,
       teachingClasses,
       enrolledClasses,
       studentProfile,
-    },
-  });
-});
+    ] = await Promise.all([
+      Leave.find({
+        userId,
+      })
+        .sort({
+          createdAt: -1,
+        })
+        .limit(10)
+        .lean(),
+
+      Payroll.find({
+        employeeId: userId,
+      })
+        .sort({
+          year: -1,
+          month: -1,
+        })
+        .limit(10)
+        .lean(),
+
+      Attendance.find({
+        userId,
+      })
+        .sort({
+          date: -1,
+        })
+        .limit(30)
+        .lean(),
+
+      user.role === "teacher"
+        ? Class.find({
+            teacherId: userId,
+          })
+            .select(
+              "name subject status"
+            )
+            .lean()
+        : Promise.resolve([]),
+
+      Class.find({
+        studentIds: userId,
+      })
+        .select(
+          "name subject status"
+        )
+        .lean(),
+
+      Student.findOne({
+        userId,
+      })
+        .populate(
+          "userId",
+          "name"
+        )
+        .lean(),
+    ]);
+
+    // ─────────────────────────────
+    // ATTENDANCE
+    // ─────────────────────────────
+
+    const presentCount =
+      attendance.filter(
+        (item) =>
+          item.status ===
+          "present"
+      ).length;
+
+    const attendancePercent =
+      attendance.length
+        ? Math.round(
+            (presentCount /
+              attendance.length) *
+              100
+          )
+        : null;
+
+    // ─────────────────────────────
+    // RESPONSE
+    // ─────────────────────────────
+
+    sendSuccess(
+      res,
+      "User detail fetched",
+      {
+        user,
+
+        permissions:
+          RolePermissions[
+            user.role
+          ] ?? [],
+
+        activity: {
+          leaves,
+          payrolls,
+          attendancePercent,
+
+          recentAttendance:
+            attendance.slice(
+              0,
+              10
+            ),
+
+          teachingClasses,
+          enrolledClasses,
+          studentProfile,
+        },
+      }
+    );
+  }
+);

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const DOCUMENT_STATUSES = [
   "draft",
   "pending",
@@ -321,7 +322,15 @@ const employeeDocumentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `empd_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* IDENTITY                                                               */
     /* ====================================================================== */

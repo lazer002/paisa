@@ -1,7 +1,8 @@
 // server/src/models/organization.js
 
 import mongoose from "mongoose";
-import slugify from "slugify";
+
+import crypto from "node:crypto";import slugify from "slugify";
 import { getNextSequence } from "../utils/sequence.js";
 
 const ORG_TYPES = [
@@ -47,7 +48,15 @@ const organizationSchema = new mongoose.Schema(
     /* ---------------------------------------------------------------------- */
     /* IDENTITY                                                                */
     /* ---------------------------------------------------------------------- */
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `org_${crypto.randomBytes(16).toString("base64url")}`,
+},
     name: {
       type: String,
       required: [true, "Organization name is required"],

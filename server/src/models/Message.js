@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const MESSAGE_TYPES = [
   "text",
   "image",
@@ -440,7 +441,15 @@ const messageSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `msg_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* IDENTITY                                                            */
       /* ==================================================================== */

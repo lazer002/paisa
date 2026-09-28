@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const USER_ACHIEVEMENT_STATUSES = [
   "in_progress",
   "earned",
@@ -283,7 +284,15 @@ const userAchievementSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `userac_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* IDENTITY                                                               */
     /* ====================================================================== */

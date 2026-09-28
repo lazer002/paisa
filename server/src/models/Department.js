@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const DEPARTMENT_STATUS = [
   "active",
   "inactive",
@@ -20,7 +21,15 @@ const departmentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `dep_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ---------------------------------------------------------------------- */
     /* IDENTITY                                                                */
     /* ---------------------------------------------------------------------- */

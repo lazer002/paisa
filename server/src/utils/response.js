@@ -1,33 +1,68 @@
 // server/src/utils/response.js
 
+import ApiResponse from "./ApiResponse.js";
+
 const sendSuccess = (
   res,
   {
     data = null,
-    message = "Success",
+    message = "Request successful",
     statusCode = 200,
     meta = null,
+    requestId = null,
   } = {}
 ) => {
-  const response = {
-    success: true,
+  const response =
+    new ApiResponse({
+      success: true,
+      statusCode,
+      message,
+      data,
+      meta,
+      requestId:
+        requestId ||
+        res.req?.requestId ||
+        null,
+    });
+
+  return res
+    .status(statusCode)
+    .json(response.toJSON());
+};
+
+const sendForbidden = (
+  res,
+  message = "Forbidden",
+  options = {}
+) => {
+  return sendError(
+    res,
     message,
-    data,
-  };
+    403,
+    options
+  );
+};
 
-  if (meta !== null) {
-    response.meta = meta;
-  }
-
-  return res.status(statusCode).json(response);
+const sendNotFound = (
+  res,
+  message = "Resource not found",
+  options = {}
+) => {
+  return sendError(
+    res,
+    message,
+    404,
+    options
+  );
 };
 
 const sendCreated = (
   res,
   {
     data = null,
-    message = "Created successfully",
+    message = "Resource created successfully",
     meta = null,
+    requestId = null,
   } = {}
 ) => {
   return sendSuccess(res, {
@@ -35,145 +70,156 @@ const sendCreated = (
     message,
     statusCode: 201,
     meta,
+    requestId,
   });
 };
 
-const sendNoContent = (res) => {
-  return res.status(204).send();
-};
-
-const sendError = (
+const sendAccepted = (
   res,
   {
-    message = "Something went wrong",
-    statusCode = 500,
-    code = "INTERNAL_SERVER_ERROR",
-    details = null,
+    data = null,
+    message = "Request accepted",
+    meta = null,
+    requestId = null,
   } = {}
 ) => {
-  const response = {
-    success: false,
+  return sendSuccess(res, {
+    data,
     message,
-    code,
-  };
-
-  if (details !== null) {
-    response.details = details;
-  }
-
-  return res.status(statusCode).json(response);
-};
-
-const sendBadRequest = (
-  res,
-  message = "Bad request",
-  details = null
-) => {
-  return sendError(res, {
-    message,
-    statusCode: 400,
-    code: "BAD_REQUEST",
-    details,
+    statusCode: 202,
+    meta,
+    requestId,
   });
 };
 
-const sendUnauthorized = (
-  res,
-  message = "Authentication required"
+const sendNoContent = (
+  res
 ) => {
-  return sendError(res, {
-    message,
-    statusCode: 401,
-    code: "UNAUTHORIZED",
-  });
-};
-
-const sendForbidden = (
-  res,
-  message = "You do not have permission to perform this action"
-) => {
-  return sendError(res, {
-    message,
-    statusCode: 403,
-    code: "FORBIDDEN",
-  });
-};
-
-const sendNotFound = (
-  res,
-  message = "Resource not found"
-) => {
-  return sendError(res, {
-    message,
-    statusCode: 404,
-    code: "NOT_FOUND",
-  });
-};
-
-const sendConflict = (
-  res,
-  message = "Resource already exists",
-  details = null
-) => {
-  return sendError(res, {
-    message,
-    statusCode: 409,
-    code: "CONFLICT",
-    details,
-  });
-};
-
-const sendValidationError = (
-  res,
-  message = "Validation failed",
-  details = null
-) => {
-  return sendError(res, {
-    message,
-    statusCode: 422,
-    code: "VALIDATION_ERROR",
-    details,
-  });
+  return res.status(204).send();
 };
 
 const sendPaginated = (
   res,
   {
     data = [],
-    page = 1,
-    limit = 20,
-    total = 0,
-    message = "Data fetched successfully",
+    pagination = {},
+    message = "Request successful",
+    meta = null,
+    statusCode = 200,
+    requestId = null,
   } = {}
 ) => {
-  const totalPages = Math.ceil(total / limit);
+  const response =
+    new ApiResponse({
+      success: true,
+      statusCode,
+      message,
+      data,
+      meta,
+      pagination,
+      requestId:
+        requestId ||
+        res.req?.requestId ||
+        null,
+    });
 
-  return sendSuccess(res, {
-    data,
+  return res
+    .status(statusCode)
+    .json(response.toJSON());
+};
+
+const sendError = (
+  res,
+  {
+    message = "Request failed",
+    statusCode = 500,
+    code = "INTERNAL_SERVER_ERROR",
+    errors = null,
+    details = null,
+    requestId = null,
+  } = {}
+) => {
+  const body = {
+    success: false,
+    statusCode,
+    code,
     message,
-    meta: {
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total: Number(total),
-        totalPages,
-        hasNextPage: Number(page) < totalPages,
-        hasPreviousPage: Number(page) > 1,
-      },
-    },
-  });
+    errors,
+    details,
+    requestId:
+      requestId ||
+      res.req?.requestId ||
+      null,
+  };
+
+  return res
+    .status(statusCode)
+    .json(body);
+};
+
+const responseMethods = (
+  req,
+  res,
+  next
+) => {
+  res.success = (options = {}) =>
+    sendSuccess(res, {
+      ...options,
+      requestId:
+        options.requestId ||
+        req.requestId,
+    });
+
+  res.created = (options = {}) =>
+    sendCreated(res, {
+      ...options,
+      requestId:
+        options.requestId ||
+        req.requestId,
+    });
+
+  res.accepted = (options = {}) =>
+    sendAccepted(res, {
+      ...options,
+      requestId:
+        options.requestId ||
+        req.requestId,
+    });
+
+  res.noContent = () =>
+    sendNoContent(res);
+
+  res.paginated = (
+    options = {}
+  ) =>
+    sendPaginated(res, {
+      ...options,
+      requestId:
+        options.requestId ||
+        req.requestId,
+    });
+
+  res.error = (options = {}) =>
+    sendError(res, {
+      ...options,
+      requestId:
+        options.requestId ||
+        req.requestId,
+    });
+
+  next();
 };
 
 export {
   sendSuccess,
   sendCreated,
+  sendAccepted,
   sendNoContent,
-  sendError,
-  sendBadRequest,
-  sendUnauthorized,
-  sendForbidden,
-  sendNotFound,
-  sendConflict,
-  sendValidationError,
   sendPaginated,
+  sendError,
+  responseMethods,
+  sendForbidden,
+  sendNotFound
 };
+
+export default responseMethods;

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const EVENT_TYPES = [
   "user.created",
   "user.updated",
@@ -286,7 +287,15 @@ const eventSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `ene_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* EVENT IDENTITY                                                         */
     /* ====================================================================== */

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const attachmentSchema = new mongoose.Schema(
   {
     _id: false,
@@ -94,7 +95,15 @@ const submissionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `sub_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ---------------------------------------------------------------------- */
     /* GROUP WORK                                                              */
     /* ---------------------------------------------------------------------- */

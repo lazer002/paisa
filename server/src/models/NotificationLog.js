@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const NOTIFICATION_CHANNELS = [
   "in_app",
   "push",
@@ -297,7 +298,15 @@ const notificationPreferenceSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `not_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* USER                                                                 */
       /* ==================================================================== */

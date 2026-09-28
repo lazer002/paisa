@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const CLASS_STATUS = [
   "draft",
   "active",
@@ -79,7 +80,15 @@ const classSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `cla_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ---------------------------------------------------------------------- */
     /* BASIC IDENTITY                                                          */
     /* ---------------------------------------------------------------------- */

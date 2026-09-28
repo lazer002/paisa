@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const LEAVE_TYPES = [
   "sick",
   "casual",
@@ -47,7 +48,15 @@ const leaveSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `leav_${crypto.randomBytes(16).toString("base64url")}`,
+},
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

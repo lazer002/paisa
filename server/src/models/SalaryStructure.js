@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const SALARY_STATUSES = [
   "draft",
   "active",
@@ -347,7 +348,15 @@ const salaryStructureSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `sal_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* IDENTITY                                                             */
       /* ==================================================================== */

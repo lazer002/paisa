@@ -1,10 +1,11 @@
 // server/src/middleware/policies.js
 
+import authenticate from "./authenticate.js";
+
 import {
-  authMiddleware,
-  allowRoles,
-  authorize,
-} from "./auth.js";
+  requireRole,
+  requirePermission,
+} from "./authorize.js";
 
 import { allowDomains } from "./domain.js";
 
@@ -13,8 +14,8 @@ import { allowDomains } from "./domain.js";
 /* -------------------------------------------------------------------------- */
 
 const withAuth = (...middlewares) => [
-  authMiddleware,
-  ...middlewares,
+  authenticate,
+  ...middlewares.filter(Boolean),
 ];
 
 const educationDomains = allowDomains(
@@ -23,7 +24,9 @@ const educationDomains = allowDomains(
   "coaching"
 );
 
-const companyDomains = allowDomains("company");
+const companyDomains = allowDomains(
+  "company"
+);
 
 /* -------------------------------------------------------------------------- */
 /* Authentication / role policies                                             */
@@ -32,12 +35,15 @@ const companyDomains = allowDomains("company");
 export const authenticated = withAuth();
 
 export const adminAccess = withAuth(
-  allowRoles("admin", "super_admin")
+  requireRole(
+    "admin",
+    "super_admin"
+  )
 );
 
 export const superAdminOnly = withAuth(
-  allowRoles("super_admin"),
-  authorize("manage_organizations")
+  requireRole("super_admin"),
+  requirePermission("manage_organizations")
 );
 
 /* -------------------------------------------------------------------------- */
@@ -57,9 +63,14 @@ export const companyDomain = withAuth(
 /* -------------------------------------------------------------------------- */
 
 export const manageOrganizations = withAuth(
-  allowRoles("admin", "super_admin"),
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
   educationDomains,
-  authorize("manage_organizations")
+  requirePermission(
+    "manage_organizations"
+  )
 );
 
 /* -------------------------------------------------------------------------- */
@@ -67,9 +78,14 @@ export const manageOrganizations = withAuth(
 /* -------------------------------------------------------------------------- */
 
 export const manageCompany = withAuth(
-  allowRoles("admin", "super_admin"),
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
   companyDomains,
-  authorize("manage_staff")
+  requirePermission(
+    "manage_staff"
+  )
 );
 
 /* -------------------------------------------------------------------------- */
@@ -77,12 +93,22 @@ export const manageCompany = withAuth(
 /* -------------------------------------------------------------------------- */
 
 export const manageStaff = withAuth(
-  allowRoles("admin", "hr", "super_admin"),
-  authorize("manage_staff")
+  requireRole(
+    "admin",
+    "hr",
+    "super_admin"
+  ),
+  requirePermission(
+    "manage_staff"
+  )
 );
 
 export const hrAccess = withAuth(
-  allowRoles("admin", "hr", "super_admin")
+  requireRole(
+    "admin",
+    "hr",
+    "super_admin"
+  )
 );
 
 /* -------------------------------------------------------------------------- */
@@ -90,7 +116,7 @@ export const hrAccess = withAuth(
 /* -------------------------------------------------------------------------- */
 
 export const teacherAccess = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
@@ -99,7 +125,7 @@ export const teacherAccess = withAuth(
 );
 
 export const studentAccess = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "student",
@@ -109,16 +135,19 @@ export const studentAccess = withAuth(
 );
 
 export const educationAdminAccess = withAuth(
-  allowRoles("admin", "super_admin"),
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
   educationDomains
 );
 
 /* -------------------------------------------------------------------------- */
-/* Employee policies                                                         */
+/* Employee policies                                                          */
 /* -------------------------------------------------------------------------- */
 
 export const employeeAccess = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "hr",
     "employee",
@@ -132,102 +161,130 @@ export const employeeAccess = withAuth(
 /* -------------------------------------------------------------------------- */
 
 export const manageUsers = withAuth(
-  allowRoles("admin", "super_admin"),
-  authorize("manage_users")
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
+  requirePermission(
+    "manage_users"
+  )
 );
 
 export const manageStudents = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
   ),
   educationDomains,
-  authorize("manage_students")
+  requirePermission(
+    "manage_students"
+  )
 );
 
 export const manageTeachers = withAuth(
-  allowRoles("admin", "super_admin"),
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
   educationDomains,
-  authorize("manage_teachers")
+  requirePermission(
+    "manage_teachers"
+  )
 );
 
 export const manageClasses = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
   ),
   educationDomains,
-  authorize("manage_classes")
+  requirePermission(
+    "manage_classes"
+  )
 );
 
 export const manageAssignments = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
   ),
   educationDomains,
-  authorize("manage_assignments")
+  requirePermission(
+    "manage_assignments"
+  )
 );
 
 export const manageAttendance = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
   ),
   educationDomains,
-  authorize("manage_attendance")
+  requirePermission(
+    "manage_attendance"
+  )
 );
 
 export const manageStudyMaterials = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "super_admin"
   ),
   educationDomains,
-  authorize("manage_materials")
+  requirePermission(
+    "manage_materials"
+  )
 );
 
 export const manageAnnouncements = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "teacher",
     "hr",
     "super_admin"
   ),
-  authorize("manage_announcements")
+  requirePermission(
+    "manage_announcements"
+  )
 );
 
 export const manageLeaves = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "hr",
     "employee",
     "super_admin"
   ),
-  authorize("manage_leaves")
+  requirePermission(
+    "manage_leaves"
+  )
 );
 
 export const managePayroll = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "hr",
     "super_admin"
   ),
   companyDomains,
-  authorize("manage_payroll")
+  requirePermission(
+    "manage_payroll"
+  )
 );
 
 export const viewReports = withAuth(
-  allowRoles(
+  requireRole(
     "admin",
     "hr",
     "teacher",
     "super_admin"
   ),
-  authorize("view_reports")
+  requirePermission(
+    "view_reports"
+  )
 );

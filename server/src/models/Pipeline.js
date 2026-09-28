@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const PIPELINE_STATUSES = [
   "draft",
   "active",
@@ -341,7 +342,15 @@ const pipelineSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `pip_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* IDENTITY                                                              */
     /* ====================================================================== */

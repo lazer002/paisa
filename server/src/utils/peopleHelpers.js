@@ -3,7 +3,8 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
-import { User, Roles } from "../models/user.js";
+import crypto from "node:crypto";
+import { User, Roles } from "../models/User.js";
 import Organization from "../models/organization.js";
 
 const PASSWORD_SALT_ROUNDS = Math.min(

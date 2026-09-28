@@ -1,8 +1,9 @@
 // server/src/middleware/ownership.js
 
 import mongoose from "mongoose";
-import { AppError } from "../utils/errorHandler.js";
-import { Roles } from "../models/user.js";
+
+import crypto from "node:crypto";import { AppError } from "../utils/errorHandler.js";
+import { Roles } from "../models/User.js";
 
 const checkOwnership = (Model, options = {}) => {
   const {

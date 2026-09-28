@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const CONVERSATION_TYPES = [
   "direct",
   "group",
@@ -400,7 +401,15 @@ const conversationSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `conv_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* IDENTITY                                                            */
       /* ==================================================================== */

@@ -1,42 +1,7 @@
 import mongoose from "mongoose";
 
-/**
- * ============================================================================
- * PAISA — AUDIT LOG
- * ============================================================================
- *
- * Immutable security / compliance / business audit trail.
- *
- * Design goals:
- * - Multi-tenant safe
- * - High-volume write optimized
- * - Query optimized for admin/compliance/reporting
- * - Immutable by application design
- * - Supports user actions, system actions, integrations and jobs
- * - Before/after change tracking
- * - Request/device/IP metadata
- * - Entity/resource tracking
- * - Security events
- * - Authentication events
- * - Compliance-ready metadata
- * - Correlation / request tracing
- * - Future event-driven architecture
- *
- * IMPORTANT:
- * Do NOT store:
- * - passwords
- * - access tokens
- * - refresh tokens
- * - OTPs
- * - API secrets
- * - raw biometric data
- * - full payment card data
- * - unnecessary sensitive personal data
- *
- * AuditLog should generally be append-only.
- * Business entities should NEVER update/delete audit records.
- * ============================================================================
- */
+import crypto from "node:crypto";
+
 
 const AUDIT_ACTIONS = [
   /* Authentication */
@@ -608,7 +573,15 @@ const auditLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `aud_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ------------------------------------------------------------------------
      * ACTOR
      * ---------------------------------------------------------------------- */

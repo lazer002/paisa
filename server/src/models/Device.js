@@ -1,7 +1,8 @@
 // server/src/models/Device.js
 
 import mongoose from "mongoose";
-import crypto from "crypto";
+
+import crypto from "node:crypto";import crypto from "crypto";
 
 const DEVICE_TYPES = [
   "mobile",
@@ -129,7 +130,15 @@ const deviceSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `dev_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* OWNER                                                                */
       /* ==================================================================== */

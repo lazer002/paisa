@@ -77,7 +77,7 @@ npm run start
 - Tailwind CSS
 - Radix UI components
 - React Hook Form
-- Zustand for state management
+
 
 ### Backend (server/)
 - Express.js
@@ -114,9 +114,3 @@ npm run start
 
 Create a `.env` file in the server directory:
 
-```
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-PORT=5000
-FRONTEND_URL=http://localhost:3000
-```

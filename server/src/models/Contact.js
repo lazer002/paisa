@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const CONTACT_TYPES = [
   "individual",
   "parent",
@@ -396,7 +397,15 @@ const contactSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `con_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* IDENTITY                                                               */
     /* ====================================================================== */

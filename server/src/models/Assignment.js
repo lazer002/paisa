@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ASSIGNMENT_STATUS = [
   "draft",
   "published",
@@ -190,7 +191,15 @@ const assignmentSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `ass_${crypto.randomBytes(16).toString("base64url")}`,
+},
       instituteId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Organization",

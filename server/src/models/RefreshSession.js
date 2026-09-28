@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const refreshSessionSchema = new mongoose.Schema(
   {
     /* ---------------------------------------------------------------------- */

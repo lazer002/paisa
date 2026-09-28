@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const PHONE_MATCH = [
   /^\+?[0-9]{10,15}$/,
   "Invalid phone number",
@@ -32,7 +33,15 @@ const studentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `stu_${crypto.randomBytes(16).toString("base64url")}`,
+},
     enrollmentNumber: {
       type: String,
       required: true,

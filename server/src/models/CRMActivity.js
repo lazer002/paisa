@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ACTIVITY_TYPES = [
   "call",
   "email",
@@ -240,7 +241,15 @@ const crmActivitySchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `crm_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* IDENTITY                                                               */
     /* ====================================================================== */

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const LIVE_SESSION_STATUS = [
   "draft",
   "scheduled",
@@ -551,7 +552,15 @@ const liveSessionSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `liv_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* BASIC INFORMATION                                                    */
       /* ==================================================================== */

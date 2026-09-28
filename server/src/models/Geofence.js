@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 /* ============================================================================
  * ENUMS
  * ========================================================================== */
@@ -737,7 +738,15 @@ const geofenceSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `geo_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ====================================================================== */
       /* IDENTITY                                                              */
       /* ====================================================================== */

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 /**
  * ATTENDANCE
  *
@@ -95,7 +96,15 @@ const attendanceSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `att_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ---------------------------------------------------------------------- */
     /* ACADEMIC CONTEXT                                                        */
     /* ---------------------------------------------------------------------- */

@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const QUESTION_TYPES = [
   "single_choice",
   "multiple_choice",
@@ -426,7 +427,15 @@ const questionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `ques_${crypto.randomBytes(16).toString("base64url")}`,
+},
     /* ====================================================================== */
     /* OWNERSHIP                                                              */
     /* ====================================================================== */

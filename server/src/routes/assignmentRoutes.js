@@ -1,16 +1,50 @@
+// src/routes/assignmentRoutes.js
+
 import express from "express";
+
 import {
-  createAssignment, getAssignments, getAssignment, updateAssignment, deleteAssignment,
+  createAssignment,
+  getAssignments,
+  getAssignment,
+  updateAssignment,
+  deleteAssignment,
 } from "../controllers/assignmentController.js";
-import { authMiddleware, allowRoles } from "../middleware/auth.js";
+
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
-router.use(authMiddleware);
 
-router.get("/", allowRoles("super_admin", "admin", "teacher", "student"), getAssignments);
-router.get("/:id", allowRoles("super_admin", "admin", "teacher", "student"), getAssignment);
-router.post("/", allowRoles("super_admin", "admin", "teacher"), createAssignment);
-router.put("/:id", allowRoles("super_admin", "admin", "teacher"), updateAssignment);
-router.delete("/:id", allowRoles("super_admin", "admin", "teacher"), deleteAssignment);
+router.use(authenticate);
+
+router.get(
+  "/",
+  requireRole("super_admin", "admin", "teacher", "student"),
+  getAssignments
+);
+
+router.get(
+  "/:publicId",
+  requireRole("super_admin", "admin", "teacher", "student"),
+  getAssignment
+);
+
+router.post(
+  "/",
+  requireRole("super_admin", "admin", "teacher"),
+  createAssignment
+);
+
+router.put(
+  "/:publicId",
+  requireRole("super_admin", "admin", "teacher"),
+  updateAssignment
+);
+
+router.delete(
+  "/:publicId",
+  requireRole("super_admin", "admin", "teacher"),
+  deleteAssignment
+);
 
 export default router;

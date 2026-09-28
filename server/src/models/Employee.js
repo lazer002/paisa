@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const EMPLOYEE_STATUSES = [
   "active",
   "inactive",
@@ -591,7 +592,15 @@ const employeeSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `emp_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* IDENTITY                                                             */
       /* ==================================================================== */

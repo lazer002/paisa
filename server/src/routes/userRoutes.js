@@ -1,4 +1,7 @@
+// server/src/routes/userRoutes.js
+
 import express from "express";
+
 import {
   createUser,
   getUsers,
@@ -6,20 +9,88 @@ import {
   updateUser,
   deleteUser,
 } from "../controllers/userController.js";
+
 import { getUserDetail } from "../controllers/userDetailController.js";
 
-import { authMiddleware, allowRoles } from "../middleware/auth.js";
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-router.use(authMiddleware);
+router.use(authenticate);
 
-router.post("/", allowRoles("super_admin", "admin"), createUser);
-router.get("/", allowRoles("super_admin", "admin"), getUsers);
-// detail route MUST be registered before /:id param route
-router.get("/:id/detail", getUserDetail);
-router.get("/:id", allowRoles("super_admin", "admin"), getUserById);
-router.put("/:id", allowRoles("super_admin", "admin"), updateUser);
-router.delete("/:id", allowRoles("super_admin"), deleteUser);
+// ─────────────────────────────────────────────
+// CREATE USER
+// ─────────────────────────────────────────────
+
+router.post(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  createUser
+);
+
+// ─────────────────────────────────────────────
+// GET USERS
+// ─────────────────────────────────────────────
+
+router.get(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  getUsers
+);
+
+// ─────────────────────────────────────────────
+// USER DETAIL
+// Must be before /:publicId
+// ─────────────────────────────────────────────
+
+router.get(
+  "/:publicId/detail",
+  getUserDetail
+);
+
+// ─────────────────────────────────────────────
+// GET USER
+// ─────────────────────────────────────────────
+
+router.get(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  getUserById
+);
+
+// ─────────────────────────────────────────────
+// UPDATE USER
+// ─────────────────────────────────────────────
+
+router.put(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  updateUser
+);
+
+// ─────────────────────────────────────────────
+// DELETE / DEACTIVATE USER
+// ─────────────────────────────────────────────
+
+router.delete(
+  "/:publicId",
+  requireRole(
+    "super_admin"
+  ),
+  deleteUser
+);
 
 export default router;

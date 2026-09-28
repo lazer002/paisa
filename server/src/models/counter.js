@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const counterSchema = new mongoose.Schema(
   {
     key: {

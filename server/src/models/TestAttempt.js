@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ATTEMPT_STATUS = [
   "created",
   "started",
@@ -528,7 +529,15 @@ const testAttemptSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `test_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* TEST                                                                  */
       /* ==================================================================== */

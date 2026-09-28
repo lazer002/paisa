@@ -1,31 +1,173 @@
+// src/controllers/teacherController.js
+
 import Teacher from "../models/teacher.js";
-import { User } from "../models/user.js";
+import { User, Roles } from "../models/User.js";
 
-export const createTeacher = async (req, res) => {
+import {
+  sendSuccess,
+  sendCreated,
+  sendNotFound,
+  sendError,
+} from "../utils/response.js";
+
+import { scopedQuery } from "../utils/peopleHelpers.js";
+
+// Create teacher profile
+export const createTeacher = async (
+  req,
+  res
+) => {
   try {
-    const { userId, instituteId, subject, qualifications, experience } = req.body;
-
-    const teacher = await Teacher.create({
+    const {
       userId,
       instituteId,
       subject,
       qualifications,
-      experience
-    });
+      experience,
+    } = req.body;
 
-    res.status(201).json({ message: "Teacher created", teacher });
+    if (!userId) {
+      return sendError(
+        res,
+        400,
+        "userId is required"
+      );
+    }
+
+    const user =
+      await User.findById(
+        userId
+      ).lean();
+
+    if (!user) {
+      return sendNotFound(
+        res,
+        "User not found"
+      );
+    }
+
+    if (
+      user.role !==
+      Roles.TEACHER
+    ) {
+      return sendError(
+        res,
+        400,
+        "The linked user must have the teacher role"
+      );
+    }
+
+    // Never allow a normal user
+    // to create a teacher profile
+    // inside another institute.
+    const resolvedInstituteId =
+      req.user.role ===
+      Roles.SUPER_ADMIN
+        ? instituteId ||
+          user.instituteId
+        : req.user.instituteId;
+
+    if (!resolvedInstituteId) {
+      return sendError(
+        res,
+        400,
+        "Institute context required"
+      );
+    }
+
+    // For non-super-admin users,
+    // enforce their own institute.
+    if (
+      req.user.role !==
+        Roles.SUPER_ADMIN &&
+      instituteId &&
+      String(instituteId) !==
+        String(req.user.instituteId)
+    ) {
+      return sendError(
+        res,
+        403,
+        "You cannot create a teacher in another institute"
+      );
+    }
+
+    const teacher =
+      await Teacher.create({
+        userId,
+        instituteId:
+          resolvedInstituteId,
+        subject,
+        qualifications,
+        experience,
+      });
+
+    sendCreated(
+      res,
+      "Teacher created",
+      teacher
+    );
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    if (
+      err?.code === 11000
+    ) {
+      return sendError(
+        res,
+        400,
+        "Teacher profile already exists"
+      );
+    }
+
+    console.error(
+      "Create teacher error:",
+      err
+    );
+
+    sendError(
+      res,
+      500,
+      "Server error"
+    );
   }
 };
 
-export const getTeachers = async (req, res) => {
+// Get teachers
+export const getTeachers = async (
+  req,
+  res
+) => {
   try {
-    const teachers = await Teacher.find()
-      .populate("userId", "name email")
-      .populate("instituteId", "name type");
-    res.json(teachers);
+    const teachers =
+      await Teacher.find(
+        scopedQuery(req.user)
+      )
+        .populate(
+          "userId",
+          "name email userCode"
+        )
+        .populate(
+          "instituteId",
+          "name type"
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    sendSuccess(
+      res,
+      "Teachers fetched",
+      teachers
+    );
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    console.error(
+      "Get teachers error:",
+      err
+    );
+
+    sendError(
+      res,
+      500,
+      "Server error"
+    );
   }
 };

@@ -1,4 +1,6 @@
-import { User } from "../models/user.js";
+// src/controllers/statsController.js
+
+import { User } from "../models/User.js";
 import Organization from "../models/organization.js";
 import { Attendance } from "../models/Attendance.js";
 import { Assignment } from "../models/Assignment.js";
@@ -6,118 +8,400 @@ import { Submission } from "../models/Submission.js";
 import { Leave } from "../models/Leave.js";
 import { Payroll } from "../models/Payroll.js";
 import { Announcement } from "../models/Announcement.js";
+import { Class } from "../models/Class.js";
+import { Department } from "../models/Department.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
 import { sendSuccess } from "../utils/response.js";
 
-export const getSuperAdminStats = asyncHandler(async (req, res) => {
-  const [totalOrgs, totalUsers, institutes, companies] = await Promise.all([
-    Organization.countDocuments({ isDeleted: { $ne: true } }),
-    User.countDocuments(),
-    Organization.countDocuments({ type: { $in: ["school", "college", "coaching"] }, isDeleted: { $ne: true } }),
-    Organization.countDocuments({ type: "company", isDeleted: { $ne: true } }),
-  ]);
+/* =========================================================
+   SUPER ADMIN STATS
+========================================================= */
 
-  const usersByRole = await User.aggregate([
-    { $group: { _id: "$role", count: { $sum: 1 } } },
-  ]);
+export const getSuperAdminStats = asyncHandler(
+  async (req, res) => {
+    const [
+      totalOrgs,
+      totalUsers,
+      institutes,
+      companies,
+    ] = await Promise.all([
+      Organization.countDocuments({
+        isDeleted: {
+          $ne: true,
+        },
+      }),
 
-  const roleMap = usersByRole.reduce((acc, r) => {
-    acc[r._id] = r.count;
-    return acc;
-  }, {});
+      User.countDocuments(),
 
-  sendSuccess(res, "Stats fetched", {
-    organizations: totalOrgs,
-    users: totalUsers,
-    institutes,
-    companies,
-    teachers: roleMap.teacher || 0,
-    students: roleMap.student || 0,
-    employees: roleMap.employee || 0,
-    hr: roleMap.hr || 0,
-    admins: roleMap.admin || 0,
-  });
-});
+      Organization.countDocuments({
+        type: {
+          $in: [
+            "school",
+            "college",
+            "coaching",
+          ],
+        },
+        isDeleted: {
+          $ne: true,
+        },
+      }),
 
-export const getAdminStats = asyncHandler(async (req, res) => {
-  const instituteId = req.user.instituteId;
+      Organization.countDocuments({
+        type: "company",
+        isDeleted: {
+          $ne: true,
+        },
+      }),
+    ]);
 
-  const [teachers, students, employees, hr, announcements, pendingLeaves] = await Promise.all([
-    User.countDocuments({ instituteId, role: "teacher" }),
-    User.countDocuments({ instituteId, role: "student" }),
-    User.countDocuments({ instituteId, role: "employee" }),
-    User.countDocuments({ instituteId, role: "hr" }),
-    Announcement.countDocuments({ instituteId, isActive: true }),
-    Leave.countDocuments({ instituteId, status: "pending" }),
-  ]);
+    const usersByRole =
+      await User.aggregate([
+        {
+          $group: {
+            _id: "$role",
+            count: {
+              $sum: 1,
+            },
+          },
+        },
+      ]);
 
-  sendSuccess(res, "Admin stats", {
-    teachers,
-    students,
-    employees,
-    hr,
-    announcements,
-    pendingLeaves,
-    totalStaff: teachers + students + employees + hr,
-  });
-});
+    const roleMap =
+      usersByRole.reduce(
+        (acc, item) => {
+          acc[item._id] =
+            item.count;
 
-export const getTeacherStats = asyncHandler(async (req, res) => {
-  const { Class } = await import("../models/Class.js");
+          return acc;
+        },
+        {}
+      );
 
-  const [myClasses, myAssignments, pendingSubmissions] = await Promise.all([
-    Class.countDocuments({ teacherId: req.user._id, status: "active" }),
-    Assignment.countDocuments({ createdBy: req.user._id }),
-    Submission.countDocuments({ status: "submitted" }),
-  ]);
+    sendSuccess(
+      res,
+      "Stats fetched",
+      {
+        organizations:
+          totalOrgs,
 
-  sendSuccess(res, "Teacher stats", { myClasses, myAssignments, pendingSubmissions });
-});
+        users:
+          totalUsers,
 
-export const getStudentStats = asyncHandler(async (req, res) => {
-  const { Class } = await import("../models/Class.js");
+        institutes,
 
-  const [enrolledClasses, pendingAssignments, submittedAssignments] = await Promise.all([
-    Class.countDocuments({ studentIds: req.user._id }),
-    Assignment.countDocuments({ status: "published" }),
-    Submission.countDocuments({ studentId: req.user._id }),
-  ]);
+        companies,
 
-  const attendance = await Attendance.find({ userId: req.user._id }).lean();
-  const present = attendance.filter(a => a.status === "present").length;
-  const attendancePercent = attendance.length > 0 ? Math.round((present / attendance.length) * 100) : 0;
+        teachers:
+          roleMap.teacher || 0,
 
-  sendSuccess(res, "Student stats", {
-    enrolledClasses,
-    pendingAssignments,
-    submittedAssignments,
-    attendancePercent,
-  });
-});
+        students:
+          roleMap.student || 0,
 
-export const getHRStats = asyncHandler(async (req, res) => {
-  const instituteId = req.user.instituteId;
+        employees:
+          roleMap.employee || 0,
 
-  const [employees, pendingLeaves, processedPayrolls, departments] = await Promise.all([
-    User.countDocuments({ instituteId, role: "employee" }),
-    Leave.countDocuments({ instituteId, status: "pending" }),
-    Payroll.countDocuments({ instituteId, status: "paid" }),
-    (await import("../models/Department.js")).Department.countDocuments({ instituteId }),
-  ]);
+        hr:
+          roleMap.hr || 0,
 
-  sendSuccess(res, "HR stats", { employees, pendingLeaves, processedPayrolls, departments });
-});
+        admins:
+          roleMap.admin || 0,
+      }
+    );
+  }
+);
 
-export const getEmployeeStats = asyncHandler(async (req, res) => {
-  const [myLeaves, myPayslips, pendingLeaves] = await Promise.all([
-    Leave.countDocuments({ userId: req.user._id }),
-    Payroll.countDocuments({ employeeId: req.user._id }),
-    Leave.countDocuments({ userId: req.user._id, status: "pending" }),
-  ]);
+/* =========================================================
+   ADMIN STATS
+========================================================= */
 
-  const attendance = await Attendance.find({ userId: req.user._id }).sort({ date: -1 }).limit(30).lean();
-  const present = attendance.filter(a => a.status === "present").length;
-  const attendancePercent = attendance.length > 0 ? Math.round((present / attendance.length) * 100) : 0;
+export const getAdminStats = asyncHandler(
+  async (req, res) => {
+    const instituteId =
+      req.user.instituteId;
 
-  sendSuccess(res, "Employee stats", { myLeaves, myPayslips, pendingLeaves, attendancePercent });
-});
+    const [
+      teachers,
+      students,
+      employees,
+      hr,
+      announcements,
+      pendingLeaves,
+    ] = await Promise.all([
+      User.countDocuments({
+        instituteId,
+        role: "teacher",
+      }),
+
+      User.countDocuments({
+        instituteId,
+        role: "student",
+      }),
+
+      User.countDocuments({
+        instituteId,
+        role: "employee",
+      }),
+
+      User.countDocuments({
+        instituteId,
+        role: "hr",
+      }),
+
+      Announcement.countDocuments({
+        instituteId,
+        isActive: true,
+      }),
+
+      Leave.countDocuments({
+        instituteId,
+        status: "pending",
+      }),
+    ]);
+
+    sendSuccess(
+      res,
+      "Admin stats",
+      {
+        teachers,
+        students,
+        employees,
+        hr,
+        announcements,
+        pendingLeaves,
+
+        totalStaff:
+          teachers +
+          students +
+          employees +
+          hr,
+      }
+    );
+  }
+);
+
+/* =========================================================
+   TEACHER STATS
+========================================================= */
+
+export const getTeacherStats = asyncHandler(
+  async (req, res) => {
+    const [
+      myClasses,
+      myAssignments,
+      pendingSubmissions,
+    ] = await Promise.all([
+      Class.countDocuments({
+        teacherId:
+          req.user._id,
+        status: "active",
+      }),
+
+      Assignment.countDocuments({
+        createdBy:
+          req.user._id,
+      }),
+
+      Submission.countDocuments({
+        status: "submitted",
+
+        // Keep submissions scoped
+        // to the teacher's assignments.
+        assignmentId: {
+          $in:
+            await Assignment.find({
+              createdBy:
+                req.user._id,
+            }).distinct("_id"),
+        },
+      }),
+    ]);
+
+    sendSuccess(
+      res,
+      "Teacher stats",
+      {
+        myClasses,
+        myAssignments,
+        pendingSubmissions,
+      }
+    );
+  }
+);
+
+/* =========================================================
+   STUDENT STATS
+========================================================= */
+
+export const getStudentStats = asyncHandler(
+  async (req, res) => {
+    const [
+      enrolledClasses,
+      pendingAssignments,
+      submittedAssignments,
+    ] = await Promise.all([
+      Class.countDocuments({
+        studentIds:
+          req.user._id,
+      }),
+
+      Assignment.countDocuments({
+        status: "published",
+      }),
+
+      Submission.countDocuments({
+        studentId:
+          req.user._id,
+      }),
+    ]);
+
+    const attendance =
+      await Attendance.find({
+        userId:
+          req.user._id,
+      }).lean();
+
+    const present =
+      attendance.filter(
+        (item) =>
+          item.status ===
+          "present"
+      ).length;
+
+    const attendancePercent =
+      attendance.length > 0
+        ? Math.round(
+            (present /
+              attendance.length) *
+              100
+          )
+        : 0;
+
+    sendSuccess(
+      res,
+      "Student stats",
+      {
+        enrolledClasses,
+        pendingAssignments,
+        submittedAssignments,
+        attendancePercent,
+      }
+    );
+  }
+);
+
+/* =========================================================
+   HR STATS
+========================================================= */
+
+export const getHRStats = asyncHandler(
+  async (req, res) => {
+    const instituteId =
+      req.user.instituteId;
+
+    const [
+      employees,
+      pendingLeaves,
+      processedPayrolls,
+      departments,
+    ] = await Promise.all([
+      User.countDocuments({
+        instituteId,
+        role: "employee",
+      }),
+
+      Leave.countDocuments({
+        instituteId,
+        status: "pending",
+      }),
+
+      Payroll.countDocuments({
+        instituteId,
+        status: "paid",
+      }),
+
+      Department.countDocuments({
+        instituteId,
+      }),
+    ]);
+
+    sendSuccess(
+      res,
+      "HR stats",
+      {
+        employees,
+        pendingLeaves,
+        processedPayrolls,
+        departments,
+      }
+    );
+  }
+);
+
+/* =========================================================
+   EMPLOYEE STATS
+========================================================= */
+
+export const getEmployeeStats = asyncHandler(
+  async (req, res) => {
+    const [
+      myLeaves,
+      myPayslips,
+      pendingLeaves,
+    ] = await Promise.all([
+      Leave.countDocuments({
+        userId:
+          req.user._id,
+      }),
+
+      Payroll.countDocuments({
+        employeeId:
+          req.user._id,
+      }),
+
+      Leave.countDocuments({
+        userId:
+          req.user._id,
+        status: "pending",
+      }),
+    ]);
+
+    const attendance =
+      await Attendance.find({
+        userId:
+          req.user._id,
+      })
+        .sort({
+          date: -1,
+        })
+        .limit(30)
+        .lean();
+
+    const present =
+      attendance.filter(
+        (item) =>
+          item.status ===
+          "present"
+      ).length;
+
+    const attendancePercent =
+      attendance.length > 0
+        ? Math.round(
+            (present /
+              attendance.length) *
+              100
+          )
+        : 0;
+
+    sendSuccess(
+      res,
+      "Employee stats",
+      {
+        myLeaves,
+        myPayslips,
+        pendingLeaves,
+        attendancePercent,
+      }
+    );
+  }
+);

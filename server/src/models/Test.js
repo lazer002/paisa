@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const TEST_TYPES = [
   "quiz",
   "class_test",
@@ -754,7 +755,15 @@ const testSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `tes_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* OWNERSHIP                                                            */
       /* ==================================================================== */

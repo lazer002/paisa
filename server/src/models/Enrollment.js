@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ENROLLMENT_STATUS = [
   "pending",
   "active",
@@ -450,7 +451,15 @@ const enrollmentSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `enr_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* ENROLLMENT IDENTITY                                                  */
       /* ==================================================================== */

@@ -1,19 +1,91 @@
+// src/routes/classRoutes.js
+
 import express from "express";
+
 import {
-  createClass, getClasses, getClass, updateClass, deleteClass,
-  enrollStudent, removeStudent,
+  createClass,
+  getClasses,
+  getClass,
+  updateClass,
+  deleteClass,
+  enrollStudent,
+  removeStudent,
 } from "../controllers/classController.js";
-import { authMiddleware, allowRoles } from "../middleware/auth.js";
+
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
-router.use(authMiddleware);
 
-router.get("/", allowRoles("super_admin", "admin", "teacher", "student"), getClasses);
-router.get("/:id", allowRoles("super_admin", "admin", "teacher", "student"), getClass);
-router.post("/", allowRoles("super_admin", "admin", "teacher"), createClass);
-router.put("/:id", allowRoles("super_admin", "admin", "teacher"), updateClass);
-router.delete("/:id", allowRoles("super_admin", "admin"), deleteClass);
-router.post("/:id/enroll", allowRoles("super_admin", "admin"), enrollStudent);
-router.delete("/:id/students/:studentId", allowRoles("super_admin", "admin"), removeStudent);
+router.use(authenticate);
+
+router.get(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher",
+    "student"
+  ),
+  getClasses
+);
+
+router.get(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher",
+    "student"
+  ),
+  getClass
+);
+
+router.post(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher"
+  ),
+  createClass
+);
+
+router.put(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin",
+    "teacher"
+  ),
+  updateClass
+);
+
+router.delete(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  deleteClass
+);
+
+router.post(
+  "/:publicId/enroll",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  enrollStudent
+);
+
+router.delete(
+  "/:publicId/students/:studentId",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  removeStudent
+);
 
 export default router;

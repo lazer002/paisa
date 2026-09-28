@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ALLOWANCE_FIELDS = [
   "hra",
   "transport",
@@ -51,7 +52,15 @@ const payrollSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `payr_${crypto.randomBytes(16).toString("base64url")}`,
+},
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

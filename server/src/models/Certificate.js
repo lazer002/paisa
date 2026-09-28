@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const CERTIFICATE_STATUSES = [
   "draft",
   "pending",
@@ -346,7 +347,15 @@ const certificateSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `cer_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* IDENTITY                                                             */
       /* ==================================================================== */

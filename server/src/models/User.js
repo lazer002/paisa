@@ -1,7 +1,8 @@
 // server/src/models/User.js
 
 import mongoose from "mongoose";
-import { getNextSequence } from "../utils/sequence.js";
+
+import crypto from "node:crypto";import { getNextSequence } from "../utils/sequence.js";
 
 /* -------------------------------------------------------------------------- */
 /* Roles                                                                      */
@@ -167,7 +168,15 @@ const userSchema = new mongoose.Schema(
       index: true,
       default: null,
     },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `user_${crypto.randomBytes(16).toString("base64url")}`,
+},
     userCode: {
       type: String,
       trim: true,

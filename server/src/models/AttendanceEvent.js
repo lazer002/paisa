@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 
+import crypto from "node:crypto";
 const ATTENDANCE_EVENT_TYPES = [
   "check_in",
   "check_out",
@@ -73,7 +74,15 @@ const attendanceEventSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `att_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* PERSON                                                                */
       /* ==================================================================== */

@@ -1,13 +1,57 @@
+// server/src/routes/departmentRoutes.js
+
 import express from "express";
-import { createDepartment, getDepartments, updateDepartment, deleteDepartment } from "../controllers/departmentController.js";
-import { authMiddleware, allowRoles } from "../middleware/auth.js";
+
+import {
+  createDepartment,
+  getDepartments,
+  updateDepartment,
+  deleteDepartment,
+} from "../controllers/departmentController.js";
+
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
-router.use(authMiddleware);
 
-router.get("/", getDepartments);
-router.post("/", allowRoles("super_admin", "admin", "hr"), createDepartment);
-router.put("/:id", allowRoles("super_admin", "admin", "hr"), updateDepartment);
-router.delete("/:id", allowRoles("super_admin", "admin"), deleteDepartment);
+router.use(authenticate);
+
+// Get departments
+router.get(
+  "/",
+  getDepartments
+);
+
+// Create department
+router.post(
+  "/",
+  requireRole(
+    "super_admin",
+    "admin",
+    "hr"
+  ),
+  createDepartment
+);
+
+// Update department
+router.put(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin",
+    "hr"
+  ),
+  updateDepartment
+);
+
+// Delete department
+router.delete(
+  "/:publicId",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
+  deleteDepartment
+);
 
 export default router;

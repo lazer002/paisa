@@ -1,7 +1,8 @@
 // server/src/models/QRSession.js
 
 import mongoose from "mongoose";
-import crypto from "crypto";
+
+import crypto from "node:crypto";import crypto from "crypto";
 
 const QR_SESSION_TYPES = [
   "attendance",
@@ -158,7 +159,15 @@ const qrSessionSchema =
         required: true,
         index: true,
       },
-
+publicId: {
+  type: String,
+  required: true,
+  unique: true,
+  immutable: true,
+  index: true,
+  default: () =>
+    `qrs_${crypto.randomBytes(16).toString("base64url")}`,
+},
       /* ==================================================================== */
       /* SESSION IDENTITY                                                      */
       /* ==================================================================== */

@@ -1,4 +1,7 @@
+// server/src/routes/organizationRoutes.js
+
 import express from "express";
+
 import {
   createOrganization,
   deleteOrganization,
@@ -7,34 +10,66 @@ import {
   updateOrganization,
 } from "../controllers/organizationController.js";
 
-import { adminAccess, superAdminOnly } from "../middleware/policies.js";
+import {
+  adminAccess,
+  superAdminOnly,
+} from "../middleware/policies.js";
 
 const router = express.Router();
 
-//
-// 🔹 GET ALL
-//
-router.get("/", adminAccess, getOrganizations);
+// ─────────────────────────────────────────────
+// GET ALL ORGANIZATIONS
+// ─────────────────────────────────────────────
 
-//
-// 🔹 GET ONE (ID or slug)
-//
-router.get("/:id", adminAccess, getOrganization);
+router.get(
+  "/",
+  adminAccess,
+  getOrganizations
+);
 
-//
-// 🔹 CREATE — platform-level action, super admin only
-//
-router.post("/", superAdminOnly, createOrganization);
+// ─────────────────────────────────────────────
+// GET ONE ORGANIZATION
+// Public URL uses publicId
+// ─────────────────────────────────────────────
 
-//
-// 🔹 UPDATE — admin can update THEIR org (scoped in controller),
-//    field-level restrictions also enforced in controller
-//
-router.put("/:id", adminAccess, updateOrganization);
+router.get(
+  "/:publicId",
+  adminAccess,
+  getOrganization
+);
 
-//
-// 🔹 DELETE — destroying an organization is super admin only
-//
-router.delete("/:id", superAdminOnly, deleteOrganization);
+// ─────────────────────────────────────────────
+// CREATE ORGANIZATION
+// Super admin only
+// ─────────────────────────────────────────────
+
+router.post(
+  "/",
+  superAdminOnly,
+  createOrganization
+);
+
+// ─────────────────────────────────────────────
+// UPDATE ORGANIZATION
+// Admin can update their own organization.
+// Controller enforces field-level restrictions.
+// ─────────────────────────────────────────────
+
+router.put(
+  "/:publicId",
+  adminAccess,
+  updateOrganization
+);
+
+// ─────────────────────────────────────────────
+// DELETE ORGANIZATION
+// Super admin only
+// ─────────────────────────────────────────────
+
+router.delete(
+  "/:publicId",
+  superAdminOnly,
+  deleteOrganization
+);
 
 export default router;

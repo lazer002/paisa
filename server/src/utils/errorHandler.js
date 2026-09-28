@@ -117,10 +117,23 @@ const asyncHandler = (handler) => {
   };
 };
 
+
+const notFoundHandler = (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    code: "ROUTE_NOT_FOUND",
+    path: req.originalUrl,
+    method: req.method,
+    requestId: req.requestId || null,
+  });
+};
+
 export {
   AppError,
   asyncHandler,
   globalErrorHandler,
+  notFoundHandler
 };
 
 export default globalErrorHandler;

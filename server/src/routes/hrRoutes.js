@@ -1,13 +1,37 @@
+// server/src/routes/hrRoutes.js
+
 import express from "express";
-import { createHR, getHRs } from "../controllers/hrController.js";
-import { authMiddleware, isAdmin, isSuperAdmin } from "../middleware/auth.js";
+
+import {
+  createHR,
+  getHRs,
+} from "../controllers/hrController.js";
+
+import authenticate from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/authorize.js";
 
 const router = express.Router();
 
-// Only Admins or SuperAdmins can create HR
-router.post("/", authMiddleware, isAdmin, createHR);
+router.use(authenticate);
 
-// Get all HRs
-router.get("/", authMiddleware, isAdmin, getHRs);
+// Create HR
+router.post(
+  "/",
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
+  createHR
+);
+
+// Get HRs
+router.get(
+  "/",
+  requireRole(
+    "admin",
+    "super_admin"
+  ),
+  getHRs
+);
 
 export default router;

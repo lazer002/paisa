@@ -1,7 +1,9 @@
+// src/controllers/organizationController.js
+
 import Organization from "../models/organization.js";
 
 //
-// ✅ CREATE ORGANIZATION
+// CREATE ORGANIZATION
 //
 export const createOrganization = async (req, res) => {
   try {
@@ -17,7 +19,6 @@ export const createOrganization = async (req, res) => {
       meta,
     } = req.body;
 
-    // 🔒 validation
     if (!name || !type) {
       return res.status(400).json({
         success: false,
@@ -25,7 +26,6 @@ export const createOrganization = async (req, res) => {
       });
     }
 
-    // ❌ prevent duplicate (per user)
     const exists = await Organization.findOne({
       name,
       owner: userId,
@@ -34,7 +34,8 @@ export const createOrganization = async (req, res) => {
     if (exists) {
       return res.status(409).json({
         success: false,
-        message: "Organization with this name already exists",
+        message:
+          "Organization with this name already exists",
       });
     }
 
@@ -55,50 +56,51 @@ export const createOrganization = async (req, res) => {
       data: org,
     });
   } catch (err) {
-    console.error("Create Org Error:", err);
+    console.error(
+      "Create Org Error:",
+      err
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to create organization",
+      message:
+        "Failed to create organization",
     });
   }
 };
 
 //
-// 🔐 SCOPING HELPERS — multi-tenant isolation
-//
-// super_admin → platform-wide (all orgs)
-// admin/staff → ONLY the org they belong to (instituteId)
+// MULTI-TENANT SCOPING
 //
 const scopeQueryForUser = (user) => {
   const query = {};
 
   if (user.role === "super_admin") {
-    return query; // sees everything
+    return query;
   }
 
   if (!user.instituteId) {
-    // User not linked to any org → they own nothing platform-wide
     query.owner = user._id;
     return query;
   }
 
-  // Admin/staff: their org only — whether they created it or were assigned to it
   query.$or = [
-    { _id: user.instituteId },
-    { owner: user._id },
+    {
+      _id: user.instituteId,
+    },
+    {
+      owner: user._id,
+    },
   ];
 
   return query;
 };
 
 //
-// 📥 GET ALL ORGANIZATIONS (with filters)
+// GET ALL ORGANIZATIONS
 //
 export const getOrganizations = async (req, res) => {
   try {
-    const userId = req.user._id;
-
     const {
       page = 1,
       limit = 10,
@@ -107,74 +109,113 @@ export const getOrganizations = async (req, res) => {
       status,
     } = req.query;
 
-    const query = scopeQueryForUser(req.user);
+    const query =
+      scopeQueryForUser(req.user);
 
-    if (type) query.type = type;
-    if (status) query.status = status;
-
-    // 🔍 text search
-    if (search) {
-      query.$text = { $search: search };
+    if (type) {
+      query.type = type;
     }
 
-    const skip = (page - 1) * limit;
+    if (status) {
+      query.status = status;
+    }
 
-    const [orgs, total] = await Promise.all([
-      Organization.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit)),
+    if (search) {
+      query.$text = {
+        $search: search,
+      };
+    }
 
-      Organization.countDocuments(query),
-    ]);
+    const pageNumber =
+      Math.max(
+        Number(page) || 1,
+        1
+      );
+
+    const limitNumber =
+      Math.min(
+        Math.max(
+          Number(limit) || 10,
+          1
+        ),
+        100
+      );
+
+    const skip =
+      (pageNumber - 1) *
+      limitNumber;
+
+    const [orgs, total] =
+      await Promise.all([
+        Organization.find(query)
+          .sort({
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limitNumber),
+
+        Organization.countDocuments(
+          query
+        ),
+      ]);
 
     return res.json({
       success: true,
       data: orgs,
       pagination: {
         total,
-        page: Number(page),
-        pages: Math.ceil(total / limit),
+        page: pageNumber,
+        pages: Math.ceil(
+          total / limitNumber
+        ),
       },
     });
   } catch (err) {
-    console.error("Get Orgs Error:", err);
+    console.error(
+      "Get Orgs Error:",
+      err
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch organizations",
+      message:
+        "Failed to fetch organizations",
     });
   }
 };
 
 //
-// 🔍 GET SINGLE ORGANIZATION (by ID or slug)
+// GET SINGLE ORGANIZATION
+// Uses publicId instead of Mongo _id
 //
-export const getOrganization = async (req, res) => {
+export const getOrganization = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const { publicId } =
+      req.params;
 
-    let org;
-
-    // check if ObjectId
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      org = await Organization.findById(id);
-    } else {
-      org = await Organization.findOne({ slug: id });
-    }
+    const org =
+      await Organization.findOne({
+        publicId,
+      });
 
     if (!org) {
       return res.status(404).json({
         success: false,
-        message: "Organization not found",
+        message:
+          "Organization not found",
       });
     }
 
-    // 🔒 Multi-tenant isolation: admins/staff can only view their own org
     if (
-      req.user.role !== "super_admin" &&
-      String(org._id) !== String(req.user.instituteId) &&
-      String(org.owner) !== String(req.user._id)
+      req.user.role !==
+        "super_admin" &&
+      String(org._id) !==
+        String(req.user.instituteId) &&
+      String(org.owner) !==
+        String(req.user._id)
     ) {
       return res.status(403).json({
         success: false,
@@ -187,45 +228,65 @@ export const getOrganization = async (req, res) => {
       data: org,
     });
   } catch (err) {
-    console.error("Get Org Error:", err);
+    console.error(
+      "Get Org Error:",
+      err
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch organization",
+      message:
+        "Failed to fetch organization",
     });
   }
 };
 
 //
-// ✏️ UPDATE ORGANIZATION
+// UPDATE ORGANIZATION
 //
-export const updateOrganization = async (req, res) => {
+export const updateOrganization = async (
+  req,
+  res
+) => {
   try {
-    const userId = req.user._id;
-    const { id } = req.params;
+    const userId =
+      req.user._id;
 
-    // 🔒 Admins can only update their OWN org; super_admin any
-    const match = { _id: id };
-    if (req.user.role !== "super_admin") {
+    const { publicId } =
+      req.params;
+
+    const match = {
+      publicId,
+    };
+
+    if (
+      req.user.role !==
+      "super_admin"
+    ) {
       match.$or = [
-        { _id: req.user.instituteId },
-        { owner: userId },
+        {
+          _id:
+            req.user.instituteId,
+        },
+        {
+          owner: userId,
+        },
       ];
     }
 
-    const org = await Organization.findOne(match);
+    const org =
+      await Organization.findOne(
+        match
+      );
 
     if (!org) {
       return res.status(404).json({
         success: false,
-        message: "Organization not found or unauthorized",
+        message:
+          "Organization not found or unauthorized",
       });
     }
 
-    // 🔒 Field-level permissions:
-    // super_admin → everything (name, type, plan, status, …)
-    // admin       → profile fields of their OWN org only
-    //             (cannot rename, re-type, upgrade plan, or self-approve status)
     const SUPER_ADMIN_FIELDS = [
       "name",
       "description",
@@ -250,32 +311,52 @@ export const updateOrganization = async (req, res) => {
     ];
 
     const allowedFields =
-      req.user.role === "super_admin" ? SUPER_ADMIN_FIELDS : ADMIN_FIELDS;
+      req.user.role ===
+      "super_admin"
+        ? SUPER_ADMIN_FIELDS
+        : ADMIN_FIELDS;
 
-    // Only reject if the admin actually CHANGED a protected value —
-    // sending back unchanged values (normal form submit) is fine
     const attemptedForbidden =
-      req.user.role === "super_admin"
+      req.user.role ===
+      "super_admin"
         ? []
-        : ["name", "type", "plan", "status"].filter(
-            (f) => req.body[f] !== undefined && req.body[f] !== org[f]
+        : [
+            "name",
+            "type",
+            "plan",
+            "status",
+          ].filter(
+            (field) =>
+              req.body[field] !==
+                undefined &&
+              req.body[field] !==
+                org[field]
           );
 
-    if (attemptedForbidden.length > 0) {
+    if (
+      attemptedForbidden.length
+    ) {
       return res.status(403).json({
         success: false,
-        message: `You do not have permission to change: ${attemptedForbidden.join(", ")}`,
+        message:
+          `You do not have permission to change: ${attemptedForbidden.join(", ")}`,
       });
     }
 
-    // update only allowed fields
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        org[field] = req.body[field];
+    for (
+      const field of allowedFields
+    ) {
+      if (
+        req.body[field] !==
+        undefined
+      ) {
+        org[field] =
+          req.body[field];
       }
-    });
+    }
 
-    org.updatedBy = userId;
+    org.updatedBy =
+      userId;
 
     await org.save();
 
@@ -284,37 +365,52 @@ export const updateOrganization = async (req, res) => {
       data: org,
     });
   } catch (err) {
-    console.error("Update Org Error:", err);
+    console.error(
+      "Update Org Error:",
+      err
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to update organization",
+      message:
+        "Failed to update organization",
     });
   }
 };
 
 //
-// 🗑️ SOFT DELETE ORGANIZATION (platform-level action)
+// SOFT DELETE ORGANIZATION
 //
-export const deleteOrganization = async (req, res) => {
+export const deleteOrganization = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
+    const {
+      publicId,
+    } = req.params;
 
-    // 🔒 Deleting an organization is a super_admin power —
-    // an admin must not destroy the org they manage.
-    if (req.user.role !== "super_admin") {
+    if (
+      req.user.role !==
+      "super_admin"
+    ) {
       return res.status(403).json({
         success: false,
-        message: "Only a super admin can delete organizations",
+        message:
+          "Only a super admin can delete organizations",
       });
     }
 
-    const org = await Organization.findOne({ _id: id });
+    const org =
+      await Organization.findOne({
+        publicId,
+      });
 
     if (!org) {
       return res.status(404).json({
         success: false,
-        message: "Organization not found or unauthorized",
+        message:
+          "Organization not found or unauthorized",
       });
     }
 
@@ -322,14 +418,19 @@ export const deleteOrganization = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Organization deleted successfully",
+      message:
+        "Organization deleted successfully",
     });
   } catch (err) {
-    console.error("Delete Org Error:", err);
+    console.error(
+      "Delete Org Error:",
+      err
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to delete organization",
+      message:
+        "Failed to delete organization",
     });
   }
 };
