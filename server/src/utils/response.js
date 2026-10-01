@@ -2,32 +2,129 @@
 
 import ApiResponse from "./ApiResponse.js";
 
+/* ----------------------------------------------------------------------------
+ * Dual-signature support.
+ *
+ * Older controllers call the helpers positionally:
+ *   sendSuccess(res, "Users fetched", users)
+ *   sendError(res, 400, "Missing required fields")
+ *   sendForbidden(res, "Access denied")
+ *
+ * Newer controllers pass an options object:
+ *   sendSuccess(res, { message, data, meta })
+ *   sendError(res, { message, statusCode, code })
+ *
+ * The helpers below accept BOTH so the codebase can migrate gradually.
+ * -------------------------------------------------------------------------- */
+
+const isOptionsObject = (
+  value
+) =>
+  Boolean(value) &&
+  typeof value === "object" &&
+  !Array.isArray(value);
+
 const sendSuccess = (
   res,
-  {
-    data = null,
-    message = "Request successful",
-    statusCode = 200,
-    meta = null,
-    requestId = null,
-  } = {}
+  optionsOrMessage,
+  maybeData,
+  maybeMeta
 ) => {
+  const options = isOptionsObject(
+    optionsOrMessage
+  )
+    ? optionsOrMessage
+    : {
+        message:
+          optionsOrMessage ??
+          "Request successful",
+
+        data:
+          maybeData === undefined
+            ? null
+            : maybeData,
+
+        meta: maybeMeta ?? null,
+      };
+
   const response =
     new ApiResponse({
       success: true,
-      statusCode,
-      message,
-      data,
-      meta,
+      statusCode: options.statusCode ?? 200,
+      message: options.message ?? "Request successful",
+      data: options.data ?? null,
+      meta: options.meta ?? null,
       requestId:
-        requestId ||
+        options.requestId ||
         res.req?.requestId ||
         null,
     });
 
   return res
-    .status(statusCode)
+    .status(options.statusCode ?? 200)
     .json(response.toJSON());
+};
+
+const sendCreated = (
+  res,
+  optionsOrMessage,
+  maybeData,
+  maybeMeta
+) => {
+  const options = isOptionsObject(
+    optionsOrMessage
+  )
+    ? optionsOrMessage
+    : {
+        message:
+          optionsOrMessage ??
+          "Resource created successfully",
+
+        data:
+          maybeData === undefined
+            ? null
+            : maybeData,
+
+        meta: maybeMeta ?? null,
+      };
+
+  return sendSuccess(res, {
+    ...options,
+
+    statusCode:
+      options.statusCode ?? 201,
+  });
+};
+
+const sendAccepted = (
+  res,
+  optionsOrMessage,
+  maybeData,
+  maybeMeta
+) => {
+  const options = isOptionsObject(
+    optionsOrMessage
+  )
+    ? optionsOrMessage
+    : {
+        message:
+          optionsOrMessage ??
+          "Request accepted",
+
+        data:
+          maybeData === undefined
+            ? null
+            : maybeData,
+
+        meta: maybeMeta ?? null,
+      };
+
+  return sendSuccess(res, {
+    ...options,
+
+    statusCode:
+      options.statusCode ?? 202,
+  });
 };
 
 const sendForbidden = (
@@ -35,12 +132,13 @@ const sendForbidden = (
   message = "Forbidden",
   options = {}
 ) => {
-  return sendError(
-    res,
+  return sendError(res, {
     message,
-    403,
-    options
-  );
+
+    statusCode: 403,
+
+    ...options,
+  });
 };
 
 const sendNotFound = (
@@ -48,53 +146,16 @@ const sendNotFound = (
   message = "Resource not found",
   options = {}
 ) => {
-  return sendError(
-    res,
+  return sendError(res, {
     message,
-    404,
-    options
-  );
-};
 
-const sendCreated = (
-  res,
-  {
-    data = null,
-    message = "Resource created successfully",
-    meta = null,
-    requestId = null,
-  } = {}
-) => {
-  return sendSuccess(res, {
-    data,
-    message,
-    statusCode: 201,
-    meta,
-    requestId,
+    statusCode: 404,
+
+    ...options,
   });
 };
 
-const sendAccepted = (
-  res,
-  {
-    data = null,
-    message = "Request accepted",
-    meta = null,
-    requestId = null,
-  } = {}
-) => {
-  return sendSuccess(res, {
-    data,
-    message,
-    statusCode: 202,
-    meta,
-    requestId,
-  });
-};
-
-const sendNoContent = (
-  res
-) => {
+const sendNoContent = (res) => {
   return res.status(204).send();
 };
 
@@ -130,30 +191,76 @@ const sendPaginated = (
 
 const sendError = (
   res,
-  {
-    message = "Request failed",
-    statusCode = 500,
-    code = "INTERNAL_SERVER_ERROR",
-    errors = null,
-    details = null,
-    requestId = null,
-  } = {}
+  optionsOrMessage,
+  statusCodeOrMessage,
+  codeOrOptions
 ) => {
+  let options;
+
+  if (isOptionsObject(optionsOrMessage)) {
+    options = optionsOrMessage;
+  } else if (
+    typeof optionsOrMessage === "number"
+  ) {
+    // Legacy: sendError(res, statusCode, message, options?)
+    options = {
+      statusCode:
+        optionsOrMessage,
+
+      message: statusCodeOrMessage,
+
+      ...(isOptionsObject(codeOrOptions)
+        ? codeOrOptions
+        : {}),
+    };
+  } else {
+    // Legacy: sendError(res, message, statusCode?, options?)
+    options = {
+      message: optionsOrMessage,
+
+      statusCode:
+        typeof statusCodeOrMessage === "number"
+          ? statusCodeOrMessage
+          : 500,
+
+      ...(isOptionsObject(
+        typeof statusCodeOrMessage === "object"
+          ? statusCodeOrMessage
+          : codeOrOptions
+      )
+        ? isOptionsObject(statusCodeOrMessage)
+          ? statusCodeOrMessage
+          : codeOrOptions
+        : {}),
+    };
+  }
+
   const body = {
     success: false,
-    statusCode,
-    code,
-    message,
-    errors,
-    details,
+
+    statusCode:
+      options.statusCode ?? 500,
+
+    code:
+      options.code ?? "INTERNAL_SERVER_ERROR",
+
+    message:
+      options.message ?? "Request failed",
+
+    errors:
+      options.errors ?? null,
+
+    details:
+      options.details ?? null,
+
     requestId:
-      requestId ||
+      options.requestId ||
       res.req?.requestId ||
       null,
   };
 
   return res
-    .status(statusCode)
+    .status(body.statusCode)
     .json(body);
 };
 

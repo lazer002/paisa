@@ -3,6 +3,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface OrgUser {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   name: string
   email: string
   role: string
@@ -25,6 +27,13 @@ export interface UpdateUserPayload {
   role?: string
   password?: string
 }
+
+/**
+ * URL identity for any resource record: prefer publicId, fall back to _id
+ * for records created before the publicId rollout.
+ */
+export const rid = (record: { publicId?: string; _id: string }): string =>
+  record.publicId ?? record._id
 
 export const usersApi = createApi({
   reducerPath: 'usersApi',

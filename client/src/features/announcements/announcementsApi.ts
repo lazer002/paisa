@@ -3,6 +3,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface Announcement {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   instituteId: string | null
   createdBy: { _id: string; name: string; role: string } | string
   title: string

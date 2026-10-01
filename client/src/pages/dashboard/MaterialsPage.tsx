@@ -6,6 +6,7 @@ import {
   useDeleteMaterialMutation,
 } from '@/features/assignments/assignmentsApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
+import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -75,11 +76,11 @@ export default function MaterialsPage() {
             const Icon = TYPE_ICON[m.type ?? 'other'] ?? BookMarked
             const clsName = typeof m.classId === 'object' ? m.classId?.name : null
             return (
-              <div key={m._id} className="group rounded-2xl bg-white p-5 shadow-sm">
+              <div key={m.publicId ?? m._id} className="group rounded-2xl bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-start justify-between">
                   <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600"><Icon size={18} /></div>
                   {canUpload && (
-                    <button onClick={() => deleteMaterial(m._id)}
+                    <button onClick={() => deleteMaterial(m.publicId ?? m._id)}
                       className="rounded-lg p-1.5 text-red-400 opacity-0 transition hover:bg-red-50 group-hover:opacity-100" title="Delete">
                       <Trash2 size={14} />
                     </button>
@@ -132,7 +133,7 @@ export default function MaterialsPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
                 <option value="">— General —</option>
                 {(classes ?? []).map((c) => (
-                  <option key={c._id} value={c._id}>{c.name}</option>
+                  <option key={rid(c)} value={rid(c)}>{c.name}</option>
                 ))}
               </select>
             </div>

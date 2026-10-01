@@ -2,7 +2,13 @@
 
 import { Attendance } from "../models/Attendance.js";
 
+import { User } from "../models/User.js";
+
+import { Class } from "../models/Class.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
 
 import {
   sendSuccess,
@@ -18,13 +24,33 @@ export const markAttendance = asyncHandler(async (req, res) => {
 
   const instituteId = req.user.instituteId;
 
-  const ops = (records || []).map(
+  // classId arrives as a publicId — resolve once for the batch.
+  const resolvedClassId = classId
+    ? await resolveRef(Class, classId, {
+        label: "Class",
+      })
+    : null;
+
+  // Resolve every userId (publicIds) before upserting.
+  const resolvedRecords = [];
+
+  for (const record of records || []) {
+    resolvedRecords.push({
+      ...record,
+
+      userId: await resolveRef(User, record.userId, {
+        label: "User",
+      }),
+    });
+  }
+
+  const ops = resolvedRecords.map(
     ({ userId, status, notes }) =>
       Attendance.findOneAndUpdate(
         {
           userId,
           date: new Date(date),
-          classId: classId || null,
+          classId: resolvedClassId || null,
           instituteId,
         },
         {
@@ -57,11 +83,19 @@ export const getAttendance = asyncHandler(async (req, res) => {
   }
 
   if (req.query.classId) {
-    query.classId = req.query.classId;
+    query.classId = await resolveRef(
+      Class,
+      req.query.classId,
+      { label: "Class" }
+    );
   }
 
   if (req.query.userId) {
-    query.userId = req.query.userId;
+    query.userId = await resolveRef(
+      User,
+      req.query.userId,
+      { label: "User" }
+    );
   }
 
   if (req.query.date) {

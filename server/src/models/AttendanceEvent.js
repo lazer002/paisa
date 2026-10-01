@@ -619,7 +619,7 @@ publicId: {
     },
     {
       timestamps: true,
-      versionKey: true,
+      versionKey: false,
 
       toJSON: {
         virtuals: true,

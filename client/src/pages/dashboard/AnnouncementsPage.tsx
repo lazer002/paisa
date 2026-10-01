@@ -10,6 +10,7 @@ import {
   useDeleteAnnouncementMutation,
   type Announcement,
 } from '@/features/announcements/announcementsApi'
+import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -144,7 +145,7 @@ export default function AnnouncementsPage() {
   const handleSubmit = async (d: { title: string; content: string; targetRoles: string[]; priority: 'low' | 'medium' | 'high' }) => {
     setFormError('')
     try {
-      if (editItem) await updateAnnouncement({ id: editItem._id, payload: d }).unwrap()
+      if (editItem) await updateAnnouncement({ id: rid(editItem), payload: d }).unwrap()
       else await createAnnouncement(d).unwrap()
       setShowCreate(false)
       setEditItem(null)
@@ -156,7 +157,7 @@ export default function AnnouncementsPage() {
   const handleDelete = async () => {
     if (!deleteItem) return
     try {
-      await deleteAnnouncement(deleteItem._id).unwrap()
+      await deleteAnnouncement(rid(deleteItem)).unwrap()
       setDeleteItem(null)
     } catch { /* list refreshes */ }
   }
@@ -192,7 +193,7 @@ export default function AnnouncementsPage() {
             const author = typeof a.createdBy === 'object' ? a.createdBy?.name : '—'
             const canTouch = canManage && (user?.role === 'super_admin' || a.instituteId !== null)
             return (
-              <div key={a._id} className="rounded-2xl bg-white p-5 shadow-sm">
+              <div key={rid(a)} className="rounded-2xl bg-white p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${

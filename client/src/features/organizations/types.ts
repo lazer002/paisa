@@ -38,6 +38,8 @@ export interface OrgSettings {
 
 export interface Organization {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   name: string
   slug: string
   type: OrgType

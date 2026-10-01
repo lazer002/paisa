@@ -24,6 +24,7 @@ import {
 } from '@/features/organizations/organizationsApi'
 import { useCreateUserMutation } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { rid } from '@/features/users/usersApi'
 import type {
   Organization,
   CreateOrgPayload,
@@ -615,7 +616,7 @@ export default function OrganizationsPage() {
     if (!adminOrg) return
     setAdminError('')
     try {
-      await createUser({ ...d, role: 'admin', instituteId: adminOrg._id }).unwrap()
+      await createUser({ ...d, role: 'admin', instituteId: rid(adminOrg) }).unwrap()
       setAdminOrg(null) // closes modal
     } catch (e: any) {
       setAdminError(e?.data?.message ?? 'Failed to create admin user')
@@ -753,10 +754,10 @@ export default function OrganizationsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {orgs.map((org) => (
               <OrgCard
-                key={org._id}
+                key={rid(org)}
                 org={org}
                 isSuperAdmin={isSuperAdmin}
-                onOpen={() => navigate(`/dashboard/organizations/${org._id}`)}
+                onOpen={() => navigate(`/dashboard/organizations/${rid(org)}`)}
                 onEdit={() => { setEditOrg(org); setMutError('') }}
                 onDelete={() => setDeleteOrg(org)}
                 onAddAdmin={() => { setAdminOrg(org); setAdminError('') }}
@@ -804,7 +805,7 @@ export default function OrganizationsPage() {
         initialData={editOrg}
         onSubmit={(d) => {
           if (!editOrg) return
-          handleUpdate(editOrg._id, d)
+          handleUpdate(rid(editOrg), d)
         }}
         loading={updatePending}
         error={mutError}
@@ -814,7 +815,7 @@ export default function OrganizationsPage() {
       <DeleteConfirmModal
         org={deleteOrg}
         onClose={() => setDeleteOrg(null)}
-        onConfirm={() => { if (deleteOrg) handleDelete(deleteOrg._id) }}
+        onConfirm={() => { if (deleteOrg) handleDelete(rid(deleteOrg)) }}
         loading={deletePending}
       />
 

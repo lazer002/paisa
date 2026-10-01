@@ -1,5 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
+import { rid } from '@/features/users/usersApi'
 
 export interface ClassSchedule {
   days?: string[]
@@ -9,6 +10,8 @@ export interface ClassSchedule {
 
 export interface SchoolClass {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   instituteId: string
   name: string
   subject: string
@@ -62,6 +65,7 @@ export const classesApi = createApi({
     }),
     createClass: builder.mutation<SchoolClass, ClassPayload>({
       query: (payload) => ({ url: '/classes', method: 'POST', body: payload }),
+      // teacherId is a publicId now — the server resolves it.
       invalidatesTags: [{ type: 'Class', id: 'LIST' }],
     }),
     updateClass: builder.mutation<SchoolClass, { id: string; payload: Partial<ClassPayload> }>({

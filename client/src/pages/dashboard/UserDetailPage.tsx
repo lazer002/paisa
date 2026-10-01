@@ -143,7 +143,7 @@ export default function UserDetailPage() {
               <>
                 <p className="mb-1 text-xs text-gray-400">Teaching</p>
                 {activity.teachingClasses.map((c: any) => (
-                  <p key={c._id} className="flex items-center gap-2 py-0.5 text-sm text-gray-600">
+                  <p key={c.publicId ?? c._id} className="flex items-center gap-2 py-0.5 text-sm text-gray-600">
                     <BadgeCheck size={12} className="text-teal-500" /> {c.name} · {c.subject}
                   </p>
                 ))}
@@ -153,7 +153,7 @@ export default function UserDetailPage() {
               <>
                 <p className="mb-1 mt-3 text-xs text-gray-400">Enrolled</p>
                 {activity.enrolledClasses.map((c: any) => (
-                  <p key={c._id} className="flex items-center gap-2 py-0.5 text-sm text-gray-600">
+                  <p key={c.publicId ?? c._id} className="flex items-center gap-2 py-0.5 text-sm text-gray-600">
                     <BadgeCheck size={12} className="text-indigo-500" /> {c.name} · {c.subject}
                   </p>
                 ))}
@@ -171,7 +171,7 @@ export default function UserDetailPage() {
             </h3>
             {activity.leaves?.length ? (
               activity.leaves.slice(0, 5).map((l: any) => (
-                <div key={l._id} className="flex items-center justify-between border-b border-gray-50 py-2 last:border-0">
+                <div key={l.publicId ?? l._id} className="flex items-center justify-between border-b border-gray-50 py-2 last:border-0">
                   <div>
                     <p className="text-sm capitalize text-gray-700">{l.type} · {l.days}d</p>
                     <p className="text-xs text-gray-400">{new Date(l.startDate).toLocaleDateString()}</p>
@@ -193,7 +193,7 @@ export default function UserDetailPage() {
             </h3>
             {activity.payrolls?.length ? (
               activity.payrolls.slice(0, 5).map((p: any) => (
-                <div key={p._id} className="flex items-center justify-between border-b border-gray-50 py-2 last:border-0">
+                <div key={p.publicId ?? p._id} className="flex items-center justify-between border-b border-gray-50 py-2 last:border-0">
                   <p className="text-sm text-gray-700">{p.month}/{p.year}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-800">₹{p.netSalary?.toLocaleString()}</span>

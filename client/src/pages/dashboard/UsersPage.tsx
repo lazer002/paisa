@@ -15,6 +15,7 @@ import {
   useGetUsersQuery,
   useCreateUserMutation,
   useUpdateUserMutation,
+  rid,
   type OrgUser,
 } from '@/features/users/usersApi'
 import { useGetOrganizationsQuery } from '@/features/organizations/organizationsApi'
@@ -117,7 +118,7 @@ function CreateUserModal({
     if (open) { setName(''); setEmail(''); setPassword(''); setRole('admin'); setInstituteId('') }
   }, [open])
 
-  const selectedOrg = orgs.find((o) => o._id === instituteId)
+  const selectedOrg = orgs.find((o) => rid(o) === instituteId)
 
   // Roles valid for the selected org's type; all roles when no org is picked
   const allowedRoles = selectedOrg
@@ -159,7 +160,7 @@ function CreateUserModal({
               onChange={setInstituteId}
               options={[
                 { value: '', label: '— No organization (platform user) —' },
-                ...orgs.map((o) => ({ value: o._id, label: `${o.name} (${o.type})` })),
+                ...orgs.map((o) => ({ value: rid(o), label: `${o.name} (${o.type})` })),
               ]}
             />
           </Field>
@@ -323,7 +324,7 @@ function UserRow({
 
   return (
     <tr
-      onClick={() => window.location.assign(`/dashboard/users/${user._id}`)}
+      onClick={() => window.location.assign(`/dashboard/users/${rid(user)}`)}
       className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50"
     >
       <td className="px-4 py-3">
@@ -409,7 +410,11 @@ export default function UsersPage() {
   // admin       → roles below admin (teacher/student/hr/employee) + OWN row
   //               (own row: name/password only — email locked)
   //               other admins / super_admins → off-limits entirely
-  const isSelf = (u: OrgUser) => currentUser?._id === u._id
+  const isSelf = (u: OrgUser) =>
+    !!currentUser &&
+    (currentUser.publicId || u.publicId
+      ? currentUser.publicId === u.publicId
+      : currentUser._id === u._id)
 
   const canEditUser = (u: OrgUser): boolean => {
     if (!currentUser) return false
@@ -429,10 +434,16 @@ export default function UsersPage() {
     if (!editUser) return
     setEditError('')
     try {
-      await updateUser({ id: editUser._id, payload: d }).unwrap()
+      await updateUser({ id: rid(editUser), payload: d }).unwrap()
       setEditUser(null)
     } catch (e: any) {
-      setEditError(e?.data?.message ?? 'Failed to update user')
+      // Surface the server's validation message (e.g. bad org reference)
+      // instead of failing silently.
+      const msg =
+        e?.data?.message ??
+        (Array.isArray(e?.data?.details) ? e.data.details[0]?.message : undefined) ??
+        'Failed to update user'
+      setEditError(msg)
     }
   }
 
@@ -442,14 +453,18 @@ export default function UsersPage() {
       await createUser(d).unwrap()
       setShowCreate(false)
     } catch (e: any) {
-      setCreateError(e?.data?.message ?? 'Failed to create user')
+      const msg =
+        e?.data?.message ??
+        (Array.isArray(e?.data?.details) ? e.data.details[0]?.message : undefined) ??
+        'Failed to create user'
+      setCreateError(msg)
     }
   }
 
   const handleDeactivate = async () => {
     if (!deactivateUser) return
     try {
-      await updateUser({ id: deactivateUser._id, payload: { status: 'inactive' } }).unwrap()
+      await updateUser({ id: rid(deactivateUser), payload: { status: 'inactive' } }).unwrap()
       setDeactivateUser(null)
     } catch {
       /* list refreshes via tag invalidation */
@@ -567,7 +582,7 @@ export default function UsersPage() {
             <tbody>
               {users.map((u) => (
                 <UserRow
-                  key={u._id}
+                  key={rid(u)}
                   user={u}
                   canEdit={canEditUser(u)}
                   canDeactivate={canEditUser(u) && u.status === 'active'}

@@ -1,6 +1,6 @@
 // src/controllers/userDetailController.js
 
-import { User, RolePermissions } from "../models/User.js";
+import { User } from "../models/User.js";
 import Organization from "../models/organization.js";
 import { Leave } from "../models/Leave.js";
 import { Payroll } from "../models/Payroll.js";
@@ -15,6 +15,8 @@ import {
   sendNotFound,
   sendForbidden,
 } from "../utils/response.js";
+
+import { getUserPermissions } from "../utils/permissions.js";
 
 export const getUserDetail = asyncHandler(
   async (req, res) => {
@@ -50,8 +52,24 @@ export const getUserDetail = asyncHandler(
 
     if (!isSelf) {
       if (
+        actor.role === "super_admin"
+      ) {
+        // Super admin sees everything.
+      } else if (
         actor.role === "admin"
       ) {
+        // Org admins can never view a
+        // super admin's profile.
+        if (
+          target.role ===
+          "super_admin"
+        ) {
+          return sendForbidden(
+            res,
+            "Access denied"
+          );
+        }
+
         if (
           String(
             target.instituteId ??
@@ -67,10 +85,7 @@ export const getUserDetail = asyncHandler(
             "Access denied"
           );
         }
-      } else if (
-        actor.role !==
-        "super_admin"
-      ) {
+      } else {
         return sendForbidden(
           res,
           "Access denied"
@@ -205,9 +220,7 @@ export const getUserDetail = asyncHandler(
         user,
 
         permissions:
-          RolePermissions[
-            user.role
-          ] ?? [],
+          getUserPermissions(user),
 
         activity: {
           leaves,

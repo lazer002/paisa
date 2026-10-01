@@ -3,6 +3,7 @@
 import { Assignment } from "../models/Assignment.js";
 import { Class } from "../models/Class.js";
 import { asyncHandler } from "../utils/errorHandler.js";
+import { resolveRef } from "../utils/resolveRef.js";
 import {
   sendSuccess,
   sendCreated,
@@ -30,9 +31,16 @@ export const createAssignment = asyncHandler(async (req, res) => {
     );
   }
 
+  // classId arrives as a publicId — resolve to _id for storage/lookups.
+  const resolvedClassId = await resolveRef(
+    Class,
+    classId,
+    { label: "Class" }
+  );
+
   // Teacher can only create assignments for their own classes
   if (req.user.role === "teacher") {
-    const cls = await Class.findById(classId);
+    const cls = await Class.findById(resolvedClassId);
 
     if (!cls) {
       return sendNotFound(res, "Class not found");
@@ -47,7 +55,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
   }
 
   const assignment = await Assignment.create({
-    classId,
+    classId: resolvedClassId,
     instituteId: req.user.instituteId,
     createdBy: req.user._id,
     title,
@@ -96,7 +104,11 @@ export const getAssignments = asyncHandler(async (req, res) => {
   }
 
   if (req.query.classId) {
-    query.classId = req.query.classId;
+    query.classId = await resolveRef(
+      Class,
+      req.query.classId,
+      { label: "Class" }
+    );
   }
 
   if (

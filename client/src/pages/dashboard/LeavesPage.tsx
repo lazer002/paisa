@@ -9,6 +9,7 @@ import {
   type Leave,
 } from '@/features/leaves/leavesApi'
 import { useAppSelector } from '@/app/store'
+import { rid } from '@/features/users/usersApi'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -98,7 +99,7 @@ export default function LeavesPage() {
   const person = (l: Leave) => (typeof l.userId === 'object' ? l.userId?.name ?? '—' : '—')
 
   const renderRow = (l: Leave) => (
-    <div key={l._id} className="flex items-center justify-between gap-3 border-b border-gray-50 px-5 py-3 last:border-0">
+    <div key={rid(l)} className="flex items-center justify-between gap-3 border-b border-gray-50 px-5 py-3 last:border-0">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-800">
           {isApprover ? person(l) : `${l.type} leave`}{' '}
@@ -112,18 +113,18 @@ export default function LeavesPage() {
         <Badge color={STATUS_COLOR[l.status]}>{l.status}</Badge>
         {isApprover && l.status === 'pending' && (
           <>
-            <button onClick={() => updateStatus({ id: l._id, status: 'approved' })}
+            <button onClick={() => updateStatus({ id: rid(l), status: 'approved' })}
               className="rounded-lg p-1.5 text-green-600 transition hover:bg-green-50" title="Approve">
               <Check size={16} />
             </button>
-            <button onClick={() => updateStatus({ id: l._id, status: 'rejected', rejectionReason: 'Not approved' })}
+            <button onClick={() => updateStatus({ id: rid(l), status: 'rejected', rejectionReason: 'Not approved' })}
               className="rounded-lg p-1.5 text-red-500 transition hover:bg-red-50" title="Reject">
               <X size={16} />
             </button>
           </>
         )}
-        {!isApprover && l.status === 'pending' && user?._id === (typeof l.userId === 'object' ? l.userId?._id : l.userId) && (
-          <button onClick={() => cancelLeave(l._id)}
+        {!isApprover && l.status === 'pending' && (typeof l.userId === 'object' ? user?.publicId === l.userId.publicId || user?._id === l.userId._id : user?.publicId === l.userId) && (
+          <button onClick={() => cancelLeave(rid(l))}
             className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100" title="Cancel">
             <Ban size={15} />
           </button>

@@ -2,7 +2,11 @@
 
 import { Department } from "../models/Department.js";
 
+import { User } from "../models/User.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
 
 import {
   sendSuccess,
@@ -41,11 +45,19 @@ export const createDepartment = asyncHandler(async (req, res) => {
     );
   }
 
+  // head arrives as a publicId — resolve to _id.
+  const resolvedHeadId =
+    head && head !== ""
+      ? await resolveRef(User, head, {
+          label: "Department head",
+        })
+      : null;
+
   const dept = await Department.create({
     instituteId: req.user.instituteId,
     name,
     code,
-    head: head || null,
+    head: resolvedHeadId,
     description,
   });
 
@@ -120,6 +132,16 @@ export const updateDepartment = asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) {
       updates[field] = req.body[field];
     }
+  }
+
+  // head arrives as a publicId — resolve to _id.
+  if (updates.head !== undefined) {
+    updates.head =
+      updates.head && updates.head !== ""
+        ? await resolveRef(User, updates.head, {
+            label: "Department head",
+          })
+        : null;
   }
 
   const updated =

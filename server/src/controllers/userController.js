@@ -20,23 +20,37 @@ import {
 
 import { scopedQuery } from "../utils/peopleHelpers.js";
 
+import { resolveRef } from "../utils/resolveRef.js";
 
-// Roles an actor is allowed to create/manage
+
+// Roles an actor is allowed to create/manage.
+// Org admins can create every staff role but
+// never another admin or a super admin.
 const creatableRoles = {
   super_admin: [
     "super_admin",
     "admin",
+    "principal",
     "teacher",
     "student",
     "hr",
+    "accountant",
+    "counselor",
     "employee",
+    "support",
+    "parent",
   ],
 
   admin: [
+    "principal",
     "teacher",
     "student",
     "hr",
+    "accountant",
+    "counselor",
     "employee",
+    "support",
+    "parent",
   ],
 };
 
@@ -126,8 +140,13 @@ export const createUser = async (
     const instituteId =
       actorRole ===
       Roles.SUPER_ADMIN
-        ? requestedInstituteId ||
-          null
+        ? // The UI sends the org's publicId — resolve it.
+          ((await resolveRef(
+            Organization,
+            requestedInstituteId,
+            { label: "Organization" }
+          )) ??
+            null)
         : req.user.instituteId;
 
     // Non-super-admin users must
@@ -261,10 +280,12 @@ export const getUsers = async (
       ...scopedQuery(req.user),
     };
 
-    // Admin cannot see super admins.
+    // Admin sees only their own org's users and
+    // never super admins — even when a role filter
+    // is applied.
     if (
-      req.user.role ===
-      Roles.ADMIN
+      req.user.role !==
+      Roles.SUPER_ADMIN
     ) {
       query.role = {
         $ne: Roles.SUPER_ADMIN,
@@ -272,8 +293,20 @@ export const getUsers = async (
     }
 
     if (filterRole) {
-      query.role =
-        filterRole;
+      if (filterRole === Roles.SUPER_ADMIN) {
+        if (
+          req.user.role !==
+          Roles.SUPER_ADMIN
+        ) {
+          return sendForbidden(
+            res,
+            "Access denied"
+          );
+        }
+      } else {
+        query.role =
+          filterRole;
+      }
     }
 
     if (status) {
@@ -363,22 +396,35 @@ export const getUserById = async (
       );
     }
 
-    // Admin can only view users
-    // from their own institute.
+    const targetRole = user.role;
+
+    // Non-super-admins can only view users
+    // from their own institute and can never
+    // view a super admin.
     if (
-      req.user.role ===
-      Roles.ADMIN
+      req.user.role !==
+      Roles.SUPER_ADMIN
     ) {
+      if (
+        targetRole ===
+        Roles.SUPER_ADMIN
+      ) {
+        return sendForbidden(
+          res,
+          "Access denied"
+        );
+      }
+
       const targetInstituteId =
         user.instituteId?._id ||
         user.instituteId;
 
       if (
         String(
-          targetInstituteId
+          targetInstituteId ?? ""
         ) !==
         String(
-          req.user.instituteId
+          req.user.instituteId ?? ""
         )
       ) {
         return sendForbidden(
@@ -462,10 +508,15 @@ export const updateUser = async (
       }
 
       const isBelowAdmin = [
+        Roles.PRINCIPAL,
         Roles.TEACHER,
         Roles.STUDENT,
         Roles.HR,
+        Roles.ACCOUNTANT,
+        Roles.COUNSELOR,
         Roles.EMPLOYEE,
+        Roles.SUPPORT,
+        Roles.PARENT,
       ].includes(
         target.role
       );
@@ -609,6 +660,24 @@ export const updateUser = async (
         updates[field] =
           req.body[field];
       }
+    }
+
+    // instituteId arrives as an org
+    // publicId — resolve before saving
+    // (a raw publicId fails ObjectId cast).
+    if (
+      updates.instituteId !==
+      undefined
+    ) {
+      updates.instituteId =
+        updates.instituteId === null ||
+        updates.instituteId === ""
+          ? null
+          : await resolveRef(
+              Organization,
+              updates.instituteId,
+              { label: "Organization" }
+            );
     }
 
     // Password update

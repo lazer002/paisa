@@ -2,7 +2,7 @@
 
 import mongoose from "mongoose";
 
-import crypto from "node:crypto";import crypto from "crypto";
+import crypto from "node:crypto";
 
 const QR_SESSION_TYPES = [
   "attendance",
@@ -753,7 +753,7 @@ publicId: {
     },
     {
       timestamps: true,
-      versionKey: true,
+      versionKey: false,
 
       toJSON: {
         virtuals: true,

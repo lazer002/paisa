@@ -5,6 +5,7 @@ import {
   useCreateDepartmentMutation,
   useDeleteDepartmentMutation,
 } from '@/features/departments/departmentsApi'
+import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -25,14 +26,17 @@ export default function DepartmentsPage() {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
+  const [head, setHead] = useState('')
+
+  const { data: staff } = useGetUsersQuery()
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     try {
-      await createDepartment({ name, code: code || undefined, description: description || undefined }).unwrap()
+      await createDepartment({ name, code: code || undefined, description: description || undefined, head: head || undefined }).unwrap()
       setShowCreate(false)
-      setName(''); setCode(''); setDescription('')
+      setName(''); setCode(''); setDescription(''); setHead('')
     } catch (e: any) {
       setError(e?.data?.message ?? 'Failed to create department')
     }
@@ -60,7 +64,7 @@ export default function DepartmentsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {departments.map((d) => (
-            <div key={d._id} className="group rounded-2xl bg-white p-5 shadow-sm">
+            <div key={d.publicId ?? d._id} className="group rounded-2xl bg-white p-5 shadow-sm">
               <div className="mb-2 flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-gray-900">{d.name}</h3>
@@ -68,7 +72,7 @@ export default function DepartmentsPage() {
                 </div>
                 {canManage && (
                   <button
-                    onClick={() => deleteDepartment(d._id)}
+                    onClick={() => deleteDepartment(d.publicId ?? d._id)}
                     className="rounded-lg p-1.5 text-red-400 opacity-0 transition hover:bg-red-50 group-hover:opacity-100"
                     title="Delete"
                   >
@@ -104,6 +108,16 @@ export default function DepartmentsPage() {
             <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
               className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Head</label>
+            <select value={head} onChange={(e) => setHead(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
+              <option value="">— Assign later —</option>
+              {(staff ?? []).map((u) => (
+                <option key={rid(u)} value={rid(u)}>{u.name} ({u.role})</option>
+              ))}
+            </select>
           </div>
           {error && (
             <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">

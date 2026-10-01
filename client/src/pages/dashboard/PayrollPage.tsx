@@ -7,7 +7,7 @@ import {
   useUpdatePayrollStatusMutation,
   type Payroll,
 } from '@/features/payroll/payrollApi'
-import { useGetUsersQuery } from '@/features/users/usersApi'
+import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -69,7 +69,7 @@ function ProcessPayrollModal({
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
             <option value="">— Select employee —</option>
             {employees.map((u) => (
-              <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
+              <option key={rid(u)} value={rid(u)}>{u.name} ({u.role})</option>
             ))}
           </select>
         </div>
@@ -199,7 +199,7 @@ export default function PayrollPage() {
             </thead>
             <tbody>
               {payrolls.map((p) => (
-                <tr key={p._id} className="border-b border-gray-50 transition hover:bg-gray-50">
+                <tr key={rid(p)} className="border-b border-gray-50 transition hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-gray-800">{empName(p)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{MONTHS[p.month - 1]} {p.year}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">₹{p.basicSalary?.toLocaleString()}</td>
@@ -208,7 +208,7 @@ export default function PayrollPage() {
                   {canManage && (
                     <td className="px-4 py-3 text-right">
                       {p.status !== 'paid' && (
-                        <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: p._id, status: 'paid' })}>
+                        <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'paid' })}>
                           Mark Paid
                         </Button>
                       )}

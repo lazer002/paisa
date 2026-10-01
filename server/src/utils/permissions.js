@@ -695,6 +695,12 @@ const rolePermissions = Object.freeze({
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,
 
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
+
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.STUDENT_CREATE,
     PERMISSIONS.STUDENT_UPDATE,
@@ -775,6 +781,12 @@ const rolePermissions = Object.freeze({
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,
 
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
+
     PERMISSIONS.EMPLOYEE_READ,
     PERMISSIONS.EMPLOYEE_CREATE,
     PERMISSIONS.EMPLOYEE_UPDATE,
@@ -830,6 +842,12 @@ const rolePermissions = Object.freeze({
   [ROLES.ACCOUNTANT]: [
     PERMISSIONS.USER_READ,
 
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
+
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.EMPLOYEE_READ,
 
@@ -863,6 +881,12 @@ const rolePermissions = Object.freeze({
 
   [ROLES.COUNSELOR]: [
     PERMISSIONS.USER_READ,
+
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
 
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.STUDENT_CREATE,
@@ -992,10 +1016,22 @@ const rolePermissions = Object.freeze({
     PERMISSIONS.CERTIFICATE_CREATE,
 
     PERMISSIONS.REPORT_READ,
+
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
   ],
 
   [ROLES.SUPPORT]: [
     PERMISSIONS.USER_READ,
+
+    PERMISSIONS.CONVERSATION_READ,
+    PERMISSIONS.CONVERSATION_CREATE,
+
+    PERMISSIONS.MESSAGE_READ,
+    PERMISSIONS.MESSAGE_CREATE,
 
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.EMPLOYEE_READ,
@@ -1328,6 +1364,19 @@ const hasPermission = (
     return false;
   }
 
+  // Super admin has every permission.
+  // Checked first so an unrecognized or
+  // legacy permission string can never
+  // lock a super admin out.
+  if (
+    hasRole(
+      user,
+      ROLES.SUPER_ADMIN
+    )
+  ) {
+    return true;
+  }
+
   const normalizedPermission =
     String(permission).trim();
 
@@ -1337,16 +1386,6 @@ const hasPermission = (
     )
   ) {
     return false;
-  }
-
-  // Super admin has every permission.
-  if (
-    hasRole(
-      user,
-      ROLES.SUPER_ADMIN
-    )
-  ) {
-    return true;
   }
 
   // Explicit permissions assigned to the user.

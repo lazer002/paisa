@@ -11,10 +11,15 @@ import crypto from "node:crypto";import { getNextSequence } from "../utils/seque
 const Roles = Object.freeze({
   SUPER_ADMIN: "super_admin",
   ADMIN: "admin",
+  PRINCIPAL: "principal",
   TEACHER: "teacher",
   STUDENT: "student",
   HR: "hr",
+  ACCOUNTANT: "accountant",
+  COUNSELOR: "counselor",
   EMPLOYEE: "employee",
+  PARENT: "parent",
+  SUPPORT: "support",
 });
 
 /* -------------------------------------------------------------------------- */
@@ -94,6 +99,36 @@ const RolePermissions = Object.freeze({
     "view_announcements",
     "view_profile",
   ],
+
+  /* Legacy UI-facing labels for the extended
+   * roles. Real authorization goes through
+   * utils/permissions.js; these keep
+   * userDetailController and any legacy
+   * checks working for the new roles. */
+  [Roles.PRINCIPAL]: [
+    "manage_classes",
+    "view_reports",
+    "view_students",
+    "view_announcements",
+  ],
+
+  [Roles.ACCOUNTANT]: [
+    "view_reports",
+    "view_announcements",
+  ],
+
+  [Roles.COUNSELOR]: [
+    "view_students",
+    "view_announcements",
+  ],
+
+  [Roles.SUPPORT]: [
+    "view_announcements",
+  ],
+
+  [Roles.PARENT]: [
+    "view_announcements",
+  ],
 });
 
 /* -------------------------------------------------------------------------- */
@@ -101,10 +136,15 @@ const RolePermissions = Object.freeze({
 /* -------------------------------------------------------------------------- */
 
 const RoleHierarchy = Object.freeze([
-  Roles.EMPLOYEE,
+  Roles.PARENT,
+  Roles.SUPPORT,
   Roles.STUDENT,
+  Roles.EMPLOYEE,
+  Roles.COUNSELOR,
+  Roles.ACCOUNTANT,
   Roles.HR,
   Roles.TEACHER,
+  Roles.PRINCIPAL,
   Roles.ADMIN,
   Roles.SUPER_ADMIN,
 ]);

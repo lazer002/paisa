@@ -19,10 +19,29 @@ import {
   BookOpen,
   Library,
   Network,
+  FileQuestion,
+  UserPlus,
+  Headphones,
+  Trophy,
+  CalendarDays,
+  Receipt,
+  MessageSquare,
+  Video,
   type LucideIcon,
 } from 'lucide-react'
 
-export type Role = 'super_admin' | 'admin' | 'teacher' | 'student' | 'hr' | 'employee'
+export type Role =
+  | 'super_admin'
+  | 'admin'
+  | 'principal'
+  | 'teacher'
+  | 'student'
+  | 'hr'
+  | 'accountant'
+  | 'counselor'
+  | 'support'
+  | 'employee'
+  | 'parent'
 
 export interface NavItem {
   label: string
@@ -54,7 +73,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Institutes', icon: School, path: '/dashboard/institutes', roles: ['super_admin'] },
       { label: 'Users', icon: Users, path: '/dashboard/users', roles: ['super_admin', 'admin'] },
       { label: 'HR Panel', icon: UserCog, path: '/dashboard/hr', roles: ['super_admin', 'admin'] },
-      { label: 'Billing', icon: CreditCard, path: '/dashboard/billing', roles: ['super_admin'] },
       { label: 'Reports', icon: BarChart3, path: '/dashboard/reports', roles: ['super_admin', 'admin', 'hr'] },
     ],
   },
@@ -68,8 +86,11 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Learning',
     items: [
+      { label: 'Live Sessions', icon: Video, path: '/dashboard/live-sessions', roles: ['super_admin', 'admin', 'principal', 'teacher', 'student', 'parent'] },
       { label: 'Classes', icon: ClipboardList, path: '/dashboard/classes', roles: ['super_admin', 'admin', 'teacher', 'student'] },
+      { label: 'Enrollments', icon: UserPlus, path: '/dashboard/enrollments', roles: ['super_admin', 'admin', 'teacher', 'student'] },
       { label: 'Assignments', icon: BookOpen, path: '/dashboard/assignments', roles: ['super_admin', 'admin', 'teacher', 'student'] },
+      { label: 'Tests', icon: FileQuestion, path: '/dashboard/tests', roles: ['super_admin', 'admin', 'teacher', 'student'] },
       { label: 'Study Materials', icon: Library, path: '/dashboard/materials', roles: ['super_admin', 'admin', 'teacher', 'student'] },
       { label: 'Attendance', icon: CalendarCheck, path: '/dashboard/attendance', roles: ['super_admin', 'admin', 'teacher', 'student', 'hr', 'employee'] },
     ],
@@ -77,10 +98,22 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Work',
     items: [
+      { label: 'Messages', icon: MessageSquare, path: '/dashboard/messages' },
       { label: 'Announcements', icon: Megaphone, path: '/dashboard/announcements' },
+      { label: 'Events', icon: CalendarDays, path: '/dashboard/events' },
       { label: 'Leaves', icon: FileText, path: '/dashboard/leaves' },
       { label: 'Payroll', icon: Wallet, path: '/dashboard/payroll', roles: ['super_admin', 'admin', 'hr', 'employee'] },
+      { label: 'HR Operations', icon: ShieldCheck, path: '/dashboard/hr-ops', roles: ['super_admin', 'admin', 'hr'] },
       { label: 'Departments', icon: Network, path: '/dashboard/departments', roles: ['super_admin', 'admin', 'hr'] },
+    ],
+  },
+  {
+    heading: 'Growth',
+    items: [
+      { label: 'CRM', icon: BarChart3, path: '/dashboard/crm', roles: ['super_admin', 'admin'] },
+      { label: 'Billing', icon: Receipt, path: '/dashboard/billing', roles: ['super_admin', 'admin', 'accountant', 'student', 'employee'] },
+      { label: 'Support', icon: Headphones, path: '/dashboard/tickets' },
+      { label: 'Gamification', icon: Trophy, path: '/dashboard/gamification' },
     ],
   },
   {
@@ -109,15 +142,32 @@ export function navForRole(role: string): NavSection[] {
   })).filter((section) => section.items.length > 0)
 }
 
-export const ALL_ROLES: Role[] = ['super_admin', 'admin', 'teacher', 'student', 'hr', 'employee']
+export const ALL_ROLES: Role[] = [
+  'super_admin',
+  'admin',
+  'principal',
+  'teacher',
+  'student',
+  'hr',
+  'accountant',
+  'counselor',
+  'support',
+  'employee',
+  'parent',
+]
 
 export const ROLE_LABEL: Record<Role, string> = {
   super_admin: 'Super Admin',
   admin: 'Admin',
+  principal: 'Principal',
   teacher: 'Teacher',
   student: 'Student',
   hr: 'HR Manager',
+  accountant: 'Accountant',
+  counselor: 'Counselor',
+  support: 'Support',
   employee: 'Employee',
+  parent: 'Parent',
 }
 
 export { ShieldCheck }

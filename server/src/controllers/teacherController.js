@@ -12,6 +12,8 @@ import {
 
 import { scopedQuery } from "../utils/peopleHelpers.js";
 
+import { resolveRef } from "../utils/resolveRef.js";
+
 // Create teacher profile
 export const createTeacher = async (
   req,
@@ -34,9 +36,16 @@ export const createTeacher = async (
       );
     }
 
+    // userId arrives as a publicId — resolve to _id.
+    const resolvedUserId = await resolveRef(
+      User,
+      userId,
+      { label: "User" }
+    );
+
     const user =
       await User.findById(
-        userId
+        resolvedUserId
       ).lean();
 
     if (!user) {
@@ -93,7 +102,7 @@ export const createTeacher = async (
 
     const teacher =
       await Teacher.create({
-        userId,
+        userId: resolvedUserId,
         instituteId:
           resolvedInstituteId,
         subject,

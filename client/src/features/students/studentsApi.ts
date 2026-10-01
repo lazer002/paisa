@@ -3,6 +3,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface StudentProfile {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   userId: { _id: string; name: string; email: string; userCode?: string } | string
   instituteId?: { _id: string; name: string; type: string } | string | null
   enrollmentNumber: string

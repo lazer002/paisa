@@ -16,6 +16,10 @@ import { employeesApi, hrsApi } from '@/features/people/peopleApi'
 import { departmentsApi } from '@/features/departments/departmentsApi'
 import { assignmentsApi, materialsApi, submissionsApi } from '@/features/assignments/assignmentsApi'
 import { userDetailApi } from '@/features/users/userDetailApi'
+import { assessmentApi } from '@/features/assessment/assessmentApi'
+import { platformApi } from '@/features/platform/platformApi'
+import { messagingApi } from '@/features/messaging/messagingApi'
+import { notificationsApi } from '@/features/notifications/notificationsApi'
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -35,6 +39,10 @@ const rootReducer = combineReducers({
   [materialsApi.reducerPath]: materialsApi.reducer,
   [submissionsApi.reducerPath]: submissionsApi.reducer,
   [userDetailApi.reducerPath]: userDetailApi.reducer,
+  [assessmentApi.reducerPath]: assessmentApi.reducer,
+  [platformApi.reducerPath]: platformApi.reducer,
+  [messagingApi.reducerPath]: messagingApi.reducer,
+  [notificationsApi.reducerPath]: notificationsApi.reducer,
 })
 
 export const store = configureStore({
@@ -57,6 +65,10 @@ export const store = configureStore({
       materialsApi.middleware,
       submissionsApi.middleware,
       userDetailApi.middleware,
+      assessmentApi.middleware,
+      platformApi.middleware,
+      messagingApi.middleware,
+      notificationsApi.middleware,
     ),
 })
 

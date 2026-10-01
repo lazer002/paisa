@@ -3,6 +3,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface Payroll {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   instituteId?: string | null
   employeeId: { _id: string; name: string; email: string; userCode?: string } | string
   month: number

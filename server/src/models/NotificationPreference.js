@@ -1,114 +1,162 @@
-// server/src/models/Device.js
+// server/src/models/NotificationPreference.js
 
 import mongoose from "mongoose";
 
-import crypto from "node:crypto";import crypto from "crypto";
-
-const DEVICE_TYPES = [
-  "mobile",
-  "tablet",
-  "desktop",
-  "laptop",
-  "web",
-  "kiosk",
-  "smart_tv",
-  "other",
+import crypto from "node:crypto";
+const NOTIFICATION_CHANNELS = [
+  "in_app",
+  "push",
+  "email",
+  "sms",
 ];
 
-const DEVICE_PLATFORMS = [
-  "android",
-  "ios",
-  "windows",
-  "macos",
-  "linux",
-  "web",
-  "chromeos",
-  "other",
-];
-
-const DEVICE_STATUS = [
-  "pending",
-  "active",
-  "trusted",
-  "blocked",
-  "revoked",
-  "lost",
-  "inactive",
-];
-
-const TRUST_LEVELS = [
-  "unknown",
-  "low",
-  "standard",
-  "trusted",
-  "high",
-];
-
-const DEVICE_EVENT_TYPES = [
-  "registered",
-  "activated",
-  "trusted",
+const NOTIFICATION_TYPES = [
+  "announcement",
+  "assignment",
+  "assignment_due",
+  "assignment_graded",
+  "test",
+  "test_scheduled",
+  "test_reminder",
+  "test_result",
+  "attendance",
+  "attendance_marked",
+  "attendance_alert",
+  "leave",
+  "leave_submitted",
+  "leave_approved",
+  "leave_rejected",
+  "payroll",
+  "payroll_processed",
+  "payment",
+  "invoice",
+  "live_session",
+  "live_session_starting",
+  "live_session_started",
+  "live_session_ended",
+  "message",
+  "conversation",
+  "ticket",
+  "ticket_update",
+  "crm",
+  "task",
+  "event",
+  "certificate",
+  "achievement",
+  "leaderboard",
+  "streak",
+  "security",
   "login",
-  "logout",
-  "refresh",
-  "verified",
-  "blocked",
-  "unblocked",
-  "revoked",
-  "unregistered",
-  "password_changed",
-  "security_alert",
-  "location_changed",
-  "app_updated",
+  "device",
+  "system",
+  "marketing",
 ];
 
-const deviceEventSchema =
+const NOTIFICATION_FREQUENCIES = [
+  "immediate",
+  "hourly",
+  "daily",
+  "weekly",
+  "never",
+];
+
+const DIGEST_DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+const QUIET_DAY_VALUES = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+const channelPreferenceSchema =
   new mongoose.Schema(
     {
-      _id: false,
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
 
-      type: {
+      frequency: {
         type: String,
-        enum: DEVICE_EVENT_TYPES,
-        required: true,
+        enum: NOTIFICATION_FREQUENCIES,
+        default: "immediate",
       },
 
-      occurredAt: {
-        type: Date,
-        default: Date.now,
+      priorityOnly: {
+        type: Boolean,
+        default: false,
       },
 
-      ipHash: {
+      digestEnabled: {
+        type: Boolean,
+        default: false,
+      },
+
+      digestTime: {
         type: String,
         trim: true,
-        maxlength: 128,
+        match: /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+        default: "09:00",
+      },
+
+      lastUsedAt: {
+        type: Date,
         default: null,
       },
 
-      location: {
-        latitude: {
-          type: Number,
-          min: -90,
-          max: 90,
-          default: null,
-        },
+      failureCount: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+    },
+    {
+      _id: false,
+    }
+  );
 
-        longitude: {
-          type: Number,
-          min: -180,
-          max: 180,
-          default: null,
-        },
-
-        accuracyMeters: {
-          type: Number,
-          min: 0,
-          default: null,
-        },
+const typePreferenceSchema =
+  new mongoose.Schema(
+    {
+      enabled: {
+        type: Boolean,
+        default: true,
       },
 
-      metadata: {
-        type: mongoose.Schema.Types.Mixed,
+      channels: {
+        type: [String],
+        enum: NOTIFICATION_CHANNELS,
+        default: [
+          "in_app",
+          "push",
+        ],
+      },
+
+      priorityOnly: {
+        type: Boolean,
+        default: false,
+      },
+
+      frequency: {
+        type: String,
+        enum: NOTIFICATION_FREQUENCIES,
+        default: "immediate",
+      },
+
+      mutedUntil: {
+        type: Date,
         default: null,
       },
     },
@@ -117,11 +165,131 @@ const deviceEventSchema =
     }
   );
 
-const deviceSchema =
+const quietHoursSchema =
+  new mongoose.Schema(
+    {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+
+      timezone: {
+        type: String,
+        trim: true,
+        maxlength: 100,
+        default: "Asia/Kolkata",
+      },
+
+      startTime: {
+        type: String,
+        trim: true,
+        match: /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+        default: "22:00",
+      },
+
+      endTime: {
+        type: String,
+        trim: true,
+        match: /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+        default: "07:00",
+      },
+
+      days: {
+        type: [String],
+        enum: QUIET_DAY_VALUES,
+        default: [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday",
+        ],
+      },
+
+      allowCritical: {
+        type: Boolean,
+        default: true,
+      },
+
+      allowSecurity: {
+        type: Boolean,
+        default: true,
+      },
+
+      allowAttendance: {
+        type: Boolean,
+        default: true,
+      },
+    },
+    {
+      _id: false,
+    }
+  );
+
+const digestSchema =
+  new mongoose.Schema(
+    {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+
+      frequency: {
+        type: String,
+        enum: [
+          "daily",
+          "weekly",
+        ],
+        default: "daily",
+      },
+
+      time: {
+        type: String,
+        trim: true,
+        match: /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+        default: "09:00",
+      },
+
+      timezone: {
+        type: String,
+        trim: true,
+        maxlength: 100,
+        default: "Asia/Kolkata",
+      },
+
+      dayOfWeek: {
+        type: String,
+        enum: DIGEST_DAYS,
+        default: "monday",
+      },
+
+      includeRead: {
+        type: Boolean,
+        default: false,
+      },
+
+      includeMuted: {
+        type: Boolean,
+        default: false,
+      },
+
+      lastSentAt: {
+        type: Date,
+        default: null,
+      },
+    },
+    {
+      _id: false,
+    }
+  );
+
+const notificationPreferenceSchema =
   new mongoose.Schema(
     {
       /* ==================================================================== */
-      /* TENANCY                                                              */
+      /* TENANCY                                                             */
       /* ==================================================================== */
 
       instituteId: {
@@ -137,10 +305,10 @@ publicId: {
   immutable: true,
   index: true,
   default: () =>
-    `noti_${crypto.randomBytes(16).toString("base64url")}`,
+    `not_${crypto.randomBytes(16).toString("base64url")}`,
 },
       /* ==================================================================== */
-      /* OWNER                                                                */
+      /* USER                                                                 */
       /* ==================================================================== */
 
       userId: {
@@ -150,612 +318,720 @@ publicId: {
         index: true,
       },
 
-      /* ==================================================================== */
-      /* DEVICE IDENTITY                                                      */
-      /* ==================================================================== */
-
-      deviceCode: {
+      role: {
         type: String,
-        trim: true,
-        uppercase: true,
-        maxlength: 100,
-        index: true,
-      },
-
-      deviceIdHash: {
-        type: String,
-        trim: true,
-        maxlength: 128,
-        required: true,
-        select: false,
-      },
-
-      fingerprintHash: {
-        type: String,
-        trim: true,
-        maxlength: 128,
-        required: true,
-        select: false,
-      },
-
-      installationIdHash: {
-        type: String,
-        trim: true,
-        maxlength: 128,
-        default: null,
-        select: false,
-      },
-
-      /* ==================================================================== */
-      /* DEVICE INFORMATION                                                   */
-      /* ==================================================================== */
-
-      name: {
-        type: String,
-        trim: true,
-        maxlength: 200,
-        default: null,
-      },
-
-      manufacturer: {
-        type: String,
-        trim: true,
-        maxlength: 150,
-        default: null,
-      },
-
-      model: {
-        type: String,
-        trim: true,
-        maxlength: 200,
-        default: null,
-      },
-
-      deviceType: {
-        type: String,
-        enum: DEVICE_TYPES,
-        default: "mobile",
-        index: true,
-      },
-
-      platform: {
-        type: String,
-        enum: DEVICE_PLATFORMS,
-        default: "android",
-        index: true,
-      },
-
-      operatingSystem: {
-        type: String,
-        trim: true,
-        maxlength: 150,
-        default: null,
-      },
-
-      osVersion: {
-        type: String,
-        trim: true,
-        maxlength: 100,
-        default: null,
-      },
-
-      architecture: {
-        type: String,
-        trim: true,
-        maxlength: 100,
+        enum: [
+          "super_admin",
+          "admin",
+          "teacher",
+          "student",
+          "hr",
+          "employee",
+        ],
         default: null,
       },
 
       /* ==================================================================== */
-      /* APPLICATION                                                          */
+      /* GLOBAL SETTINGS                                                       */
       /* ==================================================================== */
 
-      appName: {
-        type: String,
-        trim: true,
-        maxlength: 150,
-        default: null,
-      },
-
-      appVersion: {
-        type: String,
-        trim: true,
-        maxlength: 50,
-        default: null,
-      },
-
-      buildNumber: {
-        type: String,
-        trim: true,
-        maxlength: 50,
-        default: null,
-      },
-
-      bundleId: {
-        type: String,
-        trim: true,
-        maxlength: 200,
-        default: null,
-      },
-
-      /* ==================================================================== */
-      /* BROWSER                                                              */
-      /* ==================================================================== */
-
-      browser: {
-        name: {
-          type: String,
-          trim: true,
-          maxlength: 100,
-          default: null,
-        },
-
-        version: {
-          type: String,
-          trim: true,
-          maxlength: 100,
-          default: null,
-        },
-
-        engine: {
-          type: String,
-          trim: true,
-          maxlength: 100,
-          default: null,
-        },
-
-        userAgentHash: {
-          type: String,
-          trim: true,
-          maxlength: 128,
-          default: null,
-          select: false,
-        },
-      },
-
-      /* ==================================================================== */
-      /* STATUS / TRUST                                                       */
-      /* ==================================================================== */
-
-      status: {
-        type: String,
-        enum: DEVICE_STATUS,
-        default: "pending",
-        index: true,
-      },
-
-      trustLevel: {
-        type: String,
-        enum: TRUST_LEVELS,
-        default: "unknown",
-        index: true,
-      },
-
-      isPrimary: {
+      enabled: {
         type: Boolean,
-        default: false,
+        default: true,
         index: true,
       },
 
-      isTrusted: {
+      allowNotifications: {
         type: Boolean,
-        default: false,
-        index: true,
+        default: true,
       },
 
-      isManaged: {
+      allowMarketing: {
         type: Boolean,
         default: false,
       },
 
+      allowSystem: {
+        type: Boolean,
+        default: true,
+      },
+
+      allowSecurity: {
+        type: Boolean,
+        default: true,
+      },
+
       /* ==================================================================== */
-      /* SECURITY                                                             */
+      /* CHANNELS                                                              */
       /* ==================================================================== */
 
-      security: {
-        passcodeEnabled: {
-          type: Boolean,
-          default: false,
+      channels: {
+        in_app: {
+          type: channelPreferenceSchema,
+          default: () => ({
+            enabled: true,
+            frequency: "immediate",
+          }),
         },
 
-        biometricEnabled: {
-          type: Boolean,
-          default: false,
+        push: {
+          type: channelPreferenceSchema,
+          default: () => ({
+            enabled: true,
+            frequency: "immediate",
+          }),
         },
 
-        faceUnlockEnabled: {
-          type: Boolean,
-          default: false,
+        email: {
+          type: channelPreferenceSchema,
+          default: () => ({
+            enabled: true,
+            frequency: "daily",
+          }),
         },
 
-        rootedOrJailbroken: {
-          type: Boolean,
-          default: false,
+        sms: {
+          type: channelPreferenceSchema,
+          default: () => ({
+            enabled: false,
+            frequency: "immediate",
+          }),
+        },
+      },
+
+      /* ==================================================================== */
+      /* NOTIFICATION TYPES                                                    */
+      /* ==================================================================== */
+
+      types: {
+        announcement: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        developerModeEnabled: {
-          type: Boolean,
-          default: false,
+        assignment: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        emulatorDetected: {
-          type: Boolean,
-          default: false,
+        assignment_due: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        integrityVerified: {
-          type: Boolean,
-          default: false,
+        assignment_graded: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        integrityProvider: {
-          type: String,
-          trim: true,
-          maxlength: 100,
-          default: null,
+        test: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        integrityVerifiedAt: {
-          type: Date,
-          default: null,
-        },
-
-        riskScore: {
-          type: Number,
-          min: 0,
-          max: 100,
-          default: 0,
-          index: true,
-        },
-
-        riskLevel: {
-          type: String,
-          enum: [
-            "low",
-            "medium",
-            "high",
-            "critical",
+        test_scheduled: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
           ],
-          default: "low",
-          index: true,
+          }),
         },
 
-        compromised: {
-          type: Boolean,
-          default: false,
+        test_reminder: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
         },
 
-        compromisedAt: {
-          type: Date,
-          default: null,
+        test_result: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
         },
 
-        compromisedReason: {
-          type: String,
-          trim: true,
-          maxlength: 2000,
-          default: null,
+        attendance: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        attendance_marked: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+            ],
+          }),
+        },
+
+        attendance_alert: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        leave: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        leave_submitted: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        leave_approved: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
+        },
+
+        leave_rejected: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
+        },
+
+        payroll: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "email",
+            ],
+          }),
+        },
+
+        payroll_processed: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "email",
+            ],
+          }),
+        },
+
+        payment: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "email",
+            ],
+          }),
+        },
+
+        invoice: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "email",
+            ],
+          }),
+        },
+
+        live_session: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        live_session_starting: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        live_session_started: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        live_session_ended: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+            ],
+          }),
+        },
+
+        message: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        conversation: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        ticket: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        ticket_update: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        crm: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        task: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        event: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        certificate: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
+        },
+
+        achievement: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        leaderboard: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+            ],
+          }),
+        },
+
+        streak: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+            ],
+          }),
+        },
+
+        security: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+            priorityOnly: false,
+          }),
+        },
+
+        login: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
+        },
+
+        device: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+              "push",
+              "email",
+            ],
+          }),
+        },
+
+        system: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: true,
+            channels: [
+              "in_app",
+            ],
+          }),
+        },
+
+        marketing: {
+          type: typePreferenceSchema,
+          default: () => ({
+            enabled: false,
+            channels: [
+              "email",
+            ],
+          }),
         },
       },
 
       /* ==================================================================== */
-      /* PUSH NOTIFICATIONS                                                   */
+      /* QUIET HOURS                                                           */
       /* ==================================================================== */
 
-      push: {
-        enabled: {
+      quietHours: {
+        type: quietHoursSchema,
+        default: () => ({}),
+      },
+
+      /* ==================================================================== */
+      /* DIGEST                                                                */
+      /* ==================================================================== */
+
+      digest: {
+        type: digestSchema,
+        default: () => ({}),
+      },
+
+      /* ==================================================================== */
+      /* DEVICE / PUSH CONTROL                                                 */
+      /* ==================================================================== */
+
+      devicePreferences: {
+        allDevices: {
           type: Boolean,
           default: true,
         },
 
-        provider: {
-          type: String,
-          enum: [
-            "fcm",
-            "apns",
-            "expo",
-            "web_push",
-            "other",
-          ],
-          default: null,
+        trustedDevicesOnly: {
+          type: Boolean,
+          default: false,
         },
 
-        tokenHash: {
+        excludedDeviceIds: {
+          type: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Device",
+            },
+          ],
+          default: [],
+        },
+
+        preferredDeviceId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Device",
+          default: null,
+        },
+      },
+
+      /* ==================================================================== */
+      /* SOUND / UI                                                            */
+      /* ==================================================================== */
+
+      presentation: {
+        soundEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        vibrationEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        badgeEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        popupEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        lockScreenEnabled: {
+          type: Boolean,
+          default: true,
+        },
+
+        showPreview: {
+          type: Boolean,
+          default: true,
+        },
+
+        sound: {
           type: String,
           trim: true,
-          maxlength: 128,
-          default: null,
-          select: false,
+          maxlength: 100,
+          default: "default",
+        },
+      },
+
+      /* ==================================================================== */
+      /* PRIVACY                                                               */
+      /* ==================================================================== */
+
+      privacy: {
+        showSenderName: {
+          type: Boolean,
+          default: true,
         },
 
-        tokenVersion: {
+        showMessagePreview: {
+          type: Boolean,
+          default: true,
+        },
+
+        showSensitiveContent: {
+          type: Boolean,
+          default: false,
+        },
+      },
+
+      /* ==================================================================== */
+      /* LIMITS / ANTI-SPAM                                                    */
+      /* ==================================================================== */
+
+      limits: {
+        maxPushPerHour: {
           type: Number,
           min: 1,
-          default: 1,
+          max: 1000,
+          default: 60,
         },
 
-        lastRegisteredAt: {
-          type: Date,
-          default: null,
+        maxEmailPerDay: {
+          type: Number,
+          min: 1,
+          max: 500,
+          default: 20,
         },
 
-        lastDeliveredAt: {
-          type: Date,
-          default: null,
+        maxSmsPerDay: {
+          type: Number,
+          min: 1,
+          max: 100,
+          default: 5,
         },
 
-        lastFailedAt: {
-          type: Date,
-          default: null,
-        },
-
-        failureCount: {
+        cooldownSeconds: {
           type: Number,
           min: 0,
-          default: 0,
+          max: 86400,
+          default: 10,
         },
       },
 
       /* ==================================================================== */
-      /* NETWORK                                                              */
+      /* MUTING                                                                */
       /* ==================================================================== */
 
-      network: {
-        lastIpHash: {
-          type: String,
-          trim: true,
-          maxlength: 128,
-          default: null,
-          select: false,
-        },
-
-        lastNetworkType: {
-          type: String,
-          trim: true,
-          maxlength: 50,
-          default: null,
-        },
-
-        lastConnectionId: {
-          type: String,
-          trim: true,
-          maxlength: 200,
-          default: null,
-        },
-
-        ipChangeCount: {
-          type: Number,
-          min: 0,
-          default: 0,
-        },
-
-        networkChangeCount: {
-          type: Number,
-          min: 0,
-          default: 0,
-        },
+      mutedTypes: {
+        type: [String],
+        enum: NOTIFICATION_TYPES,
+        default: [],
       },
 
-      /* ==================================================================== */
-      /* LOCATION                                                             */
-      /* ==================================================================== */
-
-      lastLocation: {
-        latitude: {
-          type: Number,
-          min: -90,
-          max: 90,
-          default: null,
-        },
-
-        longitude: {
-          type: Number,
-          min: -180,
-          max: 180,
-          default: null,
-        },
-
-        accuracyMeters: {
-          type: Number,
-          min: 0,
-          default: null,
-        },
-
-        capturedAt: {
-          type: Date,
-          default: null,
-        },
-      },
-
-      locationTrackingEnabled: {
-        type: Boolean,
-        default: false,
-      },
-
-      /* ==================================================================== */
-      /* LOGIN / ACTIVITY                                                     */
-      /* ==================================================================== */
-
-      firstSeenAt: {
-        type: Date,
-        default: Date.now,
-        index: true,
-      },
-
-      lastSeenAt: {
-        type: Date,
-        default: Date.now,
-        index: true,
-      },
-
-      lastLoginAt: {
+      mutedUntil: {
         type: Date,
         default: null,
       },
 
-      lastLogoutAt: {
-        type: Date,
+      /* ==================================================================== */
+      /* TIMEZONE / LOCALE                                                     */
+      /* ==================================================================== */
+
+      timezone: {
+        type: String,
+        trim: true,
+        maxlength: 100,
+        default: "Asia/Kolkata",
+      },
+
+      locale: {
+        type: String,
+        trim: true,
+        maxlength: 20,
+        default: "en-IN",
+      },
+
+      /* ==================================================================== */
+      /* AUDIT                                                                 */
+      /* ==================================================================== */
+
+      lastUpdatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
         default: null,
       },
 
-      loginCount: {
-        type: Number,
-        min: 0,
-        default: 0,
-      },
-
-      successfulAuthenticationCount: {
-        type: Number,
-        min: 0,
-        default: 0,
-      },
-
-      failedAuthenticationCount: {
-        type: Number,
-        min: 0,
-        default: 0,
-      },
-
-      /* ==================================================================== */
-      /* SESSION                                                               */
-      /* ==================================================================== */
-
-      activeSessionCount: {
-        type: Number,
-        min: 0,
-        default: 0,
-      },
-
-      maxConcurrentSessions: {
+      version: {
         type: Number,
         min: 1,
-        max: 100,
-        default: 3,
-      },
-
-      lastSessionId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "RefreshSession",
-        default: null,
-      },
-
-      /* ==================================================================== */
-      /* VERIFICATION                                                          */
-      /* ==================================================================== */
-
-      verification: {
-        status: {
-          type: String,
-          enum: [
-            "unverified",
-            "pending",
-            "verified",
-            "failed",
-          ],
-          default: "unverified",
-        },
-
-        method: {
-          type: String,
-          enum: [
-            "none",
-            "otp",
-            "email",
-            "sms",
-            "admin",
-            "biometric",
-            "device_attestation",
-            "multi_factor",
-          ],
-          default: "none",
-        },
-
-        verifiedAt: {
-          type: Date,
-          default: null,
-        },
-
-        verifiedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-          default: null,
-        },
-
-        verificationReference: {
-          type: String,
-          trim: true,
-          maxlength: 300,
-          default: null,
-        },
-      },
-
-      /* ==================================================================== */
-      /* MANAGEMENT                                                           */
-      /* ==================================================================== */
-
-      managedByOrganization: {
-        type: Boolean,
-        default: false,
-      },
-
-      management: {
-        policyId: {
-          type: String,
-          trim: true,
-          maxlength: 200,
-          default: null,
-        },
-
-        policyVersion: {
-          type: Number,
-          min: 1,
-          default: null,
-        },
-
-        enrolledAt: {
-          type: Date,
-          default: null,
-        },
-
-        lastPolicySyncAt: {
-          type: Date,
-          default: null,
-        },
-
-        policyCompliant: {
-          type: Boolean,
-          default: true,
-        },
-
-        complianceCheckedAt: {
-          type: Date,
-          default: null,
-        },
-      },
-
-      /* ==================================================================== */
-      /* EVENTS                                                               */
-      /* ==================================================================== */
-
-      events: {
-        type: [deviceEventSchema],
-        default: [],
-      },
-
-      /* ==================================================================== */
-      /* METADATA                                                             */
-      /* ==================================================================== */
-
-      tags: {
-        type: [
-          {
-            type: String,
-            trim: true,
-            lowercase: true,
-            maxlength: 100,
-          },
-        ],
-        default: [],
+        default: 1,
       },
 
       metadata: {
@@ -763,58 +1039,9 @@ publicId: {
         default: null,
       },
 
-      notes: {
-        type: String,
-        trim: true,
-        maxlength: 5000,
-        default: null,
-      },
-
       /* ==================================================================== */
-      /* LIFECYCLE                                                            */
+      /* LIFECYCLE                                                             */
       /* ==================================================================== */
-
-      registeredBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-
-      blockedAt: {
-        type: Date,
-        default: null,
-      },
-
-      blockedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-
-      blockReason: {
-        type: String,
-        trim: true,
-        maxlength: 2000,
-        default: null,
-      },
-
-      revokedAt: {
-        type: Date,
-        default: null,
-      },
-
-      revokedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-
-      revokeReason: {
-        type: String,
-        trim: true,
-        maxlength: 2000,
-        default: null,
-      },
 
       isDeleted: {
         type: Boolean,
@@ -829,7 +1056,7 @@ publicId: {
     },
     {
       timestamps: true,
-      versionKey: true,
+      versionKey: "__v",
 
       toJSON: {
         virtuals: true,
@@ -845,129 +1072,58 @@ publicId: {
  * INDEXES
  * ========================================================================== */
 
-deviceSchema.index(
+notificationPreferenceSchema.index(
   {
     instituteId: 1,
     userId: 1,
-    deviceIdHash: 1,
   },
   {
-    name: "tenant_user_device",
     unique: true,
+    name: "unique_user_notification_preferences",
   }
 );
 
-deviceSchema.index(
+notificationPreferenceSchema.index(
   {
     instituteId: 1,
-    deviceCode: 1,
+    enabled: 1,
+    updatedAt: -1,
   },
   {
-    name: "tenant_device_code",
-    unique: true,
-    sparse: true,
+    name: "active_notification_preferences",
   }
 );
 
-deviceSchema.index(
+notificationPreferenceSchema.index(
   {
     instituteId: 1,
-    fingerprintHash: 1,
+    mutedUntil: 1,
   },
   {
-    name: "tenant_device_fingerprint",
-    sparse: true,
+    name: "muted_notification_preferences",
   }
 );
 
-deviceSchema.index(
+notificationPreferenceSchema.index(
   {
     instituteId: 1,
-    userId: 1,
-    status: 1,
-    lastSeenAt: -1,
+    "digest.enabled": 1,
+    "digest.frequency": 1,
+    "digest.time": 1,
   },
   {
-    name: "user_devices",
+    name: "notification_digest_schedule",
   }
 );
 
-deviceSchema.index(
+notificationPreferenceSchema.index(
   {
     instituteId: 1,
-    status: 1,
-    trustLevel: 1,
-    lastSeenAt: -1,
+    role: 1,
+    enabled: 1,
   },
   {
-    name: "device_security_listing",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    isPrimary: 1,
-    userId: 1,
-  },
-  {
-    name: "primary_user_device",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    "security.riskLevel": 1,
-    "security.riskScore": -1,
-  },
-  {
-    name: "device_risk_queue",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    platform: 1,
-    deviceType: 1,
-    lastSeenAt: -1,
-  },
-  {
-    name: "device_platform_listing",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    "push.enabled": 1,
-    status: 1,
-    lastSeenAt: -1,
-  },
-  {
-    name: "push_delivery_devices",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    lastSeenAt: -1,
-  },
-  {
-    name: "recent_devices",
-  }
-);
-
-deviceSchema.index(
-  {
-    instituteId: 1,
-    "management.policyCompliant": 1,
-    "management.complianceCheckedAt": 1,
-  },
-  {
-    name: "device_compliance",
+    name: "role_notification_preferences",
   }
 );
 
@@ -975,94 +1131,57 @@ deviceSchema.index(
  * VALIDATION
  * ========================================================================== */
 
-deviceSchema.pre(
+notificationPreferenceSchema.pre(
   "validate",
   function (next) {
     if (
-      this.status ===
-        "trusted" &&
-      !this.isTrusted
-    ) {
-      this.isTrusted =
-        true;
-    }
-
-    if (
-      this.isTrusted &&
-      this.trustLevel ===
-        "unknown"
-    ) {
-      this.trustLevel =
-        "trusted";
-    }
-
-    if (
-      this.security.riskScore >=
-      80
-    ) {
-      this.security.riskLevel =
-        "critical";
-    } else if (
-      this.security.riskScore >=
-      50
-    ) {
-      this.security.riskLevel =
-        "high";
-    } else if (
-      this.security.riskScore >=
-      20
-    ) {
-      this.security.riskLevel =
-        "medium";
-    } else {
-      this.security.riskLevel =
-        "low";
-    }
-
-    if (
-      this.status ===
-        "blocked" &&
-      !this.blockedAt
-    ) {
-      this.blockedAt =
-        new Date();
-    }
-
-    if (
-      this.status ===
-        "revoked" &&
-      !this.revokedAt
-    ) {
-      this.revokedAt =
-        new Date();
-    }
-
-    if (
-      this.security.compromised &&
-      !this.security.compromisedAt
-    ) {
-      this.security.compromisedAt =
-        new Date();
-    }
-
-    if (
-      this.events.length >
-      1000
+      this.quietHours.enabled &&
+      this.quietHours.startTime ===
+        this.quietHours.endTime
     ) {
       return next(
         new Error(
-          "Device cannot contain more than 1,000 embedded events"
+          "Quiet hours start and end time cannot be identical"
         )
       );
     }
 
     if (
-      this.tags.length >
-      100
+      this.digest.enabled &&
+      !this.digest.timezone
     ) {
       return next(
         new Error(
-          "Device cannot contain more than 100 tags"
+          "Digest timezone is required when digest is enabled"
+        )
+      );
+    }
+
+    if (
+      this.devicePreferences.preferredDeviceId &&
+      this.devicePreferences.excludedDeviceIds.some(
+        (id) =>
+          String(id) ===
+          String(
+            this.devicePreferences
+              .preferredDeviceId
+          )
+      )
+    ) {
+      return next(
+        new Error(
+          "Preferred device cannot be excluded"
+        )
+      );
+    }
+
+    if (
+      this.mutedTypes.length >
+      NOTIFICATION_TYPES.length
+    ) {
+      return next(
+        new Error(
+          "Invalid muted notification type configuration"
         )
       );
     }
@@ -1075,55 +1194,36 @@ deviceSchema.pre(
  * VIRTUALS
  * ========================================================================== */
 
-deviceSchema.virtual(
-  "isActive"
-).get(function () {
-  return [
-    "active",
-    "trusted",
-  ].includes(
-    this.status
-  );
-});
-
-deviceSchema.virtual(
-  "isBlocked"
-).get(function () {
-  return (
-    this.status ===
-      "blocked" ||
-    this.status ===
-      "revoked"
-  );
-});
-
-deviceSchema.virtual(
-  "isSecure"
-).get(function () {
-  return (
-    !this.security.compromised &&
-    !this.security.rootedOrJailbroken &&
-    !this.security.emulatorDetected &&
-    this.security.integrityVerified
-  );
-});
-
-deviceSchema.virtual(
-  "daysSinceLastSeen"
+notificationPreferenceSchema.virtual(
+  "isMuted"
 ).get(function () {
   if (
-    !this.lastSeenAt
+    !this.mutedUntil
   ) {
-    return null;
+    return false;
   }
 
-  return Math.max(
-    0,
-    Math.floor(
-      (Date.now() -
-        this.lastSeenAt.getTime()) /
-        86400000
-    )
+  return (
+    this.mutedUntil >
+    new Date()
+  );
+});
+
+notificationPreferenceSchema.virtual(
+  "hasQuietHours"
+).get(function () {
+  return (
+    this.quietHours &&
+    this.quietHours.enabled
+  );
+});
+
+notificationPreferenceSchema.virtual(
+  "isDigestEnabled"
+).get(function () {
+  return (
+    this.digest &&
+    this.digest.enabled
   );
 });
 
@@ -1131,7 +1231,7 @@ deviceSchema.virtual(
  * QUERY HELPERS
  * ========================================================================== */
 
-deviceSchema.query.byInstitute =
+notificationPreferenceSchema.query.byInstitute =
   function (
     instituteId
   ) {
@@ -1141,7 +1241,7 @@ deviceSchema.query.byInstitute =
     });
   };
 
-deviceSchema.query.byUser =
+notificationPreferenceSchema.query.byUser =
   function (
     userId
   ) {
@@ -1151,696 +1251,723 @@ deviceSchema.query.byUser =
     });
   };
 
-deviceSchema.query.active =
+notificationPreferenceSchema.query.enabled =
   function () {
     return this.where({
+      enabled: true,
+      allowNotifications: true,
       isDeleted: false,
-      status: {
-        $in: [
-          "active",
-          "trusted",
-        ],
-      },
     });
   };
 
-deviceSchema.query.trusted =
+notificationPreferenceSchema.query.digestEnabled =
   function () {
     return this.where({
+      "digest.enabled": true,
       isDeleted: false,
-      isTrusted: true,
-      status: {
-        $in: [
-          "active",
-          "trusted",
-        ],
-      },
     });
-  };
-
-deviceSchema.query.blocked =
-  function () {
-    return this.where({
-      isDeleted: false,
-      status: {
-        $in: [
-          "blocked",
-          "revoked",
-          "lost",
-        ],
-      },
-    });
-  };
-
-deviceSchema.query.highRisk =
-  function () {
-    return this.where({
-      isDeleted: false,
-      "security.riskLevel": {
-        $in: [
-          "high",
-          "critical",
-        ],
-      },
-    });
-  };
-
-deviceSchema.query.nonCompliant =
-  function () {
-    return this.where({
-      isDeleted: false,
-      "management.policyCompliant": false,
-    });
-  };
-
-/* ============================================================================
- * SECURITY HELPERS
- * ========================================================================== */
-
-deviceSchema.statics.hashIdentifier =
-  function (
-    value
-  ) {
-    if (!value) {
-      return null;
-    }
-
-    return crypto
-      .createHash("sha256")
-      .update(
-        String(value)
-      )
-      .digest("hex");
   };
 
 /* ============================================================================
  * INSTANCE METHODS
  * ========================================================================== */
 
-deviceSchema.methods.recordEvent =
-  async function ({
+notificationPreferenceSchema.methods.isTypeEnabled =
+  function (
+    type
+  ) {
+    if (
+      !this.enabled ||
+      !this.allowNotifications ||
+      this.isMuted
+    ) {
+      return false;
+    }
+
+    if (
+      !NOTIFICATION_TYPES.includes(
+        type
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      this.mutedTypes.includes(
+        type
+      )
+    ) {
+      return false;
+    }
+
+    const preference =
+      this.types?.[type];
+
+    if (
+      !preference
+    ) {
+      return true;
+    }
+
+    if (
+      preference.mutedUntil &&
+      preference.mutedUntil >
+        new Date()
+    ) {
+      return false;
+    }
+
+    return preference.enabled;
+  };
+
+notificationPreferenceSchema.methods.isChannelEnabled =
+  function (
+    channel
+  ) {
+    if (
+      !NOTIFICATION_CHANNELS.includes(
+        channel
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      !this.enabled ||
+      !this.allowNotifications ||
+      this.isMuted
+    ) {
+      return false;
+    }
+
+    const channelConfig =
+      this.channels?.[channel];
+
+    if (
+      !channelConfig
+    ) {
+      return false;
+    }
+
+    return channelConfig.enabled;
+  };
+
+notificationPreferenceSchema.methods.shouldNotify =
+  function ({
     type,
-    metadata = null,
-    ipHash = null,
-    latitude = null,
-    longitude = null,
-    accuracyMeters = null,
-  } = {}) {
-    if (!type) {
-      throw new Error(
-        "Device event type is required"
-      );
-    }
-
-    this.events.push({
-      type,
-      occurredAt:
-        new Date(),
-      ipHash,
-      location: {
-        latitude,
-        longitude,
-        accuracyMeters,
-      },
-      metadata,
-    });
-
-    this.lastSeenAt =
-      new Date();
-
-    return this.save();
-  };
-
-deviceSchema.methods.markSeen =
-  async function ({
-    ipHash = null,
-    networkType = null,
-    connectionId = null,
-    latitude = null,
-    longitude = null,
-    accuracyMeters = null,
-  } = {}) {
-    const now =
-      new Date();
-
-    this.lastSeenAt =
-      now;
-
-    this.network.lastIpHash =
-      ipHash;
-
-    this.network.lastNetworkType =
-      networkType;
-
-    this.network.lastConnectionId =
-      connectionId;
-
-    if (
-      latitude !== null &&
-      longitude !== null
-    ) {
-      this.lastLocation.latitude =
-        latitude;
-
-      this.lastLocation.longitude =
-        longitude;
-
-      this.lastLocation.accuracyMeters =
-        accuracyMeters;
-
-      this.lastLocation.capturedAt =
-        now;
-    }
-
-    return this.save();
-  };
-
-deviceSchema.methods.recordLogin =
-  async function ({
-    sessionId = null,
-    ipHash = null,
-  } = {}) {
-    this.loginCount +=
-      1;
-
-    this.successfulAuthenticationCount +=
-      1;
-
-    this.lastLoginAt =
-      new Date();
-
-    this.lastSeenAt =
-      new Date();
-
-    this.lastSessionId =
-      sessionId;
-
-    this.activeSessionCount +=
-      1;
-
-    this.network.lastIpHash =
-      ipHash;
-
-    this.events.push({
-      type: "login",
-      occurredAt:
-        new Date(),
-      ipHash,
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.recordLogout =
-  async function () {
-    this.lastLogoutAt =
-      new Date();
-
-    this.activeSessionCount =
-      Math.max(
-        0,
-        this.activeSessionCount -
-          1
-      );
-
-    this.events.push({
-      type: "logout",
-      occurredAt:
-        new Date(),
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.recordFailedAuthentication =
-  async function () {
-    this.failedAuthenticationCount +=
-      1;
-
-    this.security.riskScore =
-      Math.min(
-        100,
-        this.security.riskScore +
-          2
-      );
-
-    this.events.push({
-      type: "security_alert",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason:
-            "failed_authentication",
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.trust =
-  async function ({
-    verifiedBy = null,
-    method = "admin",
-  } = {}) {
-    this.status =
-      "trusted";
-
-    this.isTrusted =
-      true;
-
-    this.trustLevel =
-      "trusted";
-
-    this.verification.status =
-      "verified";
-
-    this.verification.method =
-      method;
-
-    this.verification.verifiedAt =
-      new Date();
-
-    this.verification.verifiedBy =
-      verifiedBy;
-
-    this.events.push({
-      type: "trusted",
-      occurredAt:
-        new Date(),
-        metadata: {
-          method,
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.untrust =
-  async function () {
-    this.isTrusted =
-      false;
-
-    this.trustLevel =
-      "standard";
-
-    if (
-      this.status ===
-      "trusted"
-    ) {
-      this.status =
-        "active";
-    }
-
-    this.events.push({
-      type: "security_alert",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason:
-            "device_untrusted",
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.block =
-  async function ({
-    blockedBy = null,
-    reason = null,
+    channel,
+    priority = "normal",
+    now = new Date(),
   } = {}) {
     if (
-      !reason
+      !this.isTypeEnabled(
+        type
+      )
     ) {
-      throw new Error(
-        "Block reason is required"
-      );
+      return false;
     }
 
-    this.status =
-      "blocked";
-
-    this.isTrusted =
-      false;
-
-    this.blockedAt =
-      new Date();
-
-    this.blockedBy =
-      blockedBy;
-
-    this.blockReason =
-      reason;
-
-    this.events.push({
-      type: "blocked",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason,
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.unblock =
-  async function ({
-    changedBy = null,
-  } = {}) {
     if (
-      this.status !==
-      "blocked"
+      !this.isChannelEnabled(
+        channel
+      )
     ) {
-      throw new Error(
-        "Only blocked devices can be unblocked"
-      );
+      return false;
     }
 
-    this.status =
-      this.isTrusted
-        ? "trusted"
-        : "active";
+    const typeConfig =
+      this.types?.[type];
 
-    this.blockedAt =
-      null;
-
-    this.blockedBy =
-      null;
-
-    this.blockReason =
-      null;
-
-    this.events.push({
-      type: "unblocked",
-      occurredAt:
-        new Date(),
-        metadata: {
-          changedBy,
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.revoke =
-  async function ({
-    revokedBy = null,
-    reason = null,
-  } = {}) {
     if (
-      !reason
+      typeConfig?.priorityOnly &&
+      ![
+        "high",
+        "urgent",
+        "critical",
+      ].includes(
+        priority
+      )
     ) {
-      throw new Error(
-        "Revoke reason is required"
-      );
+      return false;
     }
 
-    this.status =
-      "revoked";
-
-    this.isTrusted =
-      false;
-
-    this.revokedAt =
-      new Date();
-
-    this.revokedBy =
-      revokedBy;
-
-    this.revokeReason =
-      reason;
-
-    this.activeSessionCount =
-      0;
-
-    this.events.push({
-      type: "revoked",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason,
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.markLost =
-  async function ({
-    changedBy = null,
-  } = {}) {
-    this.status =
-      "lost";
-
-    this.isTrusted =
-      false;
-
-    this.activeSessionCount =
-      0;
-
-    this.events.push({
-      type: "security_alert",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason:
-            "device_marked_lost",
-          changedBy,
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.markCompromised =
-  async function ({
-    reason = null,
-  } = {}) {
-    this.security.compromised =
-      true;
-
-    this.security.compromisedAt =
-      new Date();
-
-    this.security.compromisedReason =
-      reason;
-
-    this.security.riskScore =
-      Math.max(
-        80,
-        this.security.riskScore
-      );
-
-    this.security.riskLevel =
-      "critical";
-
-    this.status =
-      "blocked";
-
-    this.isTrusted =
-      false;
-
-    this.activeSessionCount =
-      0;
-
-    this.events.push({
-      type: "security_alert",
-      occurredAt:
-        new Date(),
-        metadata: {
-          reason:
-            reason ||
-            "device_compromised",
-        },
-    });
-
-    return this.save();
-  };
-
-deviceSchema.methods.updateIntegrity =
-  async function ({
-    verified,
-    provider = null,
-  } = {}) {
-    this.security.integrityVerified =
-      Boolean(
-        verified
-      );
-
-    this.security.integrityProvider =
-      provider;
-
-    this.security.integrityVerifiedAt =
-      new Date();
+    if (
+      channel ===
+      "email" &&
+      type ===
+        "marketing" &&
+      !this.allowMarketing
+    ) {
+      return false;
+    }
 
     if (
-      !verified
+      this.isWithinQuietHours(
+        now
+      )
     ) {
-      this.security.riskScore =
-        Math.min(
-          100,
-          this.security.riskScore +
-            20
+      if (
+        priority ===
+          "critical" &&
+        this.quietHours
+          .allowCritical
+      ) {
+        return true;
+      }
+
+      if (
+        type ===
+          "security" &&
+        this.quietHours
+          .allowSecurity
+      ) {
+        return true;
+      }
+
+      if (
+        type.startsWith(
+          "attendance"
+        ) &&
+        this.quietHours
+          .allowAttendance
+      ) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return true;
+  };
+
+notificationPreferenceSchema.methods.isWithinQuietHours =
+  function (
+    date = new Date()
+  ) {
+    if (
+      !this.quietHours?.enabled
+    ) {
+      return false;
+    }
+
+    const timezone =
+      this.quietHours
+        .timezone ||
+      this.timezone ||
+      "Asia/Kolkata";
+
+    let parts;
+
+    try {
+      parts =
+        new Intl.DateTimeFormat(
+          "en-US",
+          {
+            timeZone:
+              timezone,
+            weekday:
+              "long",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }
+        ).formatToParts(
+          date
         );
-
-      this.security.riskLevel =
-        "high";
+    } catch {
+      parts =
+        new Intl.DateTimeFormat(
+          "en-US",
+          {
+            timeZone:
+              "UTC",
+            weekday:
+              "long",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }
+        ).formatToParts(
+          date
+        );
     }
+
+    const values = {};
+
+    for (
+      const part of parts
+    ) {
+      values[
+        part.type
+      ] =
+        part.value;
+    }
+
+    const weekday =
+      String(
+        values.weekday
+      ).toLowerCase();
+
+    if (
+      !this.quietHours.days.includes(
+        weekday
+      )
+    ) {
+      return false;
+    }
+
+    const currentMinutes =
+      Number(
+        values.hour
+      ) *
+        60 +
+      Number(
+        values.minute
+      );
+
+    const [
+      startHour,
+      startMinute,
+    ] =
+      this.quietHours.startTime
+        .split(":")
+        .map(Number);
+
+    const [
+      endHour,
+      endMinute,
+    ] =
+      this.quietHours.endTime
+        .split(":")
+        .map(Number);
+
+    const startMinutes =
+      startHour * 60 +
+      startMinute;
+
+    const endMinutes =
+      endHour * 60 +
+      endMinute;
+
+    if (
+      startMinutes <
+      endMinutes
+    ) {
+      return (
+        currentMinutes >=
+          startMinutes &&
+        currentMinutes <
+          endMinutes
+      );
+    }
+
+    return (
+      currentMinutes >=
+        startMinutes ||
+      currentMinutes <
+        endMinutes
+    );
+  };
+
+notificationPreferenceSchema.methods.setTypeEnabled =
+  async function (
+    type,
+    enabled
+  ) {
+    if (
+      !NOTIFICATION_TYPES.includes(
+        type
+      )
+    ) {
+      throw new Error(
+        `Unsupported notification type: ${type}`
+      );
+    }
+
+    if (
+      !this.types?.[type]
+    ) {
+      throw new Error(
+        `Notification type configuration not found: ${type}`
+      );
+    }
+
+    this.types[type].enabled =
+      Boolean(enabled);
+
+    this.version +=
+      1;
 
     return this.save();
   };
 
-deviceSchema.methods.updatePushToken =
-  async function ({
-    token,
-    provider,
-  } = {}) {
-    if (!token) {
+notificationPreferenceSchema.methods.setChannelEnabled =
+  async function (
+    channel,
+    enabled
+  ) {
+    if (
+      !NOTIFICATION_CHANNELS.includes(
+        channel
+      )
+    ) {
       throw new Error(
-        "Push token is required"
+        `Unsupported notification channel: ${channel}`
       );
     }
 
-    this.push.tokenHash =
-      crypto
-        .createHash("sha256")
-        .update(
-          String(token)
+    this.channels[channel].enabled =
+      Boolean(enabled);
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.muteType =
+  async function (
+    type,
+    until = null
+  ) {
+    if (
+      !NOTIFICATION_TYPES.includes(
+        type
+      )
+    ) {
+      throw new Error(
+        `Unsupported notification type: ${type}`
+      );
+    }
+
+    if (
+      !this.mutedTypes.includes(
+        type
+      )
+    ) {
+      this.mutedTypes.push(
+        type
+      );
+    }
+
+    this.types[type].mutedUntil =
+      until;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.unmuteType =
+  async function (
+    type
+  ) {
+    this.mutedTypes =
+      this.mutedTypes.filter(
+        (item) =>
+          item !== type
+      );
+
+    if (
+      this.types?.[type]
+    ) {
+      this.types[type].mutedUntil =
+        null;
+    }
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.muteAll =
+  async function (
+    until = null
+  ) {
+    this.mutedUntil =
+      until;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.unmuteAll =
+  async function () {
+    this.mutedUntil =
+      null;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.enableQuietHours =
+  async function ({
+    startTime,
+    endTime,
+    timezone,
+    days,
+  } = {}) {
+    if (
+      startTime
+    ) {
+      this.quietHours.startTime =
+        startTime;
+    }
+
+    if (
+      endTime
+    ) {
+      this.quietHours.endTime =
+        endTime;
+    }
+
+    if (
+      timezone
+    ) {
+      this.quietHours.timezone =
+        timezone;
+    }
+
+    if (
+      Array.isArray(
+        days
+      )
+    ) {
+      this.quietHours.days =
+        days;
+    }
+
+    this.quietHours.enabled =
+      true;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.disableQuietHours =
+  async function () {
+    this.quietHours.enabled =
+      false;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.enableDigest =
+  async function ({
+    frequency = "daily",
+    time = "09:00",
+    timezone,
+    dayOfWeek = "monday",
+  } = {}) {
+    this.digest.enabled =
+      true;
+
+    this.digest.frequency =
+      frequency;
+
+    this.digest.time =
+      time;
+
+    if (
+      timezone
+    ) {
+      this.digest.timezone =
+        timezone;
+    }
+
+    this.digest.dayOfWeek =
+      dayOfWeek;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.disableDigest =
+  async function () {
+    this.digest.enabled =
+      false;
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.setPreferredDevice =
+  async function (
+    deviceId
+  ) {
+    this.devicePreferences
+      .preferredDeviceId =
+      deviceId;
+
+    if (
+      this.devicePreferences
+        .excludedDeviceIds.some(
+          (id) =>
+            String(id) ===
+            String(deviceId)
         )
-        .digest("hex");
-
-    this.push.provider =
-      provider;
-
-    this.push.tokenVersion +=
-      1;
-
-    this.push.enabled =
-      true;
-
-    this.push.lastRegisteredAt =
-      new Date();
-
-    this.push.failureCount =
-      0;
-
-    return this.save();
-  };
-
-deviceSchema.methods.recordPushSuccess =
-  async function () {
-    this.push.lastDeliveredAt =
-      new Date();
-
-    this.push.failureCount =
-      0;
-
-    return this.save();
-  };
-
-deviceSchema.methods.recordPushFailure =
-  async function () {
-    this.push.lastFailedAt =
-      new Date();
-
-    this.push.failureCount +=
-      1;
-
-    if (
-      this.push.failureCount >=
-      10
     ) {
-      this.push.enabled =
-        false;
+      this.devicePreferences
+        .excludedDeviceIds =
+        this.devicePreferences
+          .excludedDeviceIds.filter(
+            (id) =>
+              String(id) !==
+              String(
+                deviceId
+              )
+          );
     }
 
-    return this.save();
-  };
-
-deviceSchema.methods.setPrimary =
-  async function () {
-    this.isPrimary =
-      true;
+    this.version +=
+      1;
 
     return this.save();
   };
 
-deviceSchema.methods.updateCompliance =
-  async function ({
-    compliant,
-    policyId = null,
-    policyVersion = null,
-  } = {}) {
-    this.management.policyCompliant =
-      Boolean(
-        compliant
-      );
-
-    this.management.policyId =
-      policyId;
-
-    this.management.policyVersion =
-      policyVersion;
-
-    this.management.lastPolicySyncAt =
-      new Date();
-
-    this.management.complianceCheckedAt =
-      new Date();
+notificationPreferenceSchema.methods.excludeDevice =
+  async function (
+    deviceId
+  ) {
+    const alreadyExcluded =
+      this.devicePreferences
+        .excludedDeviceIds.some(
+          (id) =>
+            String(id) ===
+            String(deviceId)
+        );
 
     if (
-      !compliant
+      !alreadyExcluded
     ) {
-      this.security.riskScore =
-        Math.min(
-          100,
-          this.security.riskScore +
-            10
+      this.devicePreferences
+        .excludedDeviceIds.push(
+          deviceId
         );
     }
 
+    if (
+      this.devicePreferences
+        .preferredDeviceId &&
+      String(
+        this.devicePreferences
+          .preferredDeviceId
+      ) ===
+        String(deviceId)
+    ) {
+      this.devicePreferences
+        .preferredDeviceId =
+        null;
+    }
+
+    this.version +=
+      1;
+
     return this.save();
   };
 
-deviceSchema.methods.softDelete =
+notificationPreferenceSchema.methods.restoreDefaults =
   async function () {
-    if (
-      this.status ===
-      "trusted"
-    ) {
-      throw new Error(
-        "Trusted devices must be revoked before deletion"
-      );
-    }
+    this.enabled =
+      true;
 
+    this.allowNotifications =
+      true;
+
+    this.allowMarketing =
+      false;
+
+    this.allowSystem =
+      true;
+
+    this.allowSecurity =
+      true;
+
+    this.mutedTypes =
+      [];
+
+    this.mutedUntil =
+      null;
+
+    this.quietHours =
+      {
+        enabled: false,
+        timezone:
+          this.timezone ||
+          "Asia/Kolkata",
+        startTime:
+          "22:00",
+        endTime:
+          "07:00",
+        days:
+          QUIET_DAY_VALUES,
+        allowCritical:
+          true,
+        allowSecurity:
+          true,
+        allowAttendance:
+          true,
+      };
+
+    this.digest =
+      {
+        enabled: false,
+        frequency:
+          "daily",
+        time:
+          "09:00",
+        timezone:
+          this.timezone ||
+          "Asia/Kolkata",
+        dayOfWeek:
+          "monday",
+        includeRead:
+          false,
+        includeMuted:
+          false,
+        lastSentAt:
+          null,
+      };
+
+    this.version +=
+      1;
+
+    return this.save();
+  };
+
+notificationPreferenceSchema.methods.softDelete =
+  async function () {
     this.isDeleted =
       true;
 
     this.deletedAt =
       new Date();
 
-    this.activeSessionCount =
-      0;
-
     return this.save();
   };
 
-deviceSchema.methods.restore =
+notificationPreferenceSchema.methods.restore =
   async function () {
     this.isDeleted =
       false;
 
     this.deletedAt =
       null;
-
-    if (
-      this.status ===
-      "inactive"
-    ) {
-      this.status =
-        "active";
-    }
 
     return this.save();
   };
@@ -1849,124 +1976,102 @@ deviceSchema.methods.restore =
  * STATIC METHODS
  * ========================================================================== */
 
-deviceSchema.statics.findByDeviceIdentifier =
-  async function ({
+notificationPreferenceSchema.statics.findForUser =
+  function (
     instituteId,
-    deviceId,
-  } = {}) {
-    const deviceIdHash =
-      this.hashIdentifier(
-        deviceId
-      );
-
+    userId
+  ) {
     return this.findOne({
       instituteId,
-      deviceIdHash,
+      userId,
       isDeleted: false,
-    }).select(
-      "+deviceIdHash +fingerprintHash +installationIdHash +push.tokenHash"
-    );
+    });
   };
 
-deviceSchema.statics.findByFingerprint =
+notificationPreferenceSchema.statics.findOrCreateForUser =
   async function ({
     instituteId,
-    fingerprint,
+    userId,
+    role = null,
+    timezone = "Asia/Kolkata",
+    locale = "en-IN",
   } = {}) {
-    const fingerprintHash =
-      this.hashIdentifier(
-        fingerprint
+    let preferences =
+      await this.findOne({
+        instituteId,
+        userId,
+        isDeleted: false,
+      });
+
+    if (
+      preferences
+    ) {
+      return preferences;
+    }
+
+    preferences =
+      await this.create({
+        instituteId,
+        userId,
+        role,
+        timezone,
+        locale,
+      });
+
+    return preferences;
+  };
+
+notificationPreferenceSchema.statics.shouldNotifyUser =
+  async function ({
+    instituteId,
+    userId,
+    type,
+    channel,
+    priority = "normal",
+    now = new Date(),
+  } = {}) {
+    const preferences =
+      await this.findOne({
+        instituteId,
+        userId,
+        isDeleted: false,
+      });
+
+    if (
+      !preferences
+    ) {
+      return (
+        type !==
+          "marketing"
       );
+    }
 
-    return this.find({
-      instituteId,
-      fingerprintHash,
-      isDeleted: false,
-    }).select(
-      "+fingerprintHash"
+    return preferences.shouldNotify(
+      {
+        type,
+        channel,
+        priority,
+        now,
+      }
     );
-  };
-
-deviceSchema.statics.findActiveForUser =
-  function (
-    instituteId,
-    userId
-  ) {
-    return this.find({
-      instituteId,
-      userId,
-      isDeleted: false,
-      status: {
-        $in: [
-          "active",
-          "trusted",
-        ],
-      },
-    }).sort({
-      isPrimary: -1,
-      lastSeenAt: -1,
-    });
-  };
-
-deviceSchema.statics.findTrustedForUser =
-  function (
-    instituteId,
-    userId
-  ) {
-    return this.find({
-      instituteId,
-      userId,
-      isDeleted: false,
-      isTrusted: true,
-      status: {
-        $in: [
-          "active",
-          "trusted",
-        ],
-      },
-    }).sort({
-      isPrimary: -1,
-      lastSeenAt: -1,
-    });
-  };
-
-deviceSchema.statics.findHighRisk =
-  function (
-    instituteId,
-    limit = 100
-  ) {
-    return this.find({
-      instituteId,
-      isDeleted: false,
-      "security.riskLevel": {
-        $in: [
-          "high",
-          "critical",
-        ],
-      },
-    })
-      .sort({
-        "security.riskScore": -1,
-        lastSeenAt: -1,
-      })
-      .limit(limit);
   };
 
 /* ============================================================================
  * MODEL
  * ========================================================================== */
 
-export const Device =
-  mongoose.models.Device ||
+export const NotificationPreference =
+  mongoose.models
+    .NotificationPreference ||
   mongoose.model(
-    "Device",
-    deviceSchema
+    "NotificationPreference",
+    notificationPreferenceSchema
   );
 
 export {
-  DEVICE_TYPES,
-  DEVICE_PLATFORMS,
-  DEVICE_STATUS,
-  TRUST_LEVELS,
-  DEVICE_EVENT_TYPES,
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_FREQUENCIES,
+  DIGEST_DAYS,
+  QUIET_DAY_VALUES,
 };

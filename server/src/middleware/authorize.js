@@ -89,12 +89,9 @@ const requireRole = (...allowedRoles) => {
         );
       }
 
-      const userRoles =
-        getAuthenticatedRoles(req);
-
       if (
         !hasAnyRole(
-          userRoles,
+          req.user,
           roles
         )
       ) {
@@ -132,12 +129,9 @@ const requireAllRoles = (...requiredRoles) => {
         );
       }
 
-      const userRoles =
-        getAuthenticatedRoles(req);
-
       if (
         !hasAllRoles(
-          userRoles,
+          req.user,
           roles
         )
       ) {
@@ -180,7 +174,7 @@ const requireMinimumRole = (
 
       if (
         !hasMinimumRole(
-          userRoles,
+          req.user,
           role
         )
       ) {
@@ -220,21 +214,18 @@ const requirePermission = (
         );
       }
 
-      const userRoles =
-        getAuthenticatedRoles(req);
-
       const userPermissions =
         getAuthenticatedPermissions(req);
 
       const hasAccess =
         permissions.length === 1
           ? hasPermission(
-              userRoles,
+              req.user,
               permissions[0],
               userPermissions
             )
           : hasAllPermissions(
-              userRoles,
+              req.user,
               permissions,
               userPermissions
             );
@@ -276,15 +267,12 @@ const requireAnyPermission = (
         );
       }
 
-      const userRoles =
-        getAuthenticatedRoles(req);
-
       const userPermissions =
         getAuthenticatedPermissions(req);
 
       if (
         !hasAnyPermission(
-          userRoles,
+          req.user,
           permissions,
           userPermissions
         )
@@ -333,7 +321,7 @@ const requireAllPermissions = (
 
       if (
         !hasAllPermissions(
-          userRoles,
+          req.user,
           permissions,
           userPermissions
         )
@@ -362,6 +350,7 @@ const preventRoleManagement = (
     try {
       ensureAuthenticated(req);
 
+      // canManageRole takes role strings — derive them from the identity.
       const actorRoles =
         getAuthenticatedRoles(req);
 
@@ -463,7 +452,7 @@ const authorize = ({
       if (
         normalizedRoles.length > 0 &&
         !hasAnyRole(
-          userRoles,
+          req.user,
           normalizedRoles
         )
       ) {
@@ -480,7 +469,7 @@ const authorize = ({
       if (
         normalizedMinimumRole &&
         !hasMinimumRole(
-          userRoles,
+          req.user,
           normalizedMinimumRole
         )
       ) {
@@ -497,7 +486,7 @@ const authorize = ({
       if (
         normalizedPermissions.length > 0 &&
         !hasAllPermissions(
-          userRoles,
+          req.user,
           normalizedPermissions,
           userPermissions
         )
@@ -515,7 +504,7 @@ const authorize = ({
       if (
         normalizedAnyPermissions.length > 0 &&
         !hasAnyPermission(
-          userRoles,
+          req.user,
           normalizedAnyPermissions,
           userPermissions
         )

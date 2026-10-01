@@ -43,7 +43,9 @@ export const adminAccess = withAuth(
 
 export const superAdminOnly = withAuth(
   requireRole("super_admin"),
-  requirePermission("manage_organizations")
+  requirePermission(
+    "organization:manage"
+  )
 );
 
 /* -------------------------------------------------------------------------- */
@@ -69,7 +71,7 @@ export const manageOrganizations = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_organizations"
+    "organization:manage"
   )
 );
 
@@ -84,7 +86,7 @@ export const manageCompany = withAuth(
   ),
   companyDomains,
   requirePermission(
-    "manage_staff"
+    "organization:manage"
   )
 );
 
@@ -99,7 +101,7 @@ export const manageStaff = withAuth(
     "super_admin"
   ),
   requirePermission(
-    "manage_staff"
+    "employee:manage"
   )
 );
 
@@ -166,7 +168,7 @@ export const manageUsers = withAuth(
     "super_admin"
   ),
   requirePermission(
-    "manage_users"
+    "user:manage"
   )
 );
 
@@ -178,7 +180,7 @@ export const manageStudents = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_students"
+    "student:manage"
   )
 );
 
@@ -189,7 +191,7 @@ export const manageTeachers = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_teachers"
+    "teacher:manage"
   )
 );
 
@@ -201,7 +203,7 @@ export const manageClasses = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_classes"
+    "class:manage"
   )
 );
 
@@ -213,7 +215,7 @@ export const manageAssignments = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_assignments"
+    "assignment:manage"
   )
 );
 
@@ -225,7 +227,7 @@ export const manageAttendance = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_attendance"
+    "attendance:manage"
   )
 );
 
@@ -237,7 +239,7 @@ export const manageStudyMaterials = withAuth(
   ),
   educationDomains,
   requirePermission(
-    "manage_materials"
+    "study_material:manage"
   )
 );
 
@@ -249,7 +251,7 @@ export const manageAnnouncements = withAuth(
     "super_admin"
   ),
   requirePermission(
-    "manage_announcements"
+    "notification:manage"
   )
 );
 
@@ -261,7 +263,7 @@ export const manageLeaves = withAuth(
     "super_admin"
   ),
   requirePermission(
-    "manage_leaves"
+    "leave:manage"
   )
 );
 
@@ -273,7 +275,7 @@ export const managePayroll = withAuth(
   ),
   companyDomains,
   requirePermission(
-    "manage_payroll"
+    "payroll:manage"
   )
 );
 
@@ -285,6 +287,6 @@ export const viewReports = withAuth(
     "super_admin"
   ),
   requirePermission(
-    "view_reports"
+    "report:read"
   )
 );

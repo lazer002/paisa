@@ -7,7 +7,7 @@ import {
 import {
   useGetOrganizationsQuery,
 } from '@/features/organizations/organizationsApi'
-import { useGetUsersQuery } from '@/features/users/usersApi'
+import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
@@ -33,7 +33,7 @@ const ROLE_THEME: Record<string, { chip: string; ring: string; dot: string; labe
 function PersonCard({ p, accent }: { p: any; accent: string }) {
   return (
     <Link
-      to={`/dashboard/users/${p._id}`}
+      to={`/dashboard/users/${p.publicId ?? p._id}`}
       className="group flex w-44 items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-200 hover:shadow-md"
     >
       <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-xs font-bold text-white`}>
@@ -75,7 +75,7 @@ function RoleGroup({
       {/* People cards */}
       <div className="flex max-w-full flex-wrap justify-center gap-2">
         {shown.map((p) => (
-          <PersonCard key={p._id} p={p} accent={
+          <PersonCard key={p.publicId ?? p._id} p={p} accent={
             role === 'admin' ? 'from-blue-500 to-blue-700'
             : role === 'hr' ? 'from-amber-400 to-amber-600'
             : role === 'teacher' ? 'from-teal-500 to-teal-700'
@@ -199,15 +199,21 @@ export default function OrganizationDetailPage() {
   const { data: members } = useGetUsersQuery()
   const { data: departments } = useGetDepartmentsQuery()
 
-  const org = (data?.data ?? []).find((o) => o._id === id)
-  const orgMembers = (members ?? []).filter((m) =>
-    typeof m.instituteId === 'object'
-      ? m.instituteId?._id === id
-      : m.instituteId === id,
-  )
-  const orgDepartments = (departments ?? []).filter((d: any) =>
-    typeof d.instituteId === 'object' ? d.instituteId?._id === id : d.instituteId === id,
-  )
+  // URL carries the org's publicId (or legacy _id) — resolve the org first,
+  // then match members/departments against its real Mongo _id (instituteId
+  // on users/departments stores the _id, never the publicId).
+  const org = (data?.data ?? []).find((o) => rid(o) === id)
+  const orgMongoId = org?._id ? String(org._id) : null
+
+  const matchesOrg = (value: any) => {
+    if (!orgMongoId) return false
+    const valueId =
+      typeof value === 'object' && value ? value._id ?? value : value
+    return valueId != null && String(valueId) === orgMongoId
+  }
+
+  const orgMembers = (members ?? []).filter((m) => matchesOrg(m.instituteId))
+  const orgDepartments = (departments ?? []).filter((d: any) => matchesOrg(d.instituteId))
 
   const [tab, setTab] = useState<'overview' | 'members' | 'departments' | 'chart'>('overview')
 
@@ -334,7 +340,7 @@ export default function OrganizationDetailPage() {
             </thead>
             <tbody>
               {orgMembers.map((m) => (
-                <tr key={m._id} className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50" onClick={() => navigate(`/dashboard/users/${m._id}`)}>
+                <tr key={rid(m)} className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50" onClick={() => navigate(`/dashboard/users/${rid(m)}`)}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
@@ -362,7 +368,7 @@ export default function OrganizationDetailPage() {
       {tab === 'departments' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {orgDepartments.map((d: any) => (
-            <div key={d._id} className="rounded-2xl bg-white p-5 shadow-sm">
+            <div key={d.publicId ?? d._id} className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">{d.name}</h3>
                 <Badge color={d.status === 'active' ? 'green' : 'gray'}>{d.status}</Badge>

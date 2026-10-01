@@ -22,6 +22,31 @@ import leaveRoutes from "./leaveRoutes.js";
 import departmentRoutes from "./departmentRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 
+import testRoutes, {
+  questionRouter,
+  attemptRouter,
+} from "./testRoutes.js";
+import enrollmentRoutes from "./enrollmentRoutes.js";
+import billingRoutes from "./billingRoutes.js";
+import crmRoutes, {
+  leadRouter,
+  dealRouter,
+  pipelineRouter,
+} from "./crmRoutes.js";
+import ticketRoutes from "./ticketRoutes.js";
+import {
+  salaryRouter,
+  reviewRouter,
+  certificateRouter,
+} from "./hrOpsRoutes.js";
+import gamificationRoutes from "./gamificationRoutes.js";
+import eventRoutes from "./eventRoutes.js";
+import messageRoutes, {
+  messageItemRouter,
+} from "./messageRoutes.js";
+import liveSessionRoutes from "./liveSessionRoutes.js";
+import notificationRoutes from "./notificationRoutes.js";
+
 const router = express.Router();
 
 // ─────────────────────────────────────────────
@@ -127,6 +152,140 @@ router.use(
 router.use(
   "/stats",
   statsRoutes
+);
+
+// ─────────────────────────────────────────────
+// ASSESSMENT (Tests / Questions / Attempts)
+// ─────────────────────────────────────────────
+
+router.use(
+  "/tests",
+  testRoutes
+);
+
+router.use(
+  "/questions",
+  questionRouter
+);
+
+router.use(
+  "/attempts",
+  attemptRouter
+);
+
+// ─────────────────────────────────────────────
+// ENROLLMENTS
+// ─────────────────────────────────────────────
+
+router.use(
+  "/enrollments",
+  enrollmentRoutes
+);
+
+// ─────────────────────────────────────────────
+// BILLING
+// ─────────────────────────────────────────────
+
+router.use(
+  "/invoices",
+  billingRoutes
+);
+
+// ─────────────────────────────────────────────
+// CRM
+// ─────────────────────────────────────────────
+
+router.use(
+  "/leads",
+  leadRouter
+);
+
+router.use(
+  "/deals",
+  dealRouter
+);
+
+router.use(
+  "/pipelines",
+  pipelineRouter
+);
+
+// ─────────────────────────────────────────────
+// SUPPORT
+// ─────────────────────────────────────────────
+
+router.use(
+  "/tickets",
+  ticketRoutes
+);
+
+// ─────────────────────────────────────────────
+// HR OPS
+// ─────────────────────────────────────────────
+
+router.use(
+  "/salary-structures",
+  salaryRouter
+);
+
+router.use(
+  "/reviews",
+  reviewRouter
+);
+
+router.use(
+  "/certificates",
+  certificateRouter
+);
+
+// ─────────────────────────────────────────────
+// GAMIFICATION
+// ─────────────────────────────────────────────
+
+router.use(
+  "/gamification",
+  gamificationRoutes
+);
+
+// ─────────────────────────────────────────────
+// EVENTS
+// ─────────────────────────────────────────────
+
+router.use(
+  "/events",
+  eventRoutes
+);
+
+// ─────────────────────────────────────────────
+// MESSAGING
+// ─────────────────────────────────────────────
+
+router.use(
+  "/conversations",
+  messageRoutes
+);
+
+router.use(
+  "/messages",
+  messageItemRouter
+);
+
+// ─────────────────────────────────────────────
+// LIVE SESSIONS
+// ─────────────────────────────────────────────
+
+router.use(
+  "/live-sessions",
+  liveSessionRoutes
+);
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+router.use(
+  "/notifications",
+  notificationRoutes
 );
 
 // ─────────────────────────────────────────────

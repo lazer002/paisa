@@ -12,25 +12,53 @@ export function doRefresh(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const baseURL = import.meta.env.VITE_API_URL ?? '/api'
-        const res = await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true })
+        const baseURL =
+          import.meta.env.VITE_API_URL ?? "/api";
 
-        const accessToken: string | undefined = res.data?.data?.accessToken
-        if (!accessToken) return null
+        const res = await axios.post(
+          `${baseURL}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+          }
+        );
 
-        const user = res.data?.data?.user
-        if (user) {
-          store.dispatch(setAuth({ user, token: accessToken }))
-        } else {
-          store.dispatch(setToken(accessToken))
+        const accessToken =
+          res.data?.data?.accessToken;
+
+        if (!accessToken) {
+          return null;
         }
-        return accessToken
-      } catch {
-        return null
+
+        const user =
+          res.data?.data?.user;
+
+        if (user) {
+          store.dispatch(
+            setAuth({
+              user,
+              token: accessToken,
+            })
+          );
+        } else {
+          store.dispatch(
+            setToken(accessToken)
+          );
+        }
+
+        return accessToken;
+      } catch (error) {
+        console.error(
+          "REFRESH FAILED:",
+          error
+        );
+
+        return null;
       } finally {
-        refreshPromise = null
+        refreshPromise = null;
       }
-    })()
+    })();
   }
-  return refreshPromise
+
+  return refreshPromise;
 }

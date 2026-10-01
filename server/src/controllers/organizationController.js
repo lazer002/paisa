@@ -1,10 +1,11 @@
 // src/controllers/organizationController.js
 
 import Organization from "../models/organization.js";
-
+import slugify from "slugify";
 //
 // CREATE ORGANIZATION
 //
+
 export const createOrganization = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -26,21 +27,35 @@ export const createOrganization = async (req, res) => {
       });
     }
 
+    const slug = slugify(name, {
+      lower: true,
+      strict: true,
+      trim: true,
+    });
+
     const exists = await Organization.findOne({
-      name,
-      owner: userId,
+      $or: [
+        {
+          name,
+          owner: userId,
+        },
+        {
+          slug,
+        },
+      ],
     });
 
     if (exists) {
       return res.status(409).json({
         success: false,
         message:
-          "Organization with this name already exists",
+          "Organization with this name or slug already exists",
       });
     }
 
     const org = await Organization.create({
       name,
+      slug,
       type,
       description,
       contact,
@@ -56,15 +71,11 @@ export const createOrganization = async (req, res) => {
       data: org,
     });
   } catch (err) {
-    console.error(
-      "Create Org Error:",
-      err
-    );
+    console.error("Create Org Error:", err);
 
     return res.status(500).json({
       success: false,
-      message:
-        "Failed to create organization",
+      message: "Failed to create organization",
     });
   }
 };

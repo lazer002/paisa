@@ -1105,7 +1105,7 @@ publicId: {
     },
     {
       timestamps: true,
-      versionKey: true,
+      versionKey: false,
 
       toJSON: {
         virtuals: true,
@@ -2352,7 +2352,7 @@ enrollmentSchema.methods.updateAttendance =
     return this.save();
   };
 
-enrollmentSchema.methods.transfer =
+enrollmentSchema.methods.transferEnrollment =
   async function ({
     type,
     toClassId = null,

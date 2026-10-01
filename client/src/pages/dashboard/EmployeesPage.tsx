@@ -38,7 +38,7 @@ export default function EmployeesPage() {
               {list.map((u) => {
                 const orgName = typeof u.instituteId === 'object' ? u.instituteId?.name ?? '—' : 'Platform'
                 return (
-                  <tr key={u._id} className="border-b border-gray-50 transition hover:bg-gray-50">
+                  <tr key={u.publicId ?? u._id} className="border-b border-gray-50 transition hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">

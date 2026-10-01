@@ -25,7 +25,7 @@ export default function HRPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((u) => (
-            <div key={u._id} className="rounded-2xl bg-white p-5 shadow-sm">
+            <div key={u.publicId ?? u._id} className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-base font-bold text-white">
                   {u.name?.[0]?.toUpperCase() ?? '?'}

@@ -6,8 +6,12 @@ export type LeaveType = 'casual' | 'sick' | 'earned' | 'unpaid' | 'other'
 
 export interface Leave {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   instituteId?: string | null
-  userId: { _id: string; name: string; email: string; userCode?: string; role?: string } | string
+  userId:
+    | { _id: string; publicId?: string; name: string; email: string; userCode?: string; role?: string }
+    | string
   type: LeaveType
   startDate: string
   endDate: string

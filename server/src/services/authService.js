@@ -305,12 +305,6 @@ const register = async ({
     await hashPassword(
       password
     );
-console.log("REGISTER INPUT:", {
-  email,
-  name,
-  role,
-  instituteId,
-});
   const user =
     await User.create({
       email:
@@ -507,8 +501,18 @@ const refreshSession = async ({
     );
   }
 
+  // The refresh JWT carries a `tokenHash` claim: the SHA-256 of the random
+  // secret this session was minted with. Compare THAT against the DB —
+  // hashing the JWT string itself can never match the stored hash.
   const tokenHash =
-    hash(refreshToken);
+    payload.tokenHash;
+
+  if (!tokenHash) {
+    throw ApiError.unauthorized(
+      "Invalid refresh token",
+      "INVALID_REFRESH_TOKEN"
+    );
+  }
 
   const cachedSession =
     await get(
@@ -523,9 +527,7 @@ const refreshSession = async ({
 
       userId: payload.sub,
 
-      revoked: {
-        $ne: true,
-      },
+      revokedAt: null,
     });
 
   if (!session) {
@@ -539,16 +541,7 @@ const refreshSession = async ({
     session.expiresAt <=
     new Date()
   ) {
-    session.revoked =
-      true;
-
-    session.revokedAt =
-      new Date();
-
-    session.revocationReason =
-      "expired";
-
-    await session.save();
+    await session.revoke("expired");
 
     await del(
       cacheKey.refreshSession(
@@ -563,21 +556,18 @@ const refreshSession = async ({
   }
 
   // Database token hash is
-  // authoritative.
+  // authoritative. A mismatch means
+  // the token was minted for a
+  // different session state — treat
+  // it as reuse and kill the family.
   if (
     session.tokenHash !==
     tokenHash
   ) {
-    session.revoked =
-      true;
-
-    session.revokedAt =
-      new Date();
-
-    session.revocationReason =
-      "token_reuse";
-
-    await session.save();
+    await RefreshSession.revokeFamily(
+      session.familyId,
+      "rotation_reuse"
+    );
 
     await del(
       cacheKey.refreshSession(
@@ -593,11 +583,18 @@ const refreshSession = async ({
 
   // If Redis has a cached session,
   // make sure it agrees with MongoDB.
+  // If Redis has a cached session,
+  // make sure it agrees with MongoDB.
   if (
     cachedSession?.tokenHash &&
     cachedSession.tokenHash !==
       tokenHash
   ) {
+    await RefreshSession.revokeFamily(
+      session.familyId,
+      "rotation_reuse"
+    );
+
     throw ApiError.unauthorized(
       "Refresh token is invalid",
       "REFRESH_TOKEN_INVALIDATED"
@@ -663,17 +660,11 @@ const refreshSession = async ({
           1000
     );
 
-  session.tokenHash =
-    newTokenHash;
-
-  session.expiresAt =
-    newExpiresAt;
-
-  session.lastUsedAt =
-    new Date();
-
+  // Track client metadata, then run the
+  // schema's rotate() which archives the
+  // previous hash and bumps rotation bookkeeping.
   if (ipAddress) {
-    session.ipAddress =
+    session.ip =
       ipAddress;
   }
 
@@ -682,7 +673,10 @@ const refreshSession = async ({
       userAgent;
   }
 
-  await session.save();
+  await session.rotate(
+    newTokenHash,
+    newExpiresAt
+  );
 
   const newPayload =
     buildTokenPayload(
@@ -774,16 +768,7 @@ const logout = async ({
     });
 
   if (session) {
-    session.revoked =
-      true;
-
-    session.revokedAt =
-      new Date();
-
-    session.revocationReason =
-      "logout";
-
-    await session.save();
+    await session.revoke("logout");
   }
 
   await del(
@@ -812,25 +797,9 @@ const logoutAll = async ({
     );
   }
 
-  await RefreshSession.updateMany(
-    {
-      userId,
-
-      revoked: {
-        $ne: true,
-      },
-    },
-    {
-      $set: {
-        revoked: true,
-
-        revokedAt:
-          new Date(),
-
-        revocationReason:
-          "logout_all",
-      },
-    }
+  await RefreshSession.revokeUserSessions(
+    userId,
+    "logout"
   );
 
   const sessions =

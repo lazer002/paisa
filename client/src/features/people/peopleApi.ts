@@ -3,6 +3,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface Person {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   name: string
   email: string
   role: string

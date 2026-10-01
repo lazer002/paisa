@@ -5,6 +5,8 @@ export type AttendanceStatus = 'present' | 'absent' | 'late'
 
 export interface AttendanceRecord {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   userId: { _id: string; name: string; email: string; userCode?: string } | string
   classId?: { _id: string; name: string; subject?: string } | string | null
   date: string

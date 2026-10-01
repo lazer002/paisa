@@ -4,6 +4,10 @@ import { Payroll } from "../models/Payroll.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
+import { User } from "../models/User.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
+
 import {
   sendSuccess,
   sendCreated,
@@ -57,9 +61,16 @@ export const createPayroll = asyncHandler(async (req, res) => {
     );
   }
 
+  // employeeId arrives as a publicId — resolve to _id.
+  const resolvedEmployeeId = await resolveRef(
+    User,
+    employeeId,
+    { label: "Employee" }
+  );
+
   const existing =
     await Payroll.findOne({
-      employeeId,
+      employeeId: resolvedEmployeeId,
       month: Number(month),
       year: Number(year),
     });
@@ -102,7 +113,7 @@ export const createPayroll = asyncHandler(async (req, res) => {
       instituteId:
         req.user.instituteId,
 
-      employeeId,
+      employeeId: resolvedEmployeeId,
 
       month:
         Number(month),

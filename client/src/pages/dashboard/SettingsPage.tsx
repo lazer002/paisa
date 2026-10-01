@@ -1,11 +1,15 @@
-import { useState } from 'react'
-import { Settings as SettingsIcon, KeyRound, LogOut, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Settings as SettingsIcon, KeyRound, LogOut, ShieldCheck, BellRing } from 'lucide-react'
 import api from '@/lib/api/axios'
 import { useAppDispatch, useAppSelector } from '@/app/store'
 import { setAuth, logout } from '@/lib/store/authSlice'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
+import {
+  useGetNotificationPreferencesQuery,
+  useUpdateNotificationPreferencesMutation,
+} from '@/features/notifications/notificationsApi'
 
 const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
   super_admin: ['Manage all organizations', 'Create any role user', 'Change admin emails', 'Delete organizations', 'Billing & plans'],
@@ -63,6 +67,34 @@ export default function SettingsPage() {
 
   const permissions = PERMISSIONS_BY_ROLE[user?.role ?? 'employee'] ?? []
 
+  const { data: notifPrefs } = useGetNotificationPreferencesQuery()
+  const [updateNotifPrefs] = useUpdateNotificationPreferencesMutation()
+  const [notifState, setNotifState] = useState({
+    allowMarketing: false,
+    allowSystem: true,
+    allowSecurity: true,
+  })
+
+  useEffect(() => {
+    if (notifPrefs) {
+      setNotifState({
+        allowMarketing: notifPrefs.allowMarketing ?? false,
+        allowSystem: notifPrefs.allowSystem ?? true,
+        allowSecurity: notifPrefs.allowSecurity ?? true,
+      })
+    }
+  }, [notifPrefs])
+
+  const toggleNotif = async (key: 'allowMarketing' | 'allowSystem' | 'allowSecurity') => {
+    const next = !notifState[key]
+    setNotifState((prev) => ({ ...prev, [key]: next }))
+    try {
+      await updateNotifPrefs({ [key]: next }).unwrap()
+    } catch {
+      setNotifState((prev) => ({ ...prev, [key]: !next }))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="Your account and session preferences" />
@@ -108,6 +140,35 @@ export default function SettingsPage() {
               <LogOut size={15} /> Logout All Devices
             </Button>
           </div>
+        </div>
+
+        {/* Notification preferences */}
+        <div className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <BellRing size={18} className="text-gray-400" />
+            <h3 className="font-semibold text-gray-900">Notification preferences</h3>
+          </div>
+          <div className="space-y-3">
+            {([
+              ['allowSystem', 'System notifications', 'Product updates and maintenance notices'],
+              ['allowSecurity', 'Security alerts', 'New logins, password changes, device trust'],
+              ['allowMarketing', 'Marketing', 'Occasional offers and feature announcements'],
+            ] as const).map(([key, label, hint]) => (
+              <label key={key} className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-gray-50 px-4 py-3">
+                <span>
+                  <span className="block text-sm font-medium text-gray-800">{label}</span>
+                  <span className="block text-xs text-gray-400">{hint}</span>
+                </span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={notifState[key]}
+                  onChange={() => toggleNotif(key)}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-400">Changes save automatically.</p>
         </div>
       </div>
 

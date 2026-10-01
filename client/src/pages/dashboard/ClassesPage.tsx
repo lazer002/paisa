@@ -12,7 +12,7 @@ import {
   useRemoveStudentMutation,
   type SchoolClass,
 } from '@/features/classes/classesApi'
-import { useGetUsersQuery } from '@/features/users/usersApi'
+import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -38,7 +38,7 @@ function ClassModal({
   const [description, setDescription] = useState(initial?.description ?? '')
   const [room, setRoom] = useState(initial?.room ?? '')
   const [teacherId, setTeacherId] = useState(
-    typeof initial?.teacherId === 'object' ? initial?.teacherId?._id ?? '' : initial?.teacherId ?? '',
+    typeof initial?.teacherId === 'object' ? (initial?.teacherId as { publicId?: string })?.publicId ?? '' : initial?.teacherId ?? '',
   )
   const [maxStudents, setMaxStudents] = useState(initial?.maxStudents ?? 50)
   const [days, setDays] = useState<string[]>(initial?.schedule?.days ?? [])
@@ -84,7 +84,7 @@ function ClassModal({
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
               <option value="">— Assign later —</option>
               {teachers.map((t) => (
-                <option key={t._id} value={t._id}>{t.name} ({t.email})</option>
+                <option key={rid(t)} value={rid(t)}>{t.name} ({t.email})</option>
               ))}
             </select>
           </div>
@@ -166,7 +166,7 @@ export default function ClassesPage() {
   const handleSubmit = async (d: any) => {
     setFormError('')
     try {
-      if (editClass) await updateClass({ id: editClass._id, payload: d }).unwrap()
+      if (editClass) await updateClass({ id: rid(editClass), payload: d }).unwrap()
       else await createClass(d).unwrap()
       setShowCreate(false)
       setEditClass(null)
@@ -208,7 +208,7 @@ export default function ClassesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map((c) => (
-            <div key={c._id} className="group rounded-2xl bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+            <div key={rid(c)} className="group rounded-2xl bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
               <div className="mb-3 flex items-start justify-between">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold text-gray-900">{c.name}</h3>
@@ -226,7 +226,7 @@ export default function ClassesPage() {
                     </button>
                   )}
                   {canDelete && (
-                    <button onClick={() => deleteClass(c._id)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
+                    <button onClick={() => deleteClass(rid(c))} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
                       <Trash2 size={14} />
                     </button>
                   )}
@@ -279,14 +279,14 @@ export default function ClassesPage() {
                   <p className="text-sm text-gray-400">No students enrolled yet.</p>
                 )}
                 {(manageClass.studentIds ?? []).map((s: any) => (
-                  <div key={s._id ?? s} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                  <div key={s.publicId ?? s._id ?? s} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{s.name ?? '—'}</p>
                       <p className="text-xs text-gray-400">{s.email ?? ''}</p>
                     </div>
                     <button
                       onClick={async () => {
-                        const updated = await removeStudent({ id: manageClass._id, studentId: s._id ?? s }).unwrap()
+                        const updated = await removeStudent({ id: rid(manageClass), studentId: s.publicId ?? s._id ?? s }).unwrap()
                         setManageClass(updated)
                       }}
                       className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50"
@@ -303,17 +303,17 @@ export default function ClassesPage() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Enroll a student</p>
               <div className="space-y-1.5">
                 {(students ?? [])
-                  .filter((s) => !(manageClass.studentIds ?? []).some((e: any) => (e._id ?? e) === s._id))
+                  .filter((s) => !(manageClass.studentIds ?? []).some((e: any) => (e.publicId ?? e._id ?? e) === (s.publicId ?? s._id)))
                   .slice(0, 8)
                   .map((s) => (
-                    <div key={s._id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                    <div key={rid(s)} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{s.name}</p>
                         <p className="text-xs text-gray-400">{s.email}</p>
                       </div>
                       <button
                         onClick={async () => {
-                          const updated = await enrollStudent({ id: manageClass._id, studentId: s._id }).unwrap()
+                          const updated = await enrollStudent({ id: rid(manageClass), studentId: rid(s) }).unwrap()
                           setManageClass(updated)
                         }}
                         className="rounded-lg p-1.5 text-blue-500 transition hover:bg-blue-50"

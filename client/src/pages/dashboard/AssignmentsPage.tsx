@@ -4,6 +4,8 @@ import {
   useGetAssignmentsQuery,
   useCreateAssignmentMutation,
   useDeleteAssignmentMutation,
+  type Assignment,
+  type Submission,
 } from '@/features/assignments/assignmentsApi'
 import {
   useGetSubmissionsQuery,
@@ -11,6 +13,7 @@ import {
   useGradeSubmissionMutation,
 } from '@/features/assignments/assignmentsApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
+import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -44,9 +47,9 @@ export default function AssignmentsPage() {
   const [submitFor, setSubmitFor] = useState<any>(null)
   const [submissionText, setSubmissionText] = useState('')
 
-  const mySubmissionFor = (assignmentId: string) =>
-    (submissions ?? []).find((s: any) =>
-      (typeof s.assignmentId === 'object' ? s.assignmentId?._id : s.assignmentId) === assignmentId,
+  const mySubmissionFor = (assignment: Assignment) =>
+    (submissions ?? []).find((s: Submission) =>
+      (typeof s.assignmentId === 'object' ? s.assignmentId?.publicId ?? s.assignmentId?._id : s.assignmentId) === rid(assignment),
     )
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -65,7 +68,7 @@ export default function AssignmentsPage() {
 
   const handleGrade = async (sub: any, score: number) => {
     try {
-      await gradeSubmission({ id: sub._id, score }).unwrap()
+      await gradeSubmission({ id: (sub as Submission).publicId ?? (sub as Submission)._id, score }).unwrap()
     } catch { /* errors surface via list refresh */ }
   }
 
@@ -92,11 +95,11 @@ export default function AssignmentsPage() {
         <div className="space-y-3">
           {assignments.map((a) => {
             const clsName = typeof a.classId === 'object' ? a.classId?.name : '—'
-            const sub = isStudent ? mySubmissionFor(a._id) : null
+            const sub = isStudent ? mySubmissionFor(a) : null
             const overdue = a.dueDate && new Date(a.dueDate) < new Date()
 
             return (
-              <div key={a._id} className="rounded-2xl bg-white p-5 shadow-sm">
+              <div key={rid(a)} className="rounded-2xl bg-white p-5 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -123,7 +126,7 @@ export default function AssignmentsPage() {
                       )
                     )}
                     {canCreate && (
-                      <button onClick={() => deleteAssignment(a._id)}
+                      <button onClick={() => deleteAssignment(rid(a))}
                         className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
                         <Trash2 size={15} />
                       </button>
@@ -145,7 +148,7 @@ export default function AssignmentsPage() {
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
               <option value="">— Select class —</option>
               {(classes ?? []).map((c) => (
-                <option key={c._id} value={c._id}>{c.name} · {c.subject}</option>
+                <option key={rid(c)} value={rid(c)}>{c.name} · {c.subject}</option>
               ))}
             </select>
             {(classes ?? []).length === 0 && (
@@ -187,7 +190,7 @@ export default function AssignmentsPage() {
         <form onSubmit={async (e) => {
           e.preventDefault()
           try {
-            await submitAssignment({ assignmentId: submitFor._id, content: submissionText }).unwrap()
+            await submitAssignment({ assignmentId: rid(submitFor), content: submissionText }).unwrap()
             setSubmitFor(null)
           } catch (e: any) {
             alert(e?.data?.message ?? 'Failed to submit')

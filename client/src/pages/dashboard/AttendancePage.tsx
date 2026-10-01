@@ -7,7 +7,7 @@ import {
   useMarkAttendanceMutation,
   type AttendanceStatus,
 } from '@/features/attendance/attendanceApi'
-import { useGetUsersQuery } from '@/features/users/usersApi'
+import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
@@ -33,7 +33,7 @@ function MarkPanel() {
 
   const setAll = (s: AttendanceStatus) => {
     const next: Record<string, AttendanceStatus> = {}
-    people.forEach((p) => { next[p._id] = s })
+    people.forEach((p) => { next[rid(p)] = s })
     setRecords(next)
   }
 
@@ -74,7 +74,7 @@ function MarkPanel() {
           </p>
         ) : (
           people.map((p) => (
-            <div key={p._id} className="flex items-center justify-between border-b border-gray-50 px-4 py-2.5 last:border-0">
+            <div key={rid(p)} className="flex items-center justify-between border-b border-gray-50 px-4 py-2.5 last:border-0">
               <div>
                 <p className="text-sm font-medium text-gray-800">{p.name}</p>
                 <p className="text-xs text-gray-400">{p.userCode ?? p.email} · {p.role}</p>
@@ -83,9 +83,9 @@ function MarkPanel() {
                 {(['present', 'late', 'absent'] as AttendanceStatus[]).map((s) => (
                   <button
                     key={s}
-                    onClick={() => setRecords((prev) => ({ ...prev, [p._id]: s }))}
+                    onClick={() => setRecords((prev) => ({ ...prev, [rid(p)]: s }))}
                     className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition ${
-                      records[p._id] === s ? STATUS_STYLE[s] : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      records[rid(p)] === s ? STATUS_STYLE[s] : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
                     {s}
@@ -140,7 +140,7 @@ function MyAttendancePanel() {
           </div>
         ) : (
           records.map((r) => (
-            <div key={r._id} className="flex items-center justify-between border-b border-gray-50 px-5 py-3 last:border-0">
+            <div key={r.publicId ?? r._id} className="flex items-center justify-between border-b border-gray-50 px-5 py-3 last:border-0">
               <div>
                 <p className="text-sm font-medium text-gray-800">
                   {new Date(r.date).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}

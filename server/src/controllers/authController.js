@@ -164,8 +164,6 @@ const clearRefreshTokenCookie = (res) => {
 
 const register = async (req, res, next) => {
   try {
-    console.log("RAW BODY:", req.body);
-
     const {
       email,
       phone,
@@ -175,8 +173,6 @@ const register = async (req, res, next) => {
       instituteId,
       ...additionalData
     } = req.body;
-
-    console.log("CONTROLLER ROLE:", role);
 
     const user =
       await authService.register({
@@ -251,6 +247,12 @@ const login = async (req, res, next) => {
       data: {
         user: result.user,
 
+        // The SPA keeps the access token in
+        // memory (Redux) — it never touches
+        // localStorage. The refresh token
+        // travels ONLY via the httpOnly cookie.
+        accessToken: result.accessToken,
+
         expiresAt:
           result.expiresAt,
 
@@ -309,6 +311,10 @@ const refresh = async (req, res, next) => {
 
       data: {
         user: result.user,
+
+        // Same contract as login: body
+        // carries the new access token.
+        accessToken: result.accessToken,
 
         expiresAt:
           result.expiresAt,

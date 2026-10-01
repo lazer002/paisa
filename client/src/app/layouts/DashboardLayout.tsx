@@ -2,6 +2,8 @@ import { LogOut, Menu, ChevronDown } from 'lucide-react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
+import NotificationBell from '@/components/notifications/NotificationBell'
+
 import api from '@/lib/api/axios'
 import { useAppDispatch, useAppSelector } from '@/app/store'
 import { logout } from '@/lib/store/authSlice'
@@ -188,6 +190,8 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
+
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium">{user.name}</p>
               <p className="text-xs text-gray-500">{roleLabel}</p>

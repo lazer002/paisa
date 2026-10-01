@@ -5,6 +5,8 @@ import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 export interface Assignment {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   classId: { _id: string; name: string; subject?: string } | string
   createdBy?: { _id: string; name: string } | string
   title: string
@@ -55,6 +57,8 @@ export const {
 
 export interface StudyMaterial {
   _id: string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
   title: string
   description?: string
   classId?: { _id: string; name: string } | string | null
@@ -95,7 +99,11 @@ export const { useGetMaterialsQuery, useCreateMaterialMutation, useDeleteMateria
 
 export interface Submission {
   _id: string
-  assignmentId: { _id: string; title: string; maxScore?: number; dueDate?: string } | string
+  /** Opaque external identifier — used in ALL client-facing URLs. */
+  publicId?: string
+  assignmentId:
+    | { _id: string; publicId?: string; title: string; maxScore?: number; dueDate?: string }
+    | string
   studentId: { _id: string; name: string; email: string; userCode?: string } | string
   content?: string
   status: 'submitted' | 'graded'

@@ -2,7 +2,11 @@
 
 import { Class } from "../models/Class.js";
 
+import { User } from "../models/User.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
 
 import {
   sendSuccess,
@@ -40,16 +44,22 @@ export const createClass = asyncHandler(async (req, res) => {
     );
   }
 
+  // teacherId arrives as a publicId — resolve it.
+  const resolvedTeacherId =
+    req.user.role === "teacher"
+      ? req.user._id
+      : ((await resolveRef(User, teacherId, {
+          label: "Teacher",
+        })) ??
+          req.user._id);
+
   const newClass = await Class.create({
     instituteId,
     name,
     subject,
     description,
 
-    teacherId:
-      req.user.role === "teacher"
-        ? req.user._id
-        : teacherId || req.user._id,
+    teacherId: resolvedTeacherId,
 
     schedule,
     room,
@@ -88,12 +98,16 @@ export const getClasses = asyncHandler(async (req, res) => {
     query.status = status;
   }
 
-  // Admin/super_admin can filter by teacherId
+  // Admin/super_admin can filter by teacherId (publicId)
   if (
     teacherId &&
     req.user.role !== "teacher"
   ) {
-    query.teacherId = teacherId;
+    query.teacherId = await resolveRef(
+      User,
+      teacherId,
+      { label: "Teacher" }
+    );
   }
 
   if (search) {
@@ -309,6 +323,13 @@ export const enrollStudent = asyncHandler(async (req, res) => {
     );
   }
 
+  // studentId arrives as a publicId — resolve before storing.
+  const resolvedStudentId = await resolveRef(
+    User,
+    studentId,
+    { label: "Student" }
+  );
+
   const cls = await Class.findOne({
     publicId: req.params.publicId,
   });
@@ -337,7 +358,7 @@ export const enrollStudent = asyncHandler(async (req, res) => {
     },
     {
       $addToSet: {
-        studentIds: studentId,
+        studentIds: resolvedStudentId,
       },
     },
     {
