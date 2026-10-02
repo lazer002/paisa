@@ -12,6 +12,7 @@ import CompaniesPage from '@/pages/dashboard/CompaniesPage'
 import UsersPage from '@/pages/dashboard/UsersPage'
 import StudentsPage from '@/pages/dashboard/StudentsPage'
 import ClassesPage from '@/pages/dashboard/ClassesPage'
+import TeachersPage from '@/pages/dashboard/TeacherPage'
 import AttendancePage from '@/pages/dashboard/AttendancePage'
 import AnnouncementsPage from '@/pages/dashboard/AnnouncementsPage'
 import EmployeesPage from '@/pages/dashboard/EmployeesPage'
@@ -53,9 +54,10 @@ export function AppRouter() {
               <Route path="/dashboard/organizations/:id" element={<OrganizationDetailPage />} />
               <Route path="/dashboard/companies" element={<CompaniesPage />} />
               <Route path="/dashboard/users" element={<UsersPage />} />
-              <Route path="/dashboard/users/:id" element={<UserDetailPage />} />
+              <Route path="/dashboard/users/:publicId" element={<UserDetailPage />} />
               <Route path="/dashboard/students" element={<StudentsPage />} />
               <Route path="/dashboard/classes" element={<ClassesPage />} />
+              <Route path="/dashboard/teachers" element={<TeachersPage />} />
               <Route path="/dashboard/assignments" element={<AssignmentsPage />} />
               <Route path="/dashboard/materials" element={<MaterialsPage />} />
               <Route path="/dashboard/attendance" element={<AttendancePage />} />

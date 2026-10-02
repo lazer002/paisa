@@ -2,14 +2,13 @@
 
 import bcrypt from "bcryptjs";
 
+import mongoose from "mongoose";
 import {
-  User,
-  canManageRole,
-  Roles,
+  User
 } from "../models/User.js";
 
 import Organization from "../models/organization.js";
-
+import { getNextSequence } from "../utils/sequence.js";
 import {
   sendSuccess,
   sendCreated,
@@ -21,115 +20,474 @@ import {
 import { scopedQuery } from "../utils/peopleHelpers.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { Department } from "../models/Department.js";
+
+import {
+  CREATABLE_ROLES,
+  ROLE_MODELS,
+  ROLE_DATA_KEYS,
+  ORGANIZATION_ROLE_ARRAYS,
+} from "../config/userRoleConfig.js";
+
+import  {ROLES }  from "../config/constants.js";
 
 
-// Roles an actor is allowed to create/manage.
-// Org admins can create every staff role but
-// never another admin or a super admin.
-const creatableRoles = {
-  super_admin: [
-    "super_admin",
-    "admin",
-    "principal",
-    "teacher",
-    "student",
-    "hr",
-    "accountant",
-    "counselor",
-    "employee",
-    "support",
-    "parent",
-  ],
-
-  admin: [
-    "principal",
-    "teacher",
-    "student",
-    "hr",
-    "accountant",
-    "counselor",
-    "employee",
-    "support",
-    "parent",
-  ],
-};
-
-
-// ─────────────────────────────────────────────
-// CREATE USER
-// ─────────────────────────────────────────────
-
-export const createUser = async (
-  req,
-  res
-) => {
+export const createUser = async (req, res) => {
   try {
     const {
       name,
       email,
       password,
       role,
-      profile,
+      profile = {},
       instituteId: requestedInstituteId,
     } = req.body;
 
-    if (
-      !name ||
-      !email ||
-      !password ||
-      !role
-    ) {
+    /* ---------------------------------------------------------------------- */
+    /* BASIC VALIDATION                                                       */
+    /* ---------------------------------------------------------------------- */
+
+    if (!name || !email || !password || !role) {
       return sendError(
         res,
         400,
-        "Missing required fields"
+        "Name, email, password and role are required"
       );
     }
 
-    const normalizedEmail =
-      String(email)
-        .toLowerCase()
-        .trim();
+    const normalizedName = String(name).trim();
 
-    const actorRole =
-      req.user.role;
+    const normalizedEmail = String(email)
+      .trim()
+      .toLowerCase();
 
-    if (
-      !creatableRoles[
-        actorRole
-      ]?.includes(role)
-    ) {
+    const actorRole = String(req.user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    const normalizedRole = String(role || "")
+      .trim()
+      .toLowerCase();
+
+    /* ---------------------------------------------------------------------- */
+    /* ROLE PERMISSION                                                        */
+    /* ---------------------------------------------------------------------- */
+
+    const allowedRoles =
+      CREATABLE_ROLES[actorRole] || [];
+
+    if (!allowedRoles.includes(normalizedRole)) {
       return sendForbidden(
         res,
         "You do not have permission to create this role"
       );
     }
 
-    if (
-      actorRole !==
-        Roles.SUPER_ADMIN &&
-      !req.user.instituteId
-    ) {
-      return sendError(
-        res,
-        400,
-        "Your account is not linked to any organization"
+    /* ---------------------------------------------------------------------- */
+    /* ORGANIZATION                                                           */
+    /* ---------------------------------------------------------------------- */
+
+    let instituteId = null;
+
+    if (actorRole === ROLES.SUPER_ADMIN) {
+      if (!requestedInstituteId) {
+        return sendError(
+          res,
+          400,
+          "Organization is required"
+        );
+      }
+
+      instituteId = await resolveRef(
+        Organization,
+        requestedInstituteId,
+        {
+          label: "Organization",
+        }
       );
+
+      if (!instituteId) {
+        return sendError(
+          res,
+          400,
+          "Organization not found"
+        );
+      }
+    } else {
+      if (!req.user?.instituteId) {
+        return sendError(
+          res,
+          400,
+          "Your account is not linked to any organization"
+        );
+      }
+
+      instituteId = req.user.instituteId;
+
+      if (
+        requestedInstituteId &&
+        String(requestedInstituteId) !==
+          String(req.user.instituteId)
+      ) {
+        return sendForbidden(
+          res,
+          "You cannot create a user in another organization"
+        );
+      }
     }
 
-    const existing =
-      await User.findOne({
-        email:
-          normalizedEmail,
-      });
+    /* ---------------------------------------------------------------------- */
+    /* DUPLICATE EMAIL                                                        */
+    /* ---------------------------------------------------------------------- */
 
-    if (existing) {
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      isDeleted: false,
+    });
+
+    if (existingUser) {
       return sendError(
         res,
         400,
         "A user with this email already exists"
       );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* ROLE MODEL                                                             */
+    /* ---------------------------------------------------------------------- */
+
+    const RoleModel =
+      ROLE_MODELS[normalizedRole];
+
+    if (!RoleModel) {
+      return sendError(
+        res,
+        400,
+        `No model configured for role: ${normalizedRole}`
+      );
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* ROLE DATA                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    const dataKey =
+      ROLE_DATA_KEYS[normalizedRole];
+
+    const roleData =
+      dataKey &&
+      req.body[dataKey] &&
+      typeof req.body[dataKey] === "object"
+        ? {
+            ...req.body[dataKey],
+          }
+        : {};
+
+    /* ====================================================================== */
+    /* STUDENT                                                                */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.STUDENT) {
+      /*
+       * enrollmentNumber is NEVER accepted from frontend.
+       * Backend owns the sequence.
+       */
+
+      if (!roleData.course) {
+        return sendError(
+          res,
+          400,
+          "Course is required"
+        );
+      }
+
+      const sequence =
+        await getNextSequence(
+          `student_enrollment_${instituteId}`
+        );
+
+      roleData.enrollmentNumber =
+        `STU-${String(sequence).padStart(5, "0")}`;
+
+      /*
+       * Optional roll number can remain user supplied
+       * if your academic workflow requires it.
+       *
+       * It is intentionally NOT generated here.
+       */
+    }
+
+
+    /* ====================================================================== */
+    /* TEACHER                                                                */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.TEACHER) {
+      /*
+       * Teacher code is backend generated.
+       */
+
+      const sequence =
+        await getNextSequence(
+          `teacher_${instituteId}`
+        );
+
+      roleData.employeeCode =
+        `TEA-${String(sequence).padStart(5, "0")}`;
+
+      /*
+       * Teacher display name comes from User.
+       */
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      /*
+       * Teacher work email comes from User.
+       */
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      /*
+       * Never allow frontend to overwrite generated code.
+       */
+
+      delete roleData.teacherCode;
+      delete roleData.employeeId;
+    }
+
+
+    /* ====================================================================== */
+    /* EMPLOYEE                                                                */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.EMPLOYEE) {
+      /*
+       * Employee code is backend generated.
+       */
+
+      const sequence =
+        await getNextSequence(
+          `employee_${instituteId}`
+        );
+
+      const employeeCode =
+        `EMP-${String(sequence).padStart(5, "0")}`;
+
+      /*
+       * Remove any frontend supplied generated values.
+       */
+
+      delete roleData.employeeCode;
+      delete roleData.employeeId;
+
+      /*
+       * Backend owns these values.
+       */
+
+      roleData.employeeCode =
+        employeeCode;
+
+      roleData.employeeId =
+        employeeCode;
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+
+      /*
+       * firstName is required by Employee model.
+       */
+
+      const nameParts =
+        normalizedName.split(/\s+/);
+
+      roleData.firstName =
+        nameParts[0] || "";
+
+      roleData.lastName =
+        nameParts.length > 1
+          ? nameParts
+              .slice(1)
+              .join(" ")
+          : null;
+
+      if (!roleData.firstName) {
+        return sendError(
+          res,
+          400,
+          "Employee first name is required"
+        );
+      }
+    }
+
+
+    /* ====================================================================== */
+    /* HR                                                                      */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.HR) {
+      const sequence =
+        await getNextSequence(
+          `hr_${instituteId}`
+        );
+
+      roleData.employeeCode =
+        `HR-${String(sequence).padStart(5, "0")}`;
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+
+      delete roleData.employeeId;
+      delete roleData.hrCode;
+    }
+
+
+    /* ====================================================================== */
+    /* ACCOUNTANT                                                             */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.ACCOUNTANT) {
+      const sequence =
+        await getNextSequence(
+          `accountant_${instituteId}`
+        );
+
+      roleData.employeeCode =
+        `ACC-${String(sequence).padStart(5, "0")}`;
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+
+      delete roleData.employeeId;
+    }
+
+
+    /* ====================================================================== */
+    /* COUNSELOR                                                              */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.COUNSELOR) {
+      const sequence =
+        await getNextSequence(
+          `counselor_${instituteId}`
+        );
+
+      roleData.employeeCode =
+        `CNS-${String(sequence).padStart(5, "0")}`;
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+
+      delete roleData.employeeId;
+    }
+
+
+    /* ====================================================================== */
+    /* PRINCIPAL                                                              */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.PRINCIPAL) {
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+    }
+
+
+    /* ====================================================================== */
+    /* PARENT                                                                 */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.PARENT) {
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.email =
+        roleData.email ||
+        normalizedEmail;
+    }
+
+
+    /* ====================================================================== */
+    /* SUPPORT                                                                */
+    /* ====================================================================== */
+
+    if (normalizedRole === ROLES.SUPPORT) {
+      const sequence =
+        await getNextSequence(
+          `support_${instituteId}`
+        );
+
+      roleData.employeeCode =
+        `SUP-${String(sequence).padStart(5, "0")}`;
+
+      roleData.displayName =
+        roleData.displayName ||
+        normalizedName;
+
+      roleData.workEmail =
+        roleData.workEmail ||
+        normalizedEmail;
+
+      roleData.employmentStatus =
+        roleData.employmentStatus ||
+        "active";
+
+      delete roleData.employeeId;
+    }
+
+
+    /* ---------------------------------------------------------------------- */
+    /* PASSWORD                                                               */
+    /* ---------------------------------------------------------------------- */
 
     const passwordHash =
       await bcrypt.hash(
@@ -137,129 +495,218 @@ export const createUser = async (
         10
       );
 
-    const instituteId =
-      actorRole ===
-      Roles.SUPER_ADMIN
-        ? // The UI sends the org's publicId — resolve it.
-          ((await resolveRef(
-            Organization,
-            requestedInstituteId,
-            { label: "Organization" }
-          )) ??
-            null)
-        : req.user.instituteId;
 
-    // Non-super-admin users must
-    // always belong to their own institute.
-    if (
-      actorRole !==
-        Roles.SUPER_ADMIN &&
-      requestedInstituteId &&
-      String(
-        requestedInstituteId
-      ) !==
-        String(
-          req.user.instituteId
-        )
-    ) {
-      return sendForbidden(
-        res,
-        "You cannot create a user in another institute"
-      );
-    }
+    /* ---------------------------------------------------------------------- */
+    /* CREATE USER                                                            */
+    /* ---------------------------------------------------------------------- */
 
     const user =
       await User.create({
-        name,
-        email:
-          normalizedEmail,
+        name: normalizedName,
+
+        email: normalizedEmail,
+
         passwordHash,
-        role,
+
+        role: normalizedRole,
+
         instituteId,
-        profile:
-          profile || {},
+
+        profile: profile || {},
+
+        createdBy:
+          req.user._id,
+
+        mustChangePassword: true,
+
+        emailVerified: false,
+
+        status: "active",
       });
 
-    // Keep organization role arrays
-    // synchronized.
-    if (instituteId) {
-      const org =
-        await Organization.findById(
-          instituteId
-        ).select(
-          "_id teachers students employees hrManagers"
+
+    /* ---------------------------------------------------------------------- */
+    /* CREATE ROLE RECORD                                                     */
+    /* ---------------------------------------------------------------------- */
+
+    let roleRecord;
+
+    try {
+      roleRecord =
+        await RoleModel.create({
+          ...roleData,
+
+          userId:
+            user._id,
+
+          instituteId,
+
+          createdBy:
+            req.user._id,
+        });
+    } catch (roleError) {
+      await User.deleteOne({
+        _id: user._id,
+      });
+
+      throw roleError;
+    }
+
+
+    /* ---------------------------------------------------------------------- */
+    /* UPDATE ORGANIZATION MEMBERSHIP                                         */
+    /* ---------------------------------------------------------------------- */
+
+    const organization =
+      await Organization.findById(
+        instituteId
+      );
+
+    if (!organization) {
+      await RoleModel.deleteOne({
+        _id: roleRecord._id,
+      });
+
+      await User.deleteOne({
+        _id: user._id,
+      });
+
+      return sendError(
+        res,
+        400,
+        "Organization not found"
+      );
+    }
+
+    const organizationField =
+      ORGANIZATION_ROLE_ARRAYS[
+        normalizedRole
+      ];
+
+    if (organizationField) {
+      if (
+        !Array.isArray(
+          organization[
+            organizationField
+          ]
+        )
+      ) {
+        organization[
+          organizationField
+        ] = [];
+      }
+
+      const exists =
+        organization[
+          organizationField
+        ].some(
+          (id) =>
+            String(id) ===
+            String(user._id)
         );
 
-      if (org) {
-        const roleArrayMap = {
-          teacher:
-            "teachers",
-          student:
-            "students",
-          employee:
-            "employees",
-          hr:
-            "hrManagers",
-        };
-
-        const field =
-          roleArrayMap[role];
-
-        if (field) {
-          org[field] =
-            org[field] || [];
-
-          if (
-            !org[field].some(
-              (id) =>
-                String(id) ===
-                String(user._id)
-            )
-          ) {
-            org[field].push(
-              user._id
-            );
-
-            await org.save();
-          }
-        }
+      if (!exists) {
+        organization[
+          organizationField
+        ].push(user._id);
       }
     }
+
+    /*
+     * Do NOT maintain membersCount here.
+     *
+     * Member counts are calculated dynamically
+     * from the User collection.
+     */
+
+    organization.updatedBy =
+      req.user._id;
+
+    await organization.save();
+
+
+    /* ---------------------------------------------------------------------- */
+    /* SAFE RESPONSE                                                          */
+    /* ---------------------------------------------------------------------- */
 
     const safeUser =
       user.toObject();
 
     delete safeUser.passwordHash;
 
-    sendCreated(
+    return sendCreated(
       res,
       "User created successfully",
-      safeUser
+      {
+        user: safeUser,
+
+        role: normalizedRole,
+
+        roleRecord,
+      }
     );
-  } catch (err) {
+
+  } catch (error) {
     console.error(
       "Create user error:",
-      err
+      error
     );
 
     if (
-      err?.code === 11000
+      error?.code === 11000
     ) {
       return sendError(
         res,
         400,
-        "A user with this email already exists"
+        "A duplicate record already exists"
       );
     }
 
-    sendError(
+    if (
+      error?.name ===
+      "ValidationError"
+    ) {
+      const messages =
+        Object.values(
+          error.errors || {}
+        )
+          .map(
+            (item) =>
+              item.message
+          )
+          .filter(Boolean);
+
+      return sendError(
+        res,
+        400,
+        messages.length
+          ? messages.join(", ")
+          : "Invalid user data"
+      );
+    }
+
+    if (
+      error?.name ===
+      "CastError"
+    ) {
+      return sendError(
+        res,
+        400,
+        `Invalid ${
+          error.path ||
+          "field"
+        }`
+      );
+    }
+
+    return sendError(
       res,
       500,
-      "Server error"
+      error?.message ||
+        "Server error"
     );
   }
 };
-
 
 // ─────────────────────────────────────────────
 // GET USERS
@@ -285,18 +732,18 @@ export const getUsers = async (
     // is applied.
     if (
       req.user.role !==
-      Roles.SUPER_ADMIN
+      ROLES.SUPER_ADMIN
     ) {
       query.role = {
-        $ne: Roles.SUPER_ADMIN,
+        $ne: ROLES.SUPER_ADMIN,
       };
     }
 
     if (filterRole) {
-      if (filterRole === Roles.SUPER_ADMIN) {
+      if (filterRole === ROLES.SUPER_ADMIN) {
         if (
           req.user.role !==
-          Roles.SUPER_ADMIN
+          ROLES.SUPER_ADMIN
         ) {
           return sendForbidden(
             res,
@@ -376,18 +823,13 @@ export const getUserById = async (
   res
 ) => {
   try {
-    const user =
-      await User.findOne({
-        publicId:
-          req.params.publicId,
-      })
-        .select(
-          "-passwordHash -failedAttempts -lockedUntil"
-        )
-        .populate(
-          "instituteId",
-          "name type"
-        );
+const user = await User.findOne({
+  publicId: req.params.publicId,
+})
+  .select("-passwordHash -failedAttempts -lockedUntil")
+  .populate("instituteId", "name type")
+  .populate("employment.department", "name code status")
+  .populate("employment.reportingManager", "name email role userCode");
 
     if (!user) {
       return sendNotFound(
@@ -403,11 +845,11 @@ export const getUserById = async (
     // view a super admin.
     if (
       req.user.role !==
-      Roles.SUPER_ADMIN
+      ROLES.SUPER_ADMIN
     ) {
       if (
         targetRole ===
-        Roles.SUPER_ADMIN
+        ROLES.SUPER_ADMIN
       ) {
         return sendForbidden(
           res,
@@ -458,75 +900,47 @@ export const getUserById = async (
 // UPDATE USER
 // ─────────────────────────────────────────────
 
-export const updateUser = async (
-  req,
-  res
-) => {
+export const updateUser = async (req, res) => {
   try {
-    const target =
-      await User.findOne({
-        publicId:
-          req.params.publicId,
-      }).select(
-        "-passwordHash"
-      );
+    console.log("✌️ req update --->", req.body);
+
+    const target = await User.findOne({
+      publicId: req.params.publicId,
+    }).select("-passwordHash");
 
     if (!target) {
-      return sendNotFound(
-        res,
-        "User not found"
-      );
+      return sendNotFound(res, "User not found");
     }
 
     const isSelf =
-      String(target._id) ===
-      String(req.user._id);
+      String(target._id) === String(req.user._id);
 
-    // ─────────────────────
+    // =========================================================
     // ADMIN ACCESS
-    // ─────────────────────
+    // =========================================================
 
-    if (
-      req.user.role ===
-      Roles.ADMIN
-    ) {
+    if (req.user.role === ROLES.ADMIN) {
       const sameOrg =
-        String(
-          target.instituteId ??
-            ""
-        ) ===
-        String(
-          req.user.instituteId ??
-            ""
-        );
+        String(target.instituteId ?? "") ===
+        String(req.user.instituteId ?? "");
 
       if (!sameOrg) {
-        return sendForbidden(
-          res,
-          "Access denied"
-        );
+        return sendForbidden(res, "Access denied");
       }
 
       const isBelowAdmin = [
-        Roles.PRINCIPAL,
-        Roles.TEACHER,
-        Roles.STUDENT,
-        Roles.HR,
-        Roles.ACCOUNTANT,
-        Roles.COUNSELOR,
-        Roles.EMPLOYEE,
-        Roles.SUPPORT,
-        Roles.PARENT,
-      ].includes(
-        target.role
-      );
+        ROLES.PRINCIPAL,
+        ROLES.TEACHER,
+        ROLES.STUDENT,
+        ROLES.HR,
+        ROLES.ACCOUNTANT,
+        ROLES.COUNSELOR,
+        ROLES.EMPLOYEE,
+        ROLES.SUPPORT,
+        ROLES.PARENT,
+      ].includes(target.role);
 
-      // Admin cannot manage
-      // another admin/super admin.
-      if (
-        !isBelowAdmin &&
-        !isSelf
-      ) {
+      if (!isBelowAdmin && !isSelf) {
         return sendForbidden(
           res,
           "Admin accounts can only be managed by a super admin"
@@ -534,18 +948,14 @@ export const updateUser = async (
       }
     }
 
-    // ─────────────────────
+    // =========================================================
     // ROLE CHANGE
-    // ─────────────────────
+    // =========================================================
 
     if (
       req.body.role &&
-      req.user.role !==
-        Roles.SUPER_ADMIN &&
-      !canManageRole(
-        req.user.role,
-        req.body.role
-      )
+      req.user.role !== ROLES.SUPER_ADMIN &&
+      !canManageRole(req.user.role, req.body.role)
     ) {
       return sendForbidden(
         res,
@@ -553,17 +963,13 @@ export const updateUser = async (
       );
     }
 
-    // ─────────────────────
+    // =========================================================
     // EMAIL CHANGE
-    // ─────────────────────
+    // =========================================================
 
-    if (
-      req.body.email !==
-      undefined
-    ) {
+    if (req.body.email !== undefined) {
       const canChangeEmail =
-        req.user.role ===
-          Roles.SUPER_ADMIN ||
+        req.user.role === ROLES.SUPER_ADMIN ||
         (!isSelf &&
           canManageRole(
             req.user.role,
@@ -577,18 +983,11 @@ export const updateUser = async (
         );
       }
 
-      const newEmail =
-        String(
-          req.body.email
-        )
-          .toLowerCase()
-          .trim();
+      const newEmail = String(req.body.email)
+        .toLowerCase()
+        .trim();
 
-      if (
-        !/^\S+@\S+\.\S+$/.test(
-          newEmail
-        )
-      ) {
+      if (!/^\S+@\S+\.\S+$/.test(newEmail)) {
         return sendError(
           res,
           400,
@@ -596,13 +995,12 @@ export const updateUser = async (
         );
       }
 
-      const taken =
-        await User.findOne({
-          email: newEmail,
-          _id: {
-            $ne: target._id,
-          },
-        });
+      const taken = await User.findOne({
+        email: newEmail,
+        _id: {
+          $ne: target._id,
+        },
+      });
 
       if (taken) {
         return sendError(
@@ -613,61 +1011,214 @@ export const updateUser = async (
       }
     }
 
-    // ─────────────────────
-    // ALLOWED FIELDS
-    // ─────────────────────
-
-    let allowedFields;
-
-    if (
-      req.user.role ===
-      Roles.SUPER_ADMIN
-    ) {
-      allowedFields = [
-        "name",
-        "profile",
-        "status",
-        "role",
-        "email",
-        "instituteId",
-      ];
-    } else if (isSelf) {
-      // Self-edit:
-      // name/profile only.
-      allowedFields = [
-        "name",
-        "profile",
-      ];
-    } else {
-      allowedFields = [
-        "name",
-        "profile",
-        "status",
-        "role",
-        "email",
-      ];
-    }
+    // =========================================================
+    // BUILD UPDATE OBJECT
+    // =========================================================
 
     const updates = {};
 
-    for (
-      const field of allowedFields
-    ) {
-      if (
-        req.body[field] !==
-        undefined
-      ) {
-        updates[field] =
-          req.body[field];
+    // =========================================================
+    // BASIC USER FIELDS
+    // =========================================================
+
+    const basicFields = [
+      "name",
+      "displayName",
+      "status",
+      "role",
+      "email",
+    ];
+
+    if (req.user.role === ROLES.SUPER_ADMIN) {
+      basicFields.push("instituteId");
+    }
+
+    if (isSelf) {
+      for (const field of [
+        "name",
+        "displayName",
+      ]) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+    } else {
+      for (const field of basicFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
       }
     }
 
-    // instituteId arrives as an org
-    // publicId — resolve before saving
-    // (a raw publicId fails ObjectId cast).
+    // =========================================================
+    // PROFILE
+    // =========================================================
+
     if (
-      updates.instituteId !==
-      undefined
+      req.body.profile &&
+      typeof req.body.profile === "object"
+    ) {
+      const profileFields = [
+        "phone",
+        "alternatePhone",
+        "address",
+        "city",
+        "state",
+        "country",
+        "pincode",
+        "avatar",
+      ];
+
+      for (const field of profileFields) {
+        if (
+          req.body.profile[field] !== undefined
+        ) {
+          updates[`profile.${field}`] =
+            req.body.profile[field];
+        }
+      }
+    }
+
+    // =========================================================
+    // EMPLOYMENT
+    // =========================================================
+
+
+
+if (
+  req.body.employment &&
+  typeof req.body.employment === "object"
+) {
+  const employment = req.body.employment;
+
+  const employmentFields = [
+    "designation",
+    "workLocation",
+    "workEmail",
+    "dateOfJoining",
+    "probationEndDate",
+    "skills",
+  ];
+
+  for (const field of employmentFields) {
+    if (employment[field] !== undefined) {
+      updates[`employment.${field}`] = employment[field];
+    }
+  }
+
+  // =========================================================
+  // DEPARTMENT
+  // Accept publicId OR Mongo ObjectId
+  // =========================================================
+
+  if (employment.department !== undefined) {
+    const departmentValue = employment.department;
+
+    if (
+      departmentValue === null ||
+      departmentValue === ""
+    ) {
+      updates["employment.department"] = null;
+    } else {
+      const department = mongoose.Types.ObjectId.isValid(
+        departmentValue
+      )
+        ? await Department.findOne({
+            _id: departmentValue,
+            instituteId: target.instituteId,
+            isDeleted: { $ne: true },
+          })
+        : await Department.findOne({
+            publicId: departmentValue,
+            instituteId: target.instituteId,
+            isDeleted: { $ne: true },
+          });
+
+      if (!department) {
+        return sendError(
+          res,
+          400,
+          "Department does not belong to this organization"
+        );
+      }
+
+      updates["employment.department"] = department._id;
+    }
+  }
+
+  // =========================================================
+  // REPORTING MANAGER
+  // Accept publicId OR Mongo ObjectId
+  // =========================================================
+
+  if (employment.reportingManager !== undefined) {
+    const managerValue = employment.reportingManager;
+
+    if (
+      managerValue === null ||
+      managerValue === ""
+    ) {
+      updates["employment.reportingManager"] = null;
+    } else {
+      const manager = mongoose.Types.ObjectId.isValid(
+        managerValue
+      )
+        ? await User.findOne({
+            _id: managerValue,
+            instituteId: target.instituteId,
+          }).select("_id instituteId name email role publicId")
+        : await User.findOne({
+            publicId: managerValue,
+            instituteId: target.instituteId,
+          }).select("_id instituteId name email role publicId");
+
+      if (!manager) {
+        return sendError(
+          res,
+          400,
+          "Reporting manager must belong to the same organization"
+        );
+      }
+
+      updates["employment.reportingManager"] =
+        manager._id;
+    }
+  }
+}
+
+    // =========================================================
+    // ACADEMIC
+    // =========================================================
+
+    if (
+      req.body.academic &&
+      typeof req.body.academic === "object"
+    ) {
+      const academicFields = [
+        "rollNumber",
+        "grade",
+        "section",
+        "guardianName",
+        "guardianPhone",
+        "admissionDate",
+      ];
+
+      for (const field of academicFields) {
+        if (
+          req.body.academic[field] !== undefined
+        ) {
+          updates[`academic.${field}`] =
+            req.body.academic[field];
+        }
+      }
+    }
+
+    // =========================================================
+    // INSTITUTE
+    // =========================================================
+
+    if (
+      updates.instituteId !== undefined
     ) {
       updates.instituteId =
         updates.instituteId === null ||
@@ -676,11 +1227,16 @@ export const updateUser = async (
           : await resolveRef(
               Organization,
               updates.instituteId,
-              { label: "Organization" }
+              {
+                label: "Organization",
+              }
             );
     }
 
-    // Password update
+    // =========================================================
+    // PASSWORD
+    // =========================================================
+
     if (req.body.password) {
       updates.passwordHash =
         await bcrypt.hash(
@@ -689,13 +1245,24 @@ export const updateUser = async (
         );
     }
 
+    console.log(
+      "✏️ Mongo updates --->",
+      updates
+    );
+
+    // =========================================================
+    // UPDATE
+    // =========================================================
+
     const user =
       await User.findOneAndUpdate(
         {
           publicId:
             req.params.publicId,
         },
-        updates,
+        {
+          $set: updates,
+        },
         {
           new: true,
           runValidators: true,
@@ -707,22 +1274,35 @@ export const updateUser = async (
         .populate(
           "instituteId",
           "name type"
+        )
+        .populate(
+          "employment.department",
+          "publicId name code status"
+        )
+        .populate(
+          "employment.reportingManager",
+          "publicId name email role userCode"
         );
 
-    sendSuccess(
+    if (!user) {
+      return sendNotFound(
+        res,
+        "User not found"
+      );
+    }
+
+    return sendSuccess(
       res,
       "User updated successfully",
       user
     );
   } catch (err) {
     console.error(
-      "Update user error:",
+      "❌ Update user error:",
       err
     );
 
-    if (
-      err?.code === 11000
-    ) {
+    if (err?.code === 11000) {
       return sendError(
         res,
         400,
@@ -730,14 +1310,21 @@ export const updateUser = async (
       );
     }
 
-    sendError(
+    if (err?.name === "CastError") {
+      return sendError(
+        res,
+        400,
+        `Invalid value for ${err.path}`
+      );
+    }
+
+    return sendError(
       res,
       500,
       "Server error"
     );
   }
 };
-
 
 // ─────────────────────────────────────────────
 // DELETE / DEACTIVATE USER

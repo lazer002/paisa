@@ -2920,12 +2920,14 @@ employeeSchema.statics.getSummary =
  * MODEL
  * ========================================================================== */
 
-export const Employee =
+ const Employee =
   mongoose.models.Employee ||
   mongoose.model(
     "Employee",
     employeeSchema
   );
+
+export default Employee;
 
 export {
   EMPLOYEE_STATUSES,

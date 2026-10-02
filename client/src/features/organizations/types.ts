@@ -34,6 +34,7 @@ export interface OrgSettings {
   allowPublicJoin: boolean
   requireApproval: boolean
   maxMembers: number
+    features?: Record<string, boolean>;
 }
 
 export interface Organization {
@@ -58,6 +59,15 @@ export interface Organization {
   isDeleted: boolean
   createdAt: string
   updatedAt: string
+  admin?: any
+  billing?: {
+  plan?: string;
+  status?: string;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  [key: string]: unknown;
+};
 }
 
 export interface CreateOrgPayload {

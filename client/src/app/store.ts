@@ -12,10 +12,10 @@ import { payrollApi } from '@/features/payroll/payrollApi'
 import { leavesApi } from '@/features/leaves/leavesApi'
 import { statsApi } from '@/features/stats/statsApi'
 import { studentsApi } from '@/features/students/studentsApi'
+import { teachersApi } from '@/features/teacher/teachersApi'
 import { employeesApi, hrsApi } from '@/features/people/peopleApi'
 import { departmentsApi } from '@/features/departments/departmentsApi'
 import { assignmentsApi, materialsApi, submissionsApi } from '@/features/assignments/assignmentsApi'
-import { userDetailApi } from '@/features/users/userDetailApi'
 import { assessmentApi } from '@/features/assessment/assessmentApi'
 import { platformApi } from '@/features/platform/platformApi'
 import { messagingApi } from '@/features/messaging/messagingApi'
@@ -25,6 +25,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   [organizationsApi.reducerPath]: organizationsApi.reducer,
   [usersApi.reducerPath]: usersApi.reducer,
+  [teachersApi.reducerPath]: teachersApi.reducer,
   [announcementsApi.reducerPath]: announcementsApi.reducer,
   [classesApi.reducerPath]: classesApi.reducer,
   [attendanceApi.reducerPath]: attendanceApi.reducer,
@@ -38,7 +39,6 @@ const rootReducer = combineReducers({
   [assignmentsApi.reducerPath]: assignmentsApi.reducer,
   [materialsApi.reducerPath]: materialsApi.reducer,
   [submissionsApi.reducerPath]: submissionsApi.reducer,
-  [userDetailApi.reducerPath]: userDetailApi.reducer,
   [assessmentApi.reducerPath]: assessmentApi.reducer,
   [platformApi.reducerPath]: platformApi.reducer,
   [messagingApi.reducerPath]: messagingApi.reducer,
@@ -51,6 +51,7 @@ export const store = configureStore({
     getDefault().concat(
       organizationsApi.middleware,
       usersApi.middleware,
+      teachersApi.middleware,
       announcementsApi.middleware,
       classesApi.middleware,
       attendanceApi.middleware,
@@ -64,7 +65,6 @@ export const store = configureStore({
       assignmentsApi.middleware,
       materialsApi.middleware,
       submissionsApi.middleware,
-      userDetailApi.middleware,
       assessmentApi.middleware,
       platformApi.middleware,
       messagingApi.middleware,

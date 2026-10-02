@@ -42,14 +42,13 @@ publicId: {
   default: () =>
     `stu_${crypto.randomBytes(16).toString("base64url")}`,
 },
-    enrollmentNumber: {
-      type: String,
-      required: true,
-      trim: true,
-      uppercase: true,
-      maxlength: 50,
-      index: true,
-    },
+enrollmentNumber: {
+  type: String,
+  unique: true,
+  sparse: true,
+  trim: true,
+  immutable: true,
+},
 
     /* ---------------------------------------------------------------------- */
     /* ACADEMICS                                                               */

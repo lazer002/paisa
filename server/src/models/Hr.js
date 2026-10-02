@@ -1,10 +1,14 @@
-// server/src/models/teacher.js
+// server/src/models/hr.js
 
 import mongoose from "mongoose";
 import crypto from "node:crypto";
 
-const teacherSchema = new mongoose.Schema(
+const hrSchema = new mongoose.Schema(
   {
+    /* ---------------------------------------------------------------------- */
+    /* REFERENCES                                                             */
+    /* ---------------------------------------------------------------------- */
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -27,8 +31,12 @@ const teacherSchema = new mongoose.Schema(
       immutable: true,
       index: true,
       default: () =>
-        `teac_${crypto.randomBytes(16).toString("base64url")}`,
+        `hr_${crypto.randomBytes(16).toString("base64url")}`,
     },
+
+    /* ---------------------------------------------------------------------- */
+    /* BASIC HR INFORMATION                                                   */
+    /* ---------------------------------------------------------------------- */
 
     employeeCode: {
       type: String,
@@ -38,36 +46,11 @@ const teacherSchema = new mongoose.Schema(
       default: null,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* PERSONAL / PROFESSIONAL                                                */
-    /* ---------------------------------------------------------------------- */
-
-    displayName: {
-      type: String,
-      trim: true,
-      maxlength: 150,
-      default: null,
-    },
-
-    phone: {
-      type: String,
-      trim: true,
-      maxlength: 30,
-      default: null,
-    },
-
-    alternatePhone: {
-      type: String,
-      trim: true,
-      maxlength: 30,
-      default: null,
-    },
-
     designation: {
       type: String,
       trim: true,
       maxlength: 150,
-      default: null,
+      default: "HR Manager",
     },
 
     department: {
@@ -81,7 +64,6 @@ const teacherSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
-      index: true,
     },
 
     workLocation: {
@@ -100,49 +82,106 @@ const teacherSchema = new mongoose.Schema(
     },
 
     /* ---------------------------------------------------------------------- */
-    /* TEACHING                                                                */
+    /* CONTACT                                                                */
     /* ---------------------------------------------------------------------- */
 
-    subjects: [
+    phone: {
+      type: String,
+      trim: true,
+      maxlength: 30,
+      default: null,
+    },
+
+    alternatePhone: {
+      type: String,
+      trim: true,
+      maxlength: 30,
+      default: null,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* HR RESPONSIBILITIES                                                    */
+    /* ---------------------------------------------------------------------- */
+
+    responsibilities: [
       {
         type: String,
         trim: true,
-        maxlength: 100,
+        maxlength: 200,
       },
     ],
 
-    gradesTaught: [
-      {
-        type: String,
-        trim: true,
-        maxlength: 100,
-      },
-    ],
-
-    classes: [
+    managedDepartments: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Class",
-        index: true,
+        ref: "Department",
       },
     ],
 
-    maxWeeklyHours: {
-      type: Number,
-      min: 0,
-      max: 168,
-      default: 24,
+    managedEmployees: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    /* ---------------------------------------------------------------------- */
+    /* RECRUITMENT                                                            */
+    /* ---------------------------------------------------------------------- */
+
+    recruitmentAccess: {
+      type: Boolean,
+      default: true,
     },
 
-    isClassTeacherOf: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Class",
-      default: null,
-      index: true,
+    canCreateEmployees: {
+      type: Boolean,
+      default: true,
+    },
+
+    canManageEmployeeProfiles: {
+      type: Boolean,
+      default: true,
+    },
+
+    canManageLeaves: {
+      type: Boolean,
+      default: true,
+    },
+
+    canManageAttendance: {
+      type: Boolean,
+      default: true,
+    },
+
+    canManagePayroll: {
+      type: Boolean,
+      default: false,
+    },
+
+    canManageDepartments: {
+      type: Boolean,
+      default: false,
     },
 
     /* ---------------------------------------------------------------------- */
-    /* QUALIFICATIONS                                                          */
+    /* EMPLOYEE MANAGEMENT                                                    */
+    /* ---------------------------------------------------------------------- */
+
+    totalEmployeesManaged: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    activeEmployeesManaged: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* EXPERIENCE / QUALIFICATIONS                                            */
     /* ---------------------------------------------------------------------- */
 
     qualifications: [
@@ -217,7 +256,7 @@ const teacherSchema = new mongoose.Schema(
       {
         _id: false,
 
-        school: {
+        company: {
           type: String,
           required: true,
           trim: true,
@@ -227,7 +266,7 @@ const teacherSchema = new mongoose.Schema(
         role: {
           type: String,
           trim: true,
-          maxlength: 100,
+          maxlength: 150,
           default: null,
         },
 
@@ -247,6 +286,19 @@ const teacherSchema = new mongoose.Schema(
     /* EMPLOYMENT                                                              */
     /* ---------------------------------------------------------------------- */
 
+    employmentStatus: {
+      type: String,
+      enum: [
+        "active",
+        "on_leave",
+        "resigned",
+        "terminated",
+        "retired",
+      ],
+      default: "active",
+      index: true,
+    },
+
     joiningDate: {
       type: Date,
       default: null,
@@ -264,32 +316,24 @@ const teacherSchema = new mongoose.Schema(
       default: null,
     },
 
-    employmentStatus: {
-      type: String,
-      enum: [
-        "active",
-        "on_leave",
-        "resigned",
-        "terminated",
-        "retired",
-      ],
-      default: "active",
-      index: true,
-    },
-
     /* ---------------------------------------------------------------------- */
     /* PERFORMANCE                                                             */
     /* ---------------------------------------------------------------------- */
 
     performance: {
-      studentRating: {
+      employeesHandled: {
         type: Number,
         min: 0,
-        max: 5,
-        default: null,
+        default: 0,
       },
 
-      classesThisTerm: {
+      leavesProcessed: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+
+      recruitmentCount: {
         type: Number,
         min: 0,
         default: 0,
@@ -346,36 +390,26 @@ const teacherSchema = new mongoose.Schema(
 /* INDEXES                                                                    */
 /* -------------------------------------------------------------------------- */
 
-teacherSchema.index({
+hrSchema.index({
   instituteId: 1,
   employmentStatus: 1,
 });
 
-teacherSchema.index({
+hrSchema.index({
   instituteId: 1,
   isDeleted: 1,
 });
 
-teacherSchema.index({
+hrSchema.index({
   instituteId: 1,
   userId: 1,
-});
-
-teacherSchema.index({
-  instituteId: 1,
-  isClassTeacherOf: 1,
-});
-
-teacherSchema.index({
-  instituteId: 1,
-  department: 1,
 });
 
 /* -------------------------------------------------------------------------- */
 /* VALIDATION                                                                 */
 /* -------------------------------------------------------------------------- */
 
-teacherSchema.pre("validate", function (next) {
+hrSchema.pre("validate", function (next) {
   if (
     this.joiningDate &&
     this.leavingDate &&
@@ -408,24 +442,26 @@ teacherSchema.pre("validate", function (next) {
 });
 
 /* -------------------------------------------------------------------------- */
-/* QUERY HELPERS                                                              */
+/* QUERY HELPERS                                                             */
 /* -------------------------------------------------------------------------- */
 
-teacherSchema.query.active = function () {
+hrSchema.query.active = function () {
   return this.where({
     employmentStatus: "active",
     isDeleted: false,
   });
 };
 
-teacherSchema.query.byInstitute = function (instituteId) {
+hrSchema.query.byInstitute = function (
+  instituteId
+) {
   return this.where({
     instituteId,
     isDeleted: false,
   });
 };
 
-teacherSchema.query.notDeleted = function () {
+hrSchema.query.notDeleted = function () {
   return this.where({
     isDeleted: false,
   });
@@ -435,14 +471,14 @@ teacherSchema.query.notDeleted = function () {
 /* VIRTUALS                                                                   */
 /* -------------------------------------------------------------------------- */
 
-teacherSchema.virtual("isActive").get(function () {
+hrSchema.virtual("isActive").get(function () {
   return (
     this.employmentStatus === "active" &&
     !this.isDeleted
   );
 });
 
-teacherSchema.virtual("tenureDays").get(function () {
+hrSchema.virtual("tenureDays").get(function () {
   if (!this.joiningDate) {
     return null;
   }
@@ -463,7 +499,7 @@ teacherSchema.virtual("tenureDays").get(function () {
 /* INSTANCE METHODS                                                           */
 /* -------------------------------------------------------------------------- */
 
-teacherSchema.methods.softDelete =
+hrSchema.methods.softDelete =
   async function (byUserId = null) {
     this.isDeleted = true;
     this.deletedAt = new Date();
@@ -475,7 +511,7 @@ teacherSchema.methods.softDelete =
     return this.save();
   };
 
-teacherSchema.methods.restore =
+hrSchema.methods.restore =
   async function (byUserId = null) {
     this.isDeleted = false;
     this.deletedAt = null;
@@ -491,8 +527,8 @@ teacherSchema.methods.restore =
 /* MODEL                                                                      */
 /* -------------------------------------------------------------------------- */
 
-const Teacher =
-  mongoose.models.Teacher ||
-  mongoose.model("Teacher", teacherSchema);
+const HR =
+  mongoose.models.HR ||
+  mongoose.model("HR", hrSchema);
 
-export default Teacher;
+export default HR;

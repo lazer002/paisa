@@ -1078,59 +1078,95 @@ userSchema.pre("save", async function (next) {
       );
     }
 
-    const allowedRoles = {
-      school: [
-        Roles.ADMIN,
-        Roles.TEACHER,
-        Roles.STUDENT,
-      ],
+const allowedRoles = {
+  school: [
+    Roles.ADMIN,
+    Roles.PRINCIPAL,
+    Roles.TEACHER,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.COUNSELOR,
+    Roles.EMPLOYEE,
+    Roles.STUDENT,
+    Roles.PARENT,
+    Roles.SUPPORT,
+  ],
 
-      college: [
-        Roles.ADMIN,
-        Roles.TEACHER,
-        Roles.STUDENT,
-      ],
+  college: [
+    Roles.ADMIN,
+    Roles.PRINCIPAL,
+    Roles.TEACHER,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.COUNSELOR,
+    Roles.EMPLOYEE,
+    Roles.STUDENT,
+    Roles.PARENT,
+    Roles.SUPPORT,
+  ],
 
-      coaching: [
-        Roles.ADMIN,
-        Roles.TEACHER,
-        Roles.STUDENT,
-      ],
+  coaching: [
+    Roles.ADMIN,
+    Roles.TEACHER,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.COUNSELOR,
+    Roles.EMPLOYEE,
+    Roles.STUDENT,
+    Roles.PARENT,
+    Roles.SUPPORT,
+  ],
 
-      company: [
-        Roles.ADMIN,
-        Roles.HR,
-        Roles.EMPLOYEE,
-      ],
+  company: [
+    Roles.ADMIN,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.EMPLOYEE,
+    Roles.SUPPORT,
+  ],
 
-      institute: [
-        Roles.ADMIN,
-        Roles.TEACHER,
-        Roles.STUDENT,
-        Roles.HR,
-        Roles.EMPLOYEE,
-      ],
+  institute: [
+    Roles.ADMIN,
+    Roles.PRINCIPAL,
+    Roles.TEACHER,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.COUNSELOR,
+    Roles.EMPLOYEE,
+    Roles.STUDENT,
+    Roles.PARENT,
+    Roles.SUPPORT,
+  ],
 
-      startup: [
-        Roles.ADMIN,
-        Roles.HR,
-        Roles.EMPLOYEE,
-      ],
+  startup: [
+    Roles.ADMIN,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.EMPLOYEE,
+    Roles.SUPPORT,
+  ],
 
-      ngo: [
-        Roles.ADMIN,
-        Roles.HR,
-        Roles.EMPLOYEE,
-      ],
+  ngo: [
+    Roles.ADMIN,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.EMPLOYEE,
+    Roles.SUPPORT,
+  ],
 
-      others: [
-        Roles.ADMIN,
-        Roles.TEACHER,
-        Roles.STUDENT,
-        Roles.HR,
-        Roles.EMPLOYEE,
-      ],
-    };
+  others: [
+    Roles.ADMIN,
+    Roles.PRINCIPAL,
+    Roles.TEACHER,
+    Roles.HR,
+    Roles.ACCOUNTANT,
+    Roles.COUNSELOR,
+    Roles.EMPLOYEE,
+    Roles.STUDENT,
+    Roles.PARENT,
+    Roles.SUPPORT,
+  ],
+};
 
     const organizationRoles =
       allowedRoles[organization.type];

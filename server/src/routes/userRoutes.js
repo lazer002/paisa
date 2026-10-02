@@ -47,16 +47,21 @@ router.get(
 
 // ─────────────────────────────────────────────
 // USER DETAIL
-// Must be before /:publicId
+// GET /users/:publicId/detail
 // ─────────────────────────────────────────────
 
 router.get(
   "/:publicId/detail",
+  requireRole(
+    "super_admin",
+    "admin"
+  ),
   getUserDetail
 );
 
 // ─────────────────────────────────────────────
 // GET USER
+// GET /users/:publicId
 // ─────────────────────────────────────────────
 
 router.get(
@@ -70,6 +75,7 @@ router.get(
 
 // ─────────────────────────────────────────────
 // UPDATE USER
+// PUT /users/:publicId
 // ─────────────────────────────────────────────
 
 router.put(
@@ -83,6 +89,7 @@ router.put(
 
 // ─────────────────────────────────────────────
 // DELETE / DEACTIVATE USER
+// DELETE /users/:publicId
 // ─────────────────────────────────────────────
 
 router.delete(
