@@ -24,6 +24,7 @@ import {
   Trophy,
   CalendarDays,
   Receipt,
+  IndianRupee,
   MessageSquare,
   Video,
   type LucideIcon,
@@ -403,6 +404,19 @@ export const NAV_SECTIONS: NavSection[] = [
           'admin',
           'principal',
           'accountant',
+        ],
+      },
+      {
+        label: 'Invoices',
+        icon: IndianRupee,
+        path: '/dashboard/invoices',
+        roles: [
+          'super_admin',
+          'admin',
+          'principal',
+          'accountant',
+          'student',
+          'parent',
         ],
       },
       {
