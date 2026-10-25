@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { CalendarCheck, Check, X, Clock } from 'lucide-react'
+import { CalendarCheck, Check } from 'lucide-react'
 
 import {
-  useGetAttendanceQuery,
   useGetMyAttendanceQuery,
   useMarkAttendanceMutation,
   type AttendanceStatus,
@@ -11,7 +10,7 @@ import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
-import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
+import { LoadingList, ErrorState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 

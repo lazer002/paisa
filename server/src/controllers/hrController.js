@@ -12,7 +12,10 @@ import {
   sendSuccess,
   sendCreated,
   sendError,
+  sendNotFound,
 } from "../utils/response.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
 
 // Create HR
 export const createHR = async (req, res) => {
@@ -162,13 +165,115 @@ export const getHRs = async (
       "Server error"
     );
   }
+};/* =========================================================
+   GET ONE HR
+========================================================= */
+
+export const getHR = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "HR",
+    });
+
+    const hr = await User.findOne({
+      _id,
+      role: Roles.HR,
+      ...scopedQuery(req.user),
+    })
+      .select("-passwordHash -failedAttempts -lockedUntil")
+      .populate("instituteId", "name type")
+      .lean();
+
+    if (!hr) {
+      return sendNotFound(res, "HR not found");
+    }
+
+    sendSuccess(res, "HR fetched", hr);
+  } catch (err) {
+    console.error("Get HR error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+/* =========================================================
+   UPDATE HR
+========================================================= */
+
+export const updateHR = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "HR",
+    });
+
+    const hr = await User.findOne({
+      _id,
+      role: Roles.HR,
+      ...scopedQuery(req.user),
+    });
+
+    if (!hr) {
+      return sendNotFound(res, "HR not found");
+    }
+
+    const updates = {};
+
+    if (typeof req.body.name === "string" && req.body.name.trim()) {
+      updates.name = req.body.name.trim();
+    }
+
+    if (["active", "inactive"].includes(req.body.status)) {
+      updates.status = req.body.status;
+    }
+
+    if (!Object.keys(updates).length) {
+      return sendError(res, 400, "No editable fields supplied");
+    }
+
+    Object.assign(hr, updates);
+    await hr.save();
+
+    const safe = hr.toObject();
+    delete safe.passwordHash;
+
+    sendSuccess(res, "HR updated", safe);
+  } catch (err) {
+    console.error("Update HR error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+/* =========================================================
+   DELETE HR
+========================================================= */
+
+export const deleteHR = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "HR",
+    });
+
+    const hr = await User.findOne({
+      _id,
+      role: Roles.HR,
+      ...scopedQuery(req.user),
+    });
+
+    if (!hr) {
+      return sendNotFound(res, "HR not found");
+    }
+
+    await hr.deleteOne();
+
+    sendSuccess(res, "HR deleted", null);
+  } catch (err) {
+    console.error("Delete HR error:", err);
+    sendError(res, 500, "Server error");
+  }
 };
 
 function requestedButUnresolved(
   resolved,
   requested
 ) {
-  return Boolean(
-    requested && !resolved
-  );
+  return Boolean(requested && !resolved);
 }

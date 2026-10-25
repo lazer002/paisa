@@ -10,12 +10,16 @@ import {
   updateOrganization,
 } from "../controllers/organizationController.js";
 
-import {
-  adminAccess,
-  superAdminOnly,
-} from "../middleware/policies.js";
+import { superAdminOnly } from "../middleware/policies.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
+
+// Non-super-admins are scoped to their own organization
+// by scopeQueryForUser in the controller.
+const canReadOrganizations = authorize({
+  anyPermissions: ["organization:read"],
+});
 
 // ─────────────────────────────────────────────
 // GET ALL ORGANIZATIONS
@@ -23,7 +27,7 @@ const router = express.Router();
 
 router.get(
   "/",
-  adminAccess,
+  canReadOrganizations,
   getOrganizations
 );
 
@@ -34,7 +38,7 @@ router.get(
 
 router.get(
   "/:publicId",
-  adminAccess,
+  canReadOrganizations,
   getOrganization
 );
 
@@ -51,13 +55,16 @@ router.post(
 
 // ─────────────────────────────────────────────
 // UPDATE ORGANIZATION
-// Admin can update their own organization.
-// Controller enforces field-level restrictions.
+// Admin/principal can update their own organization.
+// Controller enforces field-level restrictions:
+// plan/status/type changes stay super_admin-only.
 // ─────────────────────────────────────────────
 
 router.put(
   "/:publicId",
-  adminAccess,
+  authorize({
+    anyPermissions: ["organization:update"],
+  }),
   updateOrganization
 );
 

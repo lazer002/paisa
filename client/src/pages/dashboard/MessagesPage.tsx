@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send, MessageSquare, Users, Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { Send, MessageSquare, Users, Plus, ArrowLeft } from 'lucide-react'
 
 import {
   useGetConversationsQuery,

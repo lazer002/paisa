@@ -59,7 +59,7 @@ export interface Organization {
   isDeleted: boolean
   createdAt: string
   updatedAt: string
-  admin?: any
+  admin?: unknown
   billing?: {
   plan?: string;
   status?: string;

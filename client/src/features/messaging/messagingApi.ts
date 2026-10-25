@@ -2,7 +2,6 @@ import { createApi } from '@reduxjs/toolkit/query/react'
 import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
 
 const list = <T,>(res: { data?: unknown }) => (res?.data ?? []) as T[]
-const unwrap = <T,>(res: { data?: unknown }) => res?.data as T
 
 // ─── Shapes ──────────────────────────────────────────────────────────────────
 

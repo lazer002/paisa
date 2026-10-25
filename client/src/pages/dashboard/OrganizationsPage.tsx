@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -10,7 +10,6 @@ import {
   Building2,
   CalendarDays,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
@@ -27,7 +26,6 @@ import {
   MapPin,
   Menu,
   MoreHorizontal,
-  PackageOpen,
   Phone,
   RefreshCw,
   Search,
@@ -41,6 +39,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { useAppSelector } from "@/app/store";
 import {
@@ -49,11 +48,12 @@ import {
 } from "@/features/organizations/organizationsApi";
 import {
   useGetUsersQuery,
-  type OrgUser,
 } from "@/features/users/usersApi";
 
-import type { Organization } from "@/features/organizations/types";
-
+// Free-form shape of loosely-typed API payloads in this file: property access is
+// intentionally dynamic, so a strict `unknown` record would require rewriting
+// every call site.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
 
 type DashboardUser = {
@@ -84,12 +84,12 @@ type TrendPoint = {
 type NavItem = {
   label: string;
   path: string;
-  icon: any;
+  icon: LucideIcon;
 };
 
 const ROLE_META: Record<
   string,
-  { label: string; icon: any; tone: string; dot: string }
+  { label: string; icon: LucideIcon; tone: string; dot: string }
 > = {
   admin: {
     label: "Admin",
@@ -205,7 +205,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-function rid(value: any) {
+function rid(value: { publicId?: string; _id?: string } | null | undefined) {
   return String(value?.publicId ?? value?._id ?? "");
 }
 
@@ -250,7 +250,7 @@ function titleCase(value?: string | null) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function number(value: any) {
+function number(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
@@ -260,15 +260,17 @@ function percent(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-function safeArray(value: any): any[] {
-  return Array.isArray(value) ? value : [];
+function safeArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function getUserOrganizationId(user: any) {
+function getUserOrganizationId(user: {
+  instituteId?: string | { _id?: string; publicId?: string } | null;
+} | null) {
   const raw = user?.instituteId;
   if (!raw) return "";
   if (typeof raw === "string") return raw;
-  return String(raw?._id ?? raw?.publicId ?? raw ?? "");
+  return String(raw?._id ?? raw?.publicId ?? "");
 }
 
 function getOrganizationLocation(org: AnyRecord) {
@@ -586,7 +588,7 @@ function EmptyState({
   title,
   text,
 }: {
-  icon: any;
+  icon: LucideIcon;
   title: string;
   text: string;
 }) {
@@ -894,7 +896,7 @@ function MetricCard({
   trend,
   onClick,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   sublabel: string;
@@ -1526,7 +1528,7 @@ function ContactRow({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
@@ -1921,25 +1923,33 @@ function EditOrganizationModal({
   const [requireApproval, setRequireApproval] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!open || !organization) return;
-    setName(organization.name || "");
-    setDescription(organization.description || "");
-    setWebsite(
-      organization.website ||
-        organization.branding?.website ||
-        ""
-    );
-    setEmail(organization.contact?.email || "");
-    setPhone(organization.contact?.phone || "");
-    setAddress(organization.contact?.address || "");
-    setCity(organization.contact?.city || "");
-    setState(organization.contact?.state || "");
-    setPincode(organization.contact?.pincode || "");
-    setMaxMembers(getMaxMembers(organization));
-    setRequireApproval(getRequireApproval(organization));
-    setError("");
-  }, [open, organization]);
+  // Reset the form during render when the modal opens for a different
+  // organization (avoids a cascading setState inside an effect).
+  const [prevTarget, setPrevTarget] = useState<{
+    open: boolean;
+    org: AnyRecord | null;
+  }>({ open, org: organization });
+  if (open !== prevTarget.open || organization !== prevTarget.org) {
+    setPrevTarget({ open, org: organization });
+    if (open && organization) {
+      setName(organization.name || "");
+      setDescription(organization.description || "");
+      setWebsite(
+        organization.website ||
+          organization.branding?.website ||
+          ""
+      );
+      setEmail(organization.contact?.email || "");
+      setPhone(organization.contact?.phone || "");
+      setAddress(organization.contact?.address || "");
+      setCity(organization.contact?.city || "");
+      setState(organization.contact?.state || "");
+      setPincode(organization.contact?.pincode || "");
+      setMaxMembers(getMaxMembers(organization));
+      setRequireApproval(getRequireApproval(organization));
+      setError("");
+    }
+  }
 
   if (!open || !organization) return null;
 
@@ -1968,14 +1978,15 @@ function EditOrganizationModal({
             requireApproval,
           },
         },
-      } as any).unwrap();
+      }).unwrap();
 
       onSaved();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
+      const e = err as { data?: { message?: string }; message?: string }
       setError(
-        err?.data?.message ||
-          err?.message ||
+        e?.data?.message ||
+          e?.message ||
           "Unable to update organization"
       );
     }
@@ -2427,10 +2438,9 @@ function AdminWelcomeStrip({
 export default function AdminOrganizationDashboard() {
   const navigate = useNavigate();
   const currentUser = useAppSelector(
-    (state: any) => state.auth.user
+    (state) => state.auth.user
   ) as AnyRecord | null;
 
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [peopleSearch, setPeopleSearch] = useState("");
@@ -2448,19 +2458,17 @@ export default function AdminOrganizationDashboard() {
     limit: 10,
   });
 
-  const usersQuery = useGetUsersQuery({
-    limit: 1000,
-  } as any);
+  const usersQuery = useGetUsersQuery();
 
   const organizations = safeArray(
-    (organizationsQuery.data as any)?.data ||
-      organizationsQuery.data ||
+    (organizationsQuery.data as { data?: AnyRecord[] } | undefined)?.data ||
+      (organizationsQuery.data as AnyRecord[] | undefined) ||
       []
   ) as AnyRecord[];
 
   const users = safeArray(
-    (usersQuery.data as any)?.data ||
-      usersQuery.data ||
+    (usersQuery.data as { data?: DashboardUser[] } | undefined)?.data ||
+      (usersQuery.data as DashboardUser[] | undefined) ||
       []
   ) as DashboardUser[];
 

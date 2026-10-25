@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Settings as SettingsIcon, KeyRound, LogOut, ShieldCheck, BellRing } from 'lucide-react'
 import api from '@/lib/api/axios'
 import { useAppDispatch, useAppSelector } from '@/app/store'
@@ -40,8 +40,8 @@ export default function SettingsPage() {
       const res = await api.put('/auth/profile', { name })
       if (token) dispatch(setAuth({ user: res.data.data, token }))
       setProfileMsg('Profile updated')
-    } catch (e: any) {
-      setProfileMsg(e?.response?.data?.message ?? 'Failed to update profile')
+    } catch (e) {
+      setProfileMsg((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to update profile')
     }
   }
 
@@ -51,8 +51,8 @@ export default function SettingsPage() {
       await api.put('/auth/profile', { currentPassword, newPassword })
       setPwMsg('Password changed. Other devices have been logged out.')
       setCurrentPassword(''); setNewPassword('')
-    } catch (e: any) {
-      setPwError(e?.response?.data?.message ?? 'Failed to change password')
+    } catch (e) {
+      setPwError((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to change password')
     }
   }
 
@@ -75,7 +75,11 @@ export default function SettingsPage() {
     allowSecurity: true,
   })
 
-  useEffect(() => {
+  // Sync local toggle state from the server-provided prefs during render
+  // (avoids a cascading setState inside an effect).
+  const [prevNotifPrefs, setPrevNotifPrefs] = useState(notifPrefs)
+  if (notifPrefs !== prevNotifPrefs) {
+    setPrevNotifPrefs(notifPrefs)
     if (notifPrefs) {
       setNotifState({
         allowMarketing: notifPrefs.allowMarketing ?? false,
@@ -83,7 +87,7 @@ export default function SettingsPage() {
         allowSecurity: notifPrefs.allowSecurity ?? true,
       })
     }
-  }, [notifPrefs])
+  }
 
   const toggleNotif = async (key: 'allowMarketing' | 'allowSystem' | 'allowSecurity') => {
     const next = !notifState[key]

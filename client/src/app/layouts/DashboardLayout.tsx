@@ -2,7 +2,6 @@ import {
   LogOut,
   Menu,
   ChevronDown,
-  ChevronRight,
   MoreHorizontal,
 } from 'lucide-react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'

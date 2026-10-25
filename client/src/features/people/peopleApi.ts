@@ -21,18 +21,6 @@ export interface CreatePersonPayload {
   instituteId?: string
 }
 
-const personListEndpoints = (url: string) => ({
-  getList: (builder: any) => ({
-    query: () => url,
-    transformResponse: (res: any) => res?.data ?? res ?? [],
-    providesTags: [{ type: 'Person', id: 'LIST' }],
-  }),
-  create: (builder: any) => ({
-    query: (payload: CreatePersonPayload) => ({ url, method: 'POST', body: payload }),
-    invalidatesTags: [{ type: 'Person', id: 'LIST' }],
-  }),
-})
-
 export const employeesApi = createApi({
   reducerPath: 'employeesApi',
   baseQuery: axiosBaseQuery,
@@ -40,11 +28,32 @@ export const employeesApi = createApi({
   endpoints: (builder) => ({
     getEmployees: builder.query<Person[], void>({
       query: () => '/employees',
-      transformResponse: (res: any) => res?.data ?? res ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? res ?? []) as Person[],
       providesTags: [{ type: 'Person', id: 'EMPLOYEES' }],
     }),
     createEmployee: builder.mutation<Person, CreatePersonPayload>({
       query: (payload) => ({ url: '/employees', method: 'POST', body: payload }),
+      invalidatesTags: [{ type: 'Person', id: 'EMPLOYEES' }],
+    }),
+    getEmployee: builder.query<Person, string>({
+      query: (publicId) => `/employees/${publicId}`,
+      transformResponse: (res: { data?: unknown }) =>
+        (res?.data ?? res ?? {}) as Person,
+      providesTags: (_r, _e, publicId) => [{ type: 'Person', id: publicId }],
+    }),
+    updateEmployee: builder.mutation<
+      Person,
+      { publicId: string; changes: { name?: string; status?: string } }
+    >({
+      query: ({ publicId, changes }) => ({
+        url: `/employees/${publicId}`,
+        method: 'PUT',
+        body: changes,
+      }),
+      invalidatesTags: [{ type: 'Person', id: 'EMPLOYEES' }],
+    }),
+    deleteEmployee: builder.mutation<{ success: boolean }, string>({
+      query: (publicId) => ({ url: `/employees/${publicId}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Person', id: 'EMPLOYEES' }],
     }),
   }),
@@ -57,17 +66,41 @@ export const hrsApi = createApi({
   endpoints: (builder) => ({
     getHRs: builder.query<Person[], void>({
       query: () => '/hr',
-      transformResponse: (res: any) => res?.data ?? res ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? res ?? []) as Person[],
       providesTags: [{ type: 'Person', id: 'HRS' }],
     }),
     createHR: builder.mutation<Person, CreatePersonPayload>({
       query: (payload) => ({ url: '/hr', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Person', id: 'HRS' }],
     }),
+    updateHR: builder.mutation<
+      Person,
+      { publicId: string; changes: { name?: string; status?: string } }
+    >({
+      query: ({ publicId, changes }) => ({
+        url: `/hr/${publicId}`,
+        method: 'PUT',
+        body: changes,
+      }),
+      invalidatesTags: [{ type: 'Person', id: 'HRS' }],
+    }),
+    deleteHR: builder.mutation<{ success: boolean }, string>({
+      query: (publicId) => ({ url: `/hr/${publicId}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'Person', id: 'HRS' }],
+    }),
   }),
 })
 
-void personListEndpoints
-
-export const { useGetEmployeesQuery, useCreateEmployeeMutation } = employeesApi
-export const { useGetHRsQuery, useCreateHRMutation } = hrsApi
+export const {
+  useGetEmployeesQuery,
+  useCreateEmployeeMutation,
+  useGetEmployeeQuery,
+  useUpdateEmployeeMutation,
+  useDeleteEmployeeMutation,
+} = employeesApi
+export const {
+  useGetHRsQuery,
+  useCreateHRMutation,
+  useUpdateHRMutation,
+  useDeleteHRMutation,
+} = hrsApi

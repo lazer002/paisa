@@ -25,7 +25,8 @@ router.get(
     "super_admin",
     "admin",
     "teacher",
-    "student"
+    "student",
+    "parent"
   ),
   getClasses
 );
@@ -36,7 +37,8 @@ router.get(
     "super_admin",
     "admin",
     "teacher",
-    "student"
+    "student",
+    "parent"
   ),
   getClass
 );

@@ -13,7 +13,10 @@ import {
 import { getUserDetail } from "../controllers/userDetailController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import {
+  requireRole,
+  authorize,
+} from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -38,10 +41,9 @@ router.post(
 
 router.get(
   "/",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({
+    anyPermissions: ["user:read"],
+  }),
   getUsers
 );
 
@@ -52,10 +54,9 @@ router.get(
 
 router.get(
   "/:publicId/detail",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({
+    anyPermissions: ["user:read"],
+  }),
   getUserDetail
 );
 
@@ -66,10 +67,9 @@ router.get(
 
 router.get(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({
+    anyPermissions: ["user:read"],
+  }),
   getUserById
 );
 
@@ -80,10 +80,9 @@ router.get(
 
 router.put(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({
+    anyPermissions: ["user:update"],
+  }),
   updateUser
 );
 
@@ -95,7 +94,8 @@ router.put(
 router.delete(
   "/:publicId",
   requireRole(
-    "super_admin"
+    "super_admin",
+    "admin"
   ),
   deleteUser
 );

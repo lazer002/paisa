@@ -11,8 +11,19 @@ import { Announcement } from "../models/Announcement.js";
 import { Class } from "../models/Class.js";
 import { Department } from "../models/Department.js";
 
+import { Invoice } from "../models/Payment.js";
+import { Lead } from "../models/Lead.js";
+import { Deal } from "../models/Deal.js";
+import { Ticket } from "../models/Ticket.js";
+
 import { asyncHandler } from "../utils/errorHandler.js";
 import { sendSuccess } from "../utils/response.js";
+
+/** Org-scoped counts for non-platform roles. */
+const orgScope = (req) =>
+  req.user.role === "super_admin"
+    ? {}
+    : { instituteId: req.user.instituteId };
 
 /* =========================================================
    SUPER ADMIN STATS
@@ -403,5 +414,131 @@ export const getEmployeeStats = asyncHandler(
         attendancePercent,
       }
     );
+  }
+);
+
+/* =========================================================
+   ACCOUNTANT STATS
+========================================================= */
+
+export const getAccountantStats = asyncHandler(
+  async (req, res) => {
+    const scope = orgScope(req);
+
+    const [totalInvoices, paidInvoices, openInvoices] =
+      await Promise.all([
+        Invoice.countDocuments(scope),
+
+        Invoice.countDocuments({
+          ...scope,
+          status: "paid",
+        }),
+
+        Invoice.countDocuments({
+          ...scope,
+          status: {
+            $in: ["draft", "sent", "partial", "overdue"],
+          },
+        }),
+      ]);
+
+    const outstandingAgg = await Invoice.aggregate([
+      { $match: { ...scope, amountDue: { $gt: 0 } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amountDue" },
+        },
+      },
+    ]);
+
+    const outstanding =
+      outstandingAgg[0]?.total || 0;
+
+    sendSuccess(res, "Accountant stats", {
+      totalInvoices,
+      paidInvoices,
+      openInvoices,
+      outstanding,
+    });
+  }
+);
+
+/* =========================================================
+   COUNSELOR STATS
+========================================================= */
+
+export const getCounselorStats = asyncHandler(
+  async (req, res) => {
+    const scope = orgScope(req);
+
+    const [totalLeads, newLeads, convertedLeads, openDeals] =
+      await Promise.all([
+        Lead.countDocuments(scope),
+
+        Lead.countDocuments({
+          ...scope,
+          status: "new",
+        }),
+
+        Lead.countDocuments({
+          ...scope,
+          status: "converted",
+        }),
+
+        Deal.countDocuments({
+          ...scope,
+          status: "open",
+        }),
+      ]);
+
+    sendSuccess(res, "Counselor stats", {
+      totalLeads,
+      newLeads,
+      convertedLeads,
+      openDeals,
+    });
+  }
+);
+
+/* =========================================================
+   SUPPORT STATS
+========================================================= */
+
+export const getSupportStats = asyncHandler(
+  async (req, res) => {
+    const scope = orgScope(req);
+
+    const [totalTickets, openTickets, resolvedTickets] =
+      await Promise.all([
+        Ticket.countDocuments(scope),
+
+        Ticket.countDocuments({
+          ...scope,
+          status: {
+            $in: [
+              "open",
+              "pending",
+              "in_progress",
+              "waiting_for_user",
+              "waiting_for_internal",
+              "reopened",
+            ],
+          },
+        }),
+
+        Ticket.countDocuments({
+          ...scope,
+          status: {
+            $in: ["resolved", "closed"],
+          },
+        }),
+      ]);
+
+    sendSuccess(res, "Support stats", {
+      totalTickets,
+      openTickets,
+      resolvedTickets,
+    });
   }
 );

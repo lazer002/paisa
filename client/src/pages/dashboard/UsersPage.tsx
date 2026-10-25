@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Search,
   Plus,
@@ -19,16 +19,10 @@ import {
   X,
   Eye,
   Lock,
-  Building2,
   ChevronRight,
   ChevronLeft,
-  CalendarDays,
-  MapPin,
   Phone,
   BookOpen,
-  ClipboardList,
-  Award,
-  Clock3,
   Hash,
   UserCheck,
 } from 'lucide-react'
@@ -39,7 +33,7 @@ import {
   useCreateUserMutation,
   useUpdateUserMutation,
 } from '@/features/users/usersApi'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 type Role =
   | 'super_admin'
@@ -90,15 +84,15 @@ type CreateUserPayload = {
     bloodGroup?: string
     bio?: string
   }
-  teacher?: Record<string, any>
-  student?: Record<string, any>
-  employee?: Record<string, any>
-  hr?: Record<string, any>
-  principal?: Record<string, any>
-  accountant?: Record<string, any>
-  counselor?: Record<string, any>
-  parent?: Record<string, any>
-  support?: Record<string, any>
+  teacher?: Record<string, unknown>
+  student?: Record<string, unknown>
+  employee?: Record<string, unknown>
+  hr?: Record<string, unknown>
+  principal?: Record<string, unknown>
+  accountant?: Record<string, unknown>
+  counselor?: Record<string, unknown>
+  parent?: Record<string, unknown>
+  support?: Record<string, unknown>
 }
 
 type RoleForm = {
@@ -202,11 +196,16 @@ function splitList(value: string) {
     .filter(Boolean)
 }
 
-function getErrorMessage(error: any) {
+function getErrorMessage(error: unknown) {
+  const e = error as {
+    data?: { message?: string }
+    error?: { data?: { message?: string } }
+    message?: string
+  }
   return (
-    error?.data?.message ||
-    error?.error?.data?.message ||
-    error?.message ||
+    e?.data?.message ||
+    e?.error?.data?.message ||
+    e?.message ||
     'Something went wrong'
   )
 }
@@ -498,31 +497,40 @@ function CreateUserModal({
     }))
   }
 
-  useEffect(() => {
-    if (!open) return
+  // Reset the create form during render when the modal opens or the role
+  // context changes (avoids a cascading setState inside an effect).
+  const [prevCreateCtx, setPrevCreateCtx] = useState<{
+    open: boolean
+    roles: Role[]
+    actor: Role
+  }>({ open, roles: availableRoles, actor: actorRole })
+  if (
+    open !== prevCreateCtx.open ||
+    availableRoles !== prevCreateCtx.roles ||
+    actorRole !== prevCreateCtx.actor
+  ) {
+    setPrevCreateCtx({
+      open,
+      roles: availableRoles,
+      actor: actorRole,
+    })
+    if (open) {
+      setName('')
+      setEmail('')
+      setPassword('')
+      setError('')
+      setForm(EMPTY_ROLE_FORM)
+      setActiveSection('account')
 
-    setName('')
-    setEmail('')
-    setPassword('')
-    setError('')
-    setForm(EMPTY_ROLE_FORM)
-    setActiveSection('account')
-
-    const firstRole =
-      availableRoles.find(
+      const firstRole = availableRoles.find(
         (item) =>
           item !== 'admin' ||
           actorRole === 'super_admin'
       )
 
-    setRole(
-      (firstRole as Role | undefined) ?? ''
-    )
-  }, [
-    open,
-    availableRoles,
-    actorRole,
-  ])
+      setRole((firstRole as Role | undefined) ?? '')
+    }
+  }
 
   const generatePassword = () => {
     const chars =
@@ -2983,7 +2991,12 @@ function UserRow({
 export default function UsersPage() {
   const currentUser = useAppSelector(
     (state) => state.auth.user
-  ) as any
+  ) as {
+    role?: string
+    instituteId?: string
+    organization?: { type?: string } | null
+    institute?: { type?: string } | null
+  } | null
 const Navigate = useNavigate()
   const actorRole =
     (currentUser?.role ??
@@ -3053,11 +3066,11 @@ const Navigate = useNavigate()
     isError,
     refetch,
   } = useGetUsersQuery(
-    query as any
+    query
   )
 
   const users: UserRecord[] =
-    (data ?? []).map((user: any) => ({
+    (data ?? []).map((user) => ({
       ...user,
 
       role:

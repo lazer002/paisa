@@ -1,6 +1,5 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
-import { rid } from '@/features/users/usersApi'
 
 export interface ClassSchedule {
   days?: string[]
@@ -52,7 +51,7 @@ export const classesApi = createApi({
             }
           : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as SchoolClass[],
       providesTags: (r) =>
         r
           ? [...r.map((c) => ({ type: 'Class' as const, id: c._id })), { type: 'Class' as const, id: 'LIST' }]
@@ -60,7 +59,7 @@ export const classesApi = createApi({
     }),
     getClass: builder.query<SchoolClass, string>({
       query: (id) => `/classes/${id}`,
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as SchoolClass,
       providesTags: (r, e, id) => [{ type: 'Class', id }],
     }),
     createClass: builder.mutation<SchoolClass, ClassPayload>({

@@ -17,16 +17,19 @@ export interface OrgListResult {
   limit: number
 }
 
-function normalizeListResponse(res: any): OrgListResult {
-  const d = res?.data?.data ?? res?.data
+function normalizeListResponse(res: { data?: unknown }): OrgListResult {
+  const outer = res?.data as Record<string, unknown> | unknown[] | undefined
+  const d = (Array.isArray(outer) ? undefined : (outer as Record<string, unknown> | undefined)?.data) ?? outer
   if (Array.isArray(d)) {
-    return { data: d, total: d.length, page: 1, limit: d.length }
+    return { data: d as Organization[], total: d.length, page: 1, limit: d.length }
   }
+  const obj = d as Record<string, unknown> | undefined
+  const pagination = obj?.pagination as { total?: number; page?: number; limit?: number } | undefined
   return {
-    data: d?.organizations ?? d?.data ?? d ?? [],
-    total: d?.pagination?.total ?? d?.total ?? 0,
-    page: d?.pagination?.page ?? d?.page ?? 1,
-    limit: d?.pagination?.limit ?? d?.limit ?? 12,
+    data: (obj?.organizations ?? obj?.data ?? obj ?? []) as Organization[],
+    total: pagination?.total ?? (obj?.total as number | undefined) ?? 0,
+    page: pagination?.page ?? (obj?.page as number | undefined) ?? 1,
+    limit: pagination?.limit ?? (obj?.limit as number | undefined) ?? 12,
   }
 }
 

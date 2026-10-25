@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Trash2, Star, Send } from 'lucide-react'
+import { BookOpen, Plus, Trash2, Send } from 'lucide-react'
 import {
   useGetAssignmentsQuery,
   useCreateAssignmentMutation,
@@ -10,7 +10,6 @@ import {
 import {
   useGetSubmissionsQuery,
   useSubmitAssignmentMutation,
-  useGradeSubmissionMutation,
 } from '@/features/assignments/assignmentsApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
@@ -34,7 +33,6 @@ export default function AssignmentsPage() {
   const [createAssignment, { isLoading: createPending }] = useCreateAssignmentMutation()
   const [deleteAssignment] = useDeleteAssignmentMutation()
   const [submitAssignment, { isLoading: submitPending }] = useSubmitAssignmentMutation()
-  const [gradeSubmission] = useGradeSubmissionMutation()
 
   const [showCreate, setShowCreate] = useState(false)
   const [error, setError] = useState('')
@@ -44,7 +42,7 @@ export default function AssignmentsPage() {
   const [dueDate, setDueDate] = useState('')
   const [maxScore, setMaxScore] = useState('100')
 
-  const [submitFor, setSubmitFor] = useState<any>(null)
+  const [submitFor, setSubmitFor] = useState<Assignment | null>(null)
   const [submissionText, setSubmissionText] = useState('')
 
   const mySubmissionFor = (assignment: Assignment) =>
@@ -61,15 +59,9 @@ export default function AssignmentsPage() {
       }).unwrap()
       setShowCreate(false)
       setTitle(''); setDescription(''); setDueDate('')
-    } catch (e: any) {
-      setError(e?.data?.message ?? 'Failed to create assignment')
+    } catch (e) {
+      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to create assignment')
     }
-  }
-
-  const handleGrade = async (sub: any, score: number) => {
-    try {
-      await gradeSubmission({ id: (sub as Submission).publicId ?? (sub as Submission)._id, score }).unwrap()
-    } catch { /* errors surface via list refresh */ }
   }
 
   return (
@@ -189,11 +181,12 @@ export default function AssignmentsPage() {
       <Modal open={!!submitFor} onClose={() => setSubmitFor(null)} title={`Submit — ${submitFor?.title ?? ''}`} size="md">
         <form onSubmit={async (e) => {
           e.preventDefault()
+          if (!submitFor) return
           try {
             await submitAssignment({ assignmentId: rid(submitFor), content: submissionText }).unwrap()
             setSubmitFor(null)
-          } catch (e: any) {
-            alert(e?.data?.message ?? 'Failed to submit')
+          } catch (e) {
+            alert((e as { data?: { message?: string } })?.data?.message ?? 'Failed to submit')
           }
         }} className="space-y-4">
           <div>

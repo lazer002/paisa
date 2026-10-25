@@ -19,13 +19,13 @@ router.use(authenticate);
 
 router.get(
   "/",
-  requireRole("super_admin", "admin", "teacher", "student"),
+  requireRole("super_admin", "admin", "teacher", "student", "parent"),
   getAssignments
 );
 
 router.get(
   "/:publicId",
-  requireRole("super_admin", "admin", "teacher", "student"),
+  requireRole("super_admin", "admin", "teacher", "student", "parent"),
   getAssignment
 );
 

@@ -1,4 +1,4 @@
-import { Building, Building2 } from 'lucide-react'
+import { Building } from 'lucide-react'
 import { useGetOrganizationsQuery } from '@/features/organizations/organizationsApi'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Megaphone, Plus, Pencil, Trash2, AlertTriangle, Pin,
+  Megaphone, Plus, Pencil, Trash2, AlertTriangle,
 } from 'lucide-react'
 
 import {
@@ -149,8 +149,8 @@ export default function AnnouncementsPage() {
       else await createAnnouncement(d).unwrap()
       setShowCreate(false)
       setEditItem(null)
-    } catch (e: any) {
-      setFormError(e?.data?.message ?? 'Failed to save announcement')
+    } catch (e) {
+      setFormError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to save announcement')
     }
   }
 

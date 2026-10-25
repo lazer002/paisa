@@ -55,8 +55,8 @@ function ProcessPayrollModal({
         deductions: { other: Number(deduction) || 0 },
       }).unwrap()
       onClose()
-    } catch (e: any) {
-      setError(e?.data?.message ?? 'Failed to process payroll')
+    } catch (e) {
+      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to process payroll')
     }
   }
 

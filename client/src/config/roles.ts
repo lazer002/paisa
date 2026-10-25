@@ -30,6 +30,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { roleCan, type Permission } from './permissions'
+
 export type Role =
   | 'super_admin'
   | 'admin'
@@ -48,6 +50,75 @@ export interface NavItem {
   icon: LucideIcon
   path: string
   roles?: Role[]
+}
+
+/**
+ * Permission required to open each route — and therefore to see its nav
+ * entry. Mirrors the server route gates, so the sidebar can never promise a
+ * page the API would reject. Paths absent from this map are self-service and
+ * open to every authenticated role (e.g. /dashboard, /dashboard/settings).
+ */
+export const PATH_PERMISSION: Record<string, Permission> = {
+  // Platform
+  '/dashboard/organizations': 'organization:read',
+  '/dashboard/companies': 'organization:read',
+  '/dashboard/institutes': 'organization:read',
+  '/dashboard/users': 'user:manage',
+  '/dashboard/reports': 'report:read',
+
+  // Organization
+  '/dashboard/departments': 'department:read',
+  '/dashboard/hr-ops': 'hr:read',
+
+  // People
+  '/dashboard/students': 'student:read',
+  '/dashboard/employees': 'employee:read',
+  '/dashboard/teachers': 'teacher:read',
+
+  // Learning
+  '/dashboard/classes': 'class:read',
+  '/dashboard/enrollments': 'enrollment:read',
+  '/dashboard/assignments': 'assignment:read',
+  '/dashboard/tests': 'test:read',
+  '/dashboard/materials': 'study_material:read',
+  '/dashboard/live-sessions': 'live_session:read',
+  '/dashboard/attendance': 'attendance:read',
+
+  // HR
+  '/dashboard/hr': 'hr:read',
+  '/dashboard/leaves': 'leave:read',
+  '/dashboard/payroll': 'payroll:read',
+
+  // Communication
+  '/dashboard/messages': 'conversation:read',
+  '/dashboard/announcements': 'notification:read',
+  '/dashboard/events': 'notification:read',
+
+  // Finance
+  '/dashboard/billing': 'invoice:read',
+  '/dashboard/invoices': 'invoice:read',
+
+  // Services
+  '/dashboard/crm': 'crm:read',
+  '/dashboard/tickets': 'ticket:read',
+  '/dashboard/gamification': 'gamification:read',
+}
+
+/**
+ * A nav item is visible when the role passes BOTH the product-level role
+ * filter and the permission required for the route.
+ */
+function itemAllowed(role: string, item: NavItem): boolean {
+  if (item.roles && !item.roles.includes(role as Role)) {
+    return false
+  }
+
+  const required = PATH_PERMISSION[item.path]
+  if (required && !roleCan(role, required)) {
+    return false
+  }
+
+  return true
 }
 
 export interface NavSection {
@@ -105,7 +176,16 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Reports',
         icon: BarChart3,
         path: '/dashboard/reports',
-        roles: ['super_admin'],
+        roles: [
+          'super_admin',
+          'admin',
+          'principal',
+          'hr',
+          'accountant',
+          'counselor',
+          'teacher',
+          'support',
+        ],
       },
     ],
   },
@@ -319,6 +399,7 @@ export const NAV_SECTIONS: NavSection[] = [
           'principal',
           'hr',
           'employee',
+          'teacher',
         ],
       },
       {
@@ -370,6 +451,7 @@ export const NAV_SECTIONS: NavSection[] = [
           'student',
           'hr',
           'employee',
+          'counselor',
           'parent',
         ],
       },
@@ -384,6 +466,7 @@ export const NAV_SECTIONS: NavSection[] = [
           'student',
           'hr',
           'employee',
+          'counselor',
           'parent',
         ],
       },
@@ -485,6 +568,12 @@ export const NAV_SECTIONS: NavSection[] = [
           'parent',
         ],
       },
+      {
+        label: 'My Leaves',
+        icon: FileText,
+        path: '/dashboard/leaves',
+        roles: ['student'],
+      },
     ],
   },
 
@@ -558,10 +647,7 @@ export function allowedPathsForRole(role: string): Set<string> {
 
   for (const section of NAV_SECTIONS) {
     for (const item of section.items) {
-      if (
-        !item.roles ||
-        item.roles.includes(role as Role)
-      ) {
+      if (itemAllowed(role, item)) {
         allowed.add(item.path)
       }
     }
@@ -578,10 +664,8 @@ export function navForRole(role: string): NavSection[] {
   return NAV_SECTIONS
     .map((section) => ({
       ...section,
-      items: section.items.filter(
-        (item) =>
-          !item.roles ||
-          item.roles.includes(role as Role),
+      items: section.items.filter((item) =>
+        itemAllowed(role, item),
       ),
     }))
     .filter(

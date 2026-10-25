@@ -69,8 +69,8 @@ export const departmentsApi = createApi({
           : undefined,
       }),
 
-      transformResponse: (res: any) =>
-        res?.data ?? res ?? [],
+      transformResponse: (res: { data?: unknown }) =>
+        (res?.data ?? res ?? []) as Department[],
 
       providesTags: (result) =>
         result
@@ -102,8 +102,8 @@ export const departmentsApi = createApi({
         body: payload,
       }),
 
-      transformResponse: (res: any) =>
-        res?.data ?? res,
+      transformResponse: (res: { data?: unknown }) =>
+        (res?.data ?? res) as Department,
 
       invalidatesTags: [
         {
@@ -126,8 +126,8 @@ export const departmentsApi = createApi({
         body: payload,
       }),
 
-      transformResponse: (res: any) =>
-        res?.data ?? res,
+      transformResponse: (res: { data?: unknown }) =>
+        (res?.data ?? res) as Department,
 
       invalidatesTags: (result, error, { id }) => [
         {

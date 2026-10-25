@@ -32,9 +32,9 @@ export default function EventsPage() {
   const [location, setLocation] = useState('')
   const [eventType, setEventType] = useState('meeting')
 
-  // "Now" is snapshotted when the events data changes, keeping the
-  // upcoming/past split stable across re-renders.
-  const now = useMemo(() => Date.now(), [events])
+  // "Now" is captured once so the upcoming/past split stays stable for the
+  // lifetime of this view (a lazy initializer runs a single time on mount).
+  const [now] = useState(() => Date.now())
 
   const { upcoming, past } = useMemo(() => {
     const sorted = [...(events ?? [])].sort(

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BookMarked, Plus, Trash2, ExternalLink, FileVideo, FileText, Link2 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import {
   useGetMaterialsQuery,
   useCreateMaterialMutation,
@@ -14,7 +15,7 @@ import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
 
-const TYPE_ICON: Record<string, any> = {
+const TYPE_ICON: Record<string, LucideIcon> = {
   pdf: FileText, video: FileVideo, link: Link2, other: BookMarked,
 }
 
@@ -46,8 +47,8 @@ export default function MaterialsPage() {
       }).unwrap()
       setShowCreate(false)
       setTitle(''); setUrl(''); setSubject('')
-    } catch (e: any) {
-      setError(e?.data?.message ?? 'Failed to upload material')
+    } catch (e) {
+      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload material')
     }
   }
 

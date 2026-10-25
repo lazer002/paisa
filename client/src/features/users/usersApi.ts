@@ -276,18 +276,18 @@ employment?: {
 ========================================================= */
 
 export interface UserActivity {
-  leaves: any[]
-  payrolls: any[]
+  leaves: Record<string, unknown>[]
+  payrolls: Record<string, unknown>[]
 
   attendancePercent: number | null
 
-  recentAttendance: any[]
+  recentAttendance: Record<string, unknown>[]
 
-  teachingClasses: any[]
+  teachingClasses: Record<string, unknown>[]
 
-  enrolledClasses: any[]
+  enrolledClasses: Record<string, unknown>[]
 
-  studentProfile: any
+  studentProfile: Record<string, unknown> | null
 }
 
 export interface UserDetailResponse {
@@ -351,8 +351,8 @@ export const usersApi = createApi({
           : undefined,
       }),
 
-      transformResponse: (res: any) => {
-        return res?.data ?? res ?? []
+      transformResponse: (res: { data?: unknown }) => {
+        return (res?.data ?? res ?? []) as OrgUser[]
       },
 
       providesTags: (result) => {
@@ -389,8 +389,8 @@ export const usersApi = createApi({
         method: 'GET',
       }),
 
-      transformResponse: (res: any) => {
-        return res?.data ?? res
+      transformResponse: (res: { data?: unknown }) => {
+        return (res?.data ?? res) as OrgUser
       },
 
       providesTags: (result, error, id) => [
@@ -414,8 +414,8 @@ export const usersApi = createApi({
         method: 'GET',
       }),
 
-      transformResponse: (res: any) => {
-        return res?.data ?? res
+      transformResponse: (res: { data?: unknown }) => {
+        return (res?.data ?? res) as UserDetailResponse
       },
 
       providesTags: (result, error, id) => [
@@ -445,8 +445,8 @@ export const usersApi = createApi({
         body: payload,
       }),
 
-      transformResponse: (res: any) => {
-        return res?.data ?? res
+      transformResponse: (res: { data?: unknown }) => {
+        return (res?.data ?? res) as OrgUser
       },
 
       invalidatesTags: [
@@ -474,8 +474,8 @@ export const usersApi = createApi({
         body: payload,
       }),
 
-      transformResponse: (res: any) => {
-        return res?.data ?? res
+      transformResponse: (res: { data?: unknown }) => {
+        return (res?.data ?? res) as OrgUser
       },
 
       invalidatesTags: (result, error, { id }) => [
@@ -501,7 +501,7 @@ export const usersApi = createApi({
     ===================================================== */
 
     deleteUser: builder.mutation<
-      any,
+      unknown,
       string
     >({
       query: (id) => ({
@@ -509,7 +509,7 @@ export const usersApi = createApi({
         method: 'DELETE',
       }),
 
-      transformResponse: (res: any) => {
+      transformResponse: (res: { data?: unknown }) => {
         return res?.data ?? res
       },
 
@@ -544,8 +544,8 @@ getReportingManagers: builder.query<
     },
   }),
 
-  transformResponse: (res: any) =>
-    res?.data ?? res ?? [],
+  transformResponse: (res: { data?: unknown }) =>
+    (res?.data ?? res ?? []) as OrgUser[],
 
   providesTags: [{ type: 'User', id: 'REPORTING_MANAGERS' }],
 }),

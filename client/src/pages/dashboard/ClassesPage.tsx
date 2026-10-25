@@ -11,6 +11,7 @@ import {
   useEnrollStudentMutation,
   useRemoveStudentMutation,
   type SchoolClass,
+  type ClassPayload,
 } from '@/features/classes/classesApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
@@ -22,12 +23,14 @@ import Modal from '@/components/ui/Modal'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+type StudentRef = { _id: string; publicId?: string; name?: string; email?: string } | string
+
 function ClassModal({
   open, onClose, onSubmit, loading, error, initial, canAssignTeacher,
 }: {
   open: boolean
   onClose: () => void
-  onSubmit: (d: any) => void
+  onSubmit: (d: ClassPayload) => void
   loading: boolean
   error: string
   initial: SchoolClass | null
@@ -40,7 +43,7 @@ function ClassModal({
   const [teacherId, setTeacherId] = useState(
     typeof initial?.teacherId === 'object' ? (initial?.teacherId as { publicId?: string })?.publicId ?? '' : initial?.teacherId ?? '',
   )
-  const [maxStudents, setMaxStudents] = useState(initial?.maxStudents ?? 50)
+  const [maxStudents] = useState(initial?.maxStudents ?? 50)
   const [days, setDays] = useState<string[]>(initial?.schedule?.days ?? [])
   const [startTime, setStartTime] = useState(initial?.schedule?.startTime ?? '')
   const [endTime, setEndTime] = useState(initial?.schedule?.endTime ?? '')
@@ -163,15 +166,15 @@ export default function ClassesPage() {
   const [manageClass, setManageClass] = useState<SchoolClass | null>(null)
   const [formError, setFormError] = useState('')
 
-  const handleSubmit = async (d: any) => {
+  const handleSubmit = async (d: ClassPayload) => {
     setFormError('')
     try {
       if (editClass) await updateClass({ id: rid(editClass), payload: d }).unwrap()
       else await createClass(d).unwrap()
       setShowCreate(false)
       setEditClass(null)
-    } catch (e: any) {
-      setFormError(e?.data?.message ?? 'Failed to save class')
+    } catch (e) {
+      setFormError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to save class')
     }
   }
 
@@ -278,15 +281,18 @@ export default function ClassesPage() {
                 {(manageClass.studentIds ?? []).length === 0 && (
                   <p className="text-sm text-gray-400">No students enrolled yet.</p>
                 )}
-                {(manageClass.studentIds ?? []).map((s: any) => (
-                  <div key={s.publicId ?? s._id ?? s} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                {(manageClass.studentIds ?? []).map((raw) => {
+                  const s: { _id: string; publicId?: string; name?: string; email?: string } =
+                    typeof raw === 'string' ? { _id: raw } : raw
+                  return (
+                  <div key={s.publicId ?? s._id} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{s.name ?? '—'}</p>
                       <p className="text-xs text-gray-400">{s.email ?? ''}</p>
                     </div>
                     <button
                       onClick={async () => {
-                        const updated = await removeStudent({ id: rid(manageClass), studentId: s.publicId ?? s._id ?? s }).unwrap()
+                        const updated = await removeStudent({ id: rid(manageClass), studentId: s.publicId ?? s._id }).unwrap()
                         setManageClass(updated)
                       }}
                       className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50"
@@ -295,7 +301,8 @@ export default function ClassesPage() {
                       <UserMinus size={15} />
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -303,7 +310,7 @@ export default function ClassesPage() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Enroll a student</p>
               <div className="space-y-1.5">
                 {(students ?? [])
-                  .filter((s) => !(manageClass.studentIds ?? []).some((e: any) => (e.publicId ?? e._id ?? e) === (s.publicId ?? s._id)))
+                  .filter((s) => !(manageClass.studentIds ?? []).some((e: StudentRef) => (typeof e === 'string' ? e : e.publicId ?? e._id) === (s.publicId ?? s._id)))
                   .slice(0, 8)
                   .map((s) => (
                     <div key={rid(s)} className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">

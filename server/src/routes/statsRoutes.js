@@ -9,6 +9,9 @@ import {
   getStudentStats,
   getHRStats,
   getEmployeeStats,
+  getAccountantStats,
+  getCounselorStats,
+  getSupportStats,
 } from "../controllers/statsController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -25,12 +28,13 @@ router.get(
   getSuperAdminStats
 );
 
-// Admin statistics
+// Admin statistics (admin & principal share org-wide stats)
 router.get(
   "/admin",
   requireRole(
     "super_admin",
-    "admin"
+    "admin",
+    "principal"
   ),
   getAdminStats
 );
@@ -65,6 +69,27 @@ router.get(
   "/employee",
   requireRole("employee"),
   getEmployeeStats
+);
+
+// Accountant statistics
+router.get(
+  "/accountant",
+  requireRole("accountant"),
+  getAccountantStats
+);
+
+// Counselor statistics
+router.get(
+  "/counselor",
+  requireRole("counselor"),
+  getCounselorStats
+);
+
+// Support statistics
+router.get(
+  "/support",
+  requireRole("support"),
+  getSupportStats
 );
 
 export default router;

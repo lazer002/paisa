@@ -7,10 +7,9 @@ import {
 import {
   useGetOrganizationsQuery,
 } from '@/features/organizations/organizationsApi'
-import { useGetUsersQuery, rid } from '@/features/users/usersApi'
+import { useGetUsersQuery, rid, type OrgUser } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
 import { useAppSelector } from '@/app/store'
-import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState } from '@/components/ui/StateViews'
 import Badge from '@/components/ui/badge'
 import StatCard from '@/components/ui/StatCard'
@@ -30,7 +29,7 @@ const ROLE_THEME: Record<string, { chip: string; ring: string; dot: string; labe
   student: { chip: 'bg-indigo-600', ring: 'ring-indigo-200', dot: 'bg-indigo-500', label: 'Students' },
 }
 
-function PersonCard({ p, accent }: { p: any; accent: string }) {
+function PersonCard({ p, accent }: { p: OrgUser; accent: string }) {
   return (
     <Link
       to={`/dashboard/users/${p.publicId ?? p._id}`}
@@ -51,7 +50,7 @@ function RoleGroup({
   role, people, max = 4,
 }: {
   role: string
-  people: any[]
+  people: OrgUser[]
   max?: number
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -106,7 +105,7 @@ function RoleGroup({
   )
 }
 
-function OrgChart({ members }: { members: any[] }) {
+function OrgChart({ members }: { members: OrgUser[] }) {
   const byRole = (r: string) => members.filter((m) => m.role === r)
   const admins = byRole('admin')
   const midLayer = [
@@ -156,7 +155,7 @@ function OrgChart({ members }: { members: any[] }) {
               {midLayer.length > 1 && (
                 <div className="absolute top-0 h-px bg-gray-200" style={{ width: `${(midLayer.length - 1) * 8}rem`, left: '50%', transform: 'translateX(-50%)' }} />
               )}
-              {midLayer.map((g, i) => (
+              {midLayer.map((g) => (
                 <div key={g.role} className="relative flex flex-col items-center">
                   {/* drop line from rail */}
                   {midLayer.length > 1 && <div className="h-4 w-px bg-gray-200" />}
@@ -205,15 +204,17 @@ export default function OrganizationDetailPage() {
   const org = (data?.data ?? []).find((o) => rid(o) === id)
   const orgMongoId = org?._id ? String(org._id) : null
 
-  const matchesOrg = (value: any) => {
+  const matchesOrg = (value: unknown) => {
     if (!orgMongoId) return false
     const valueId =
-      typeof value === 'object' && value ? value._id ?? value : value
+      typeof value === 'object' && value
+        ? (value as { _id?: string })._id ?? value
+        : value
     return valueId != null && String(valueId) === orgMongoId
   }
 
   const orgMembers = (members ?? []).filter((m) => matchesOrg(m.instituteId))
-  const orgDepartments = (departments ?? []).filter((d: any) => matchesOrg(d.instituteId))
+  const orgDepartments = (departments ?? []).filter((d) => matchesOrg(d.instituteId))
 
   const [tab, setTab] = useState<'overview' | 'members' | 'departments' | 'chart'>('overview')
 
@@ -367,7 +368,7 @@ export default function OrganizationDetailPage() {
 
       {tab === 'departments' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {orgDepartments.map((d: any) => (
+          {orgDepartments.map((d) => (
             <div key={d.publicId ?? d._id} className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">{d.name}</h3>

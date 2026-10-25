@@ -40,7 +40,7 @@ export const leavesApi = createApi({
             }
           : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Leave[],
       providesTags: [{ type: 'Leave', id: 'LIST' }],
     }),
     applyLeave: builder.mutation<

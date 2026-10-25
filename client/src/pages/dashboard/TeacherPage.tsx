@@ -9,14 +9,12 @@ import {
   Trash2,
   GraduationCap,
   Users,
-  UserCheck,
   X,
   Check,
   ChevronDown,
   BookOpen,
   BriefcaseBusiness,
   Mail,
-  Phone,
 } from 'lucide-react'
 
 import {
@@ -98,7 +96,7 @@ export default function TeachersPage() {
   })
 
   const availableTeachers = useMemo(() => {
-    const linkedUserIds = new Set(
+    const linkedUserIds = new Set<string | null | undefined>(
       teachers.map((teacher: Teacher) =>
         typeof teacher.userId === 'object' && teacher.userId
           ? teacher.userId._id
@@ -107,7 +105,7 @@ export default function TeachersPage() {
     )
 
     return users.filter(
-      (user: any) =>
+      (user) =>
         user.role === 'teacher' &&
         !linkedUserIds.has(user._id) &&
         !linkedUserIds.has(user.publicId),
@@ -193,10 +191,11 @@ export default function TeachersPage() {
       }).unwrap()
 
       closeCreate()
-    } catch (e: any) {
+    } catch (e) {
+      const err = e as { data?: { message?: string }; error?: { data?: { message?: string } } }
       setError(
-        e?.data?.message ??
-          e?.error?.data?.message ??
+        err?.data?.message ??
+          err?.error?.data?.message ??
           'Failed to create teacher profile',
       )
     }
@@ -651,7 +650,7 @@ export default function TeachersPage() {
                   </option>
 
                   {availableTeachers.map(
-                    (teacher: any) => (
+                    (teacher) => (
                       <option
                         key={rid(teacher)}
                         value={rid(

@@ -50,7 +50,7 @@ export const payrollApi = createApi({
             }
           : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Payroll[],
       providesTags: [{ type: 'Payroll', id: 'LIST' }],
     }),
     createPayroll: builder.mutation<Payroll, PayrollPayload>({

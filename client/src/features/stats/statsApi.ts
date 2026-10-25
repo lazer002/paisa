@@ -50,6 +50,26 @@ export interface EmployeeStats {
   attendancePercent: number
 }
 
+export interface AccountantStats {
+  totalInvoices: number
+  paidInvoices: number
+  openInvoices: number
+  outstanding: number
+}
+
+export interface CounselorStats {
+  totalLeads: number
+  newLeads: number
+  convertedLeads: number
+  openDeals: number
+}
+
+export interface SupportStats {
+  totalTickets: number
+  openTickets: number
+  resolvedTickets: number
+}
+
 export const statsApi = createApi({
   reducerPath: 'statsApi',
   baseQuery: axiosBaseQuery,
@@ -57,32 +77,47 @@ export const statsApi = createApi({
   endpoints: (builder) => ({
     getSuperAdminStats: builder.query<SuperAdminStats, void>({
       query: () => '/stats/superadmin',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as SuperAdminStats,
       providesTags: ['Stats'],
     }),
     getAdminStats: builder.query<AdminStats, void>({
       query: () => '/stats/admin',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as AdminStats,
       providesTags: ['Stats'],
     }),
     getTeacherStats: builder.query<TeacherStats, void>({
       query: () => '/stats/teacher',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as TeacherStats,
       providesTags: ['Stats'],
     }),
     getStudentStats: builder.query<StudentStats, void>({
       query: () => '/stats/student',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as StudentStats,
       providesTags: ['Stats'],
     }),
     getHRStats: builder.query<HRStats, void>({
       query: () => '/stats/hr',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as HRStats,
       providesTags: ['Stats'],
     }),
     getEmployeeStats: builder.query<EmployeeStats, void>({
       query: () => '/stats/employee',
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as EmployeeStats,
+      providesTags: ['Stats'],
+    }),
+    getAccountantStats: builder.query<AccountantStats, void>({
+      query: () => '/stats/accountant',
+      transformResponse: (res: { data?: unknown }) => res?.data as AccountantStats,
+      providesTags: ['Stats'],
+    }),
+    getCounselorStats: builder.query<CounselorStats, void>({
+      query: () => '/stats/counselor',
+      transformResponse: (res: { data?: unknown }) => res?.data as CounselorStats,
+      providesTags: ['Stats'],
+    }),
+    getSupportStats: builder.query<SupportStats, void>({
+      query: () => '/stats/support',
+      transformResponse: (res: { data?: unknown }) => res?.data as SupportStats,
       providesTags: ['Stats'],
     }),
   }),
@@ -95,4 +130,7 @@ export const {
   useGetStudentStatsQuery,
   useGetHRStatsQuery,
   useGetEmployeeStatsQuery,
+  useGetAccountantStatsQuery,
+  useGetCounselorStatsQuery,
+  useGetSupportStatsQuery,
 } = statsApi

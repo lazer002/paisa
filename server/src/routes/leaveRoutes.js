@@ -10,21 +10,30 @@ import {
 } from "../controllers/leaveController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import {
+  requireRole,
+  authorize,
+} from "../middleware/authorize.js";
 
 const router = express.Router();
 
 router.use(authenticate);
 
-// Get leaves
+// Get leaves (self-only roles are scoped to their own leaves)
 router.get(
   "/",
+  authorize({
+    anyPermissions: ["leave:read"],
+  }),
   getLeaves
 );
 
 // Apply for leave
 router.post(
   "/",
+  authorize({
+    anyPermissions: ["leave:create"],
+  }),
   applyLeave
 );
 
@@ -34,6 +43,7 @@ router.put(
   requireRole(
     "super_admin",
     "admin",
+    "principal",
     "hr"
   ),
   updateLeaveStatus

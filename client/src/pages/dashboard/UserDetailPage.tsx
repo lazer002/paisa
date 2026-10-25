@@ -2,11 +2,9 @@
 
 import {
   ArrowLeft,
-  BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
   Check,
-  ChevronDown,
   Clipboard,
   Copy,
   Edit3,
@@ -26,30 +24,24 @@ import {
 } from 'lucide-react'
 
 import {
-  useEffect,
   useMemo,
   useState,
 } from 'react'
 
 import {
-  Link,
   useNavigate,
   useParams,
 } from 'react-router-dom'
 
 import {
-  useGetUserDetailQuery,
   useGetUserByIdQuery,
   useUpdateUserMutation,
-  useDeleteUserMutation,
-  useGetReportingManagersQuery,
   useGetUsersQuery
 } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
 
 import type {
   UpdateUserPayload,
-  UserDetailResponse,
 } from '@/features/users/usersApi'
 
 type Tab =
@@ -327,16 +319,11 @@ const [form, setForm] = useState({
   admissionDate: '',
 })
     
-const { data: reportingManagers = [], isLoading: managersLoading } =
-  useGetReportingManagersQuery(
-    user?.instituteId && typeof user.instituteId !== 'string'
-      ? {
-          instituteId: user.instituteId._id,
-        }
-      : undefined
-  )
-useEffect(() => {
-  if (!user) return
+// Re-initialize the form from the loaded user during render (avoids a
+// cascading setState inside an effect). Guarded by the previous user.
+const [prevUser, setPrevUser] = useState(user)
+if (user && user !== prevUser) {
+  setPrevUser(user)
 
   const department =
     typeof user.employment?.department === 'object' &&
@@ -391,7 +378,7 @@ useEffect(() => {
       ? user.academic.admissionDate.slice(0, 10)
       : '',
   })
-}, [user])
+}
 
   const initials = useMemo(
     () => getInitials(user?.displayName || user?.name),
@@ -482,7 +469,7 @@ useEffect(() => {
     field: string,
     value: string
   ) => {
-    setForm((previous: any) => ({
+    setForm((previous) => ({
       ...previous,
       [field]: value,
     }))
@@ -546,7 +533,7 @@ useEffect(() => {
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            {(error as any)?.data?.message ||
+            {(error as { data?: { message?: string } })?.data?.message ||
               'The requested user could not be found.'}
           </p>
 
@@ -1416,13 +1403,13 @@ useEffect(() => {
 
         {managers
           .filter(
-            (manager: any) =>
+            (manager) =>
               manager._id !== user._id &&
               ['super_admin', 'admin', 'principal', 'hr'].includes(
                 manager.role
               )
           )
-          .map((manager: any) => (
+          .map((manager) => (
             <option key={manager._id} value={manager.publicId}>
               {manager.name} — {manager.role}
             </option>
@@ -2121,7 +2108,7 @@ useEffect(() => {
             </p>
 
             <p className="mt-1 text-xs text-red-600">
-              {(updateState.error as any)
+              {(updateState.error as { data?: { message?: string } })
                 ?.data?.message ||
                 'Something went wrong while saving changes.'}
             </p>

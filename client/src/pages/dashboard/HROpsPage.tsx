@@ -67,8 +67,8 @@ export default function HROpsPage() {
       setShowStructure(false)
       setName(''); setBaseSalary('')
       setToast({ msg: 'Salary structure created', tone: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.data?.message ?? 'Failed to create', tone: 'critical' })
+    } catch (e) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create', tone: 'critical' })
     }
   }
 
@@ -79,8 +79,8 @@ export default function HROpsPage() {
       setShowReview(false)
       setReviewEmployee(''); setReviewTitle('')
       setToast({ msg: 'Review created as draft', tone: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.data?.message ?? 'Failed to create review', tone: 'critical' })
+    } catch (e) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create review', tone: 'critical' })
     }
   }
 
@@ -91,8 +91,8 @@ export default function HROpsPage() {
       setShowCertificate(false)
       setCertUserId(''); setCertTitle('')
       setToast({ msg: 'Certificate issued', tone: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.data?.message ?? 'Failed to issue', tone: 'critical' })
+    } catch (e) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to issue', tone: 'critical' })
     }
   }
 

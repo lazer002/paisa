@@ -28,7 +28,7 @@ export const assignmentsApi = createApi({
         url: '/assignments',
         params: params ? { classId: params.classId || undefined, status: params.status || undefined } : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Assignment[],
       providesTags: [{ type: 'Assignment', id: 'LIST' }],
     }),
     createAssignment: builder.mutation<Assignment, { classId: string; title: string; description?: string; instructions?: string; dueDate?: string; maxScore?: number }>({
@@ -79,7 +79,7 @@ export const materialsApi = createApi({
         url: '/study-materials',
         params: params ? { classId: params.classId || undefined, type: params.type || undefined } : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as StudyMaterial[],
       providesTags: [{ type: 'Material', id: 'LIST' }],
     }),
     createMaterial: builder.mutation<StudyMaterial, { title: string; url: string; description?: string; classId?: string; subject?: string; type?: string }>({
@@ -123,7 +123,7 @@ export const submissionsApi = createApi({
         url: '/submissions',
         params: params ? { assignmentId: params.assignmentId || undefined, status: params.status || undefined } : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Submission[],
       providesTags: [{ type: 'Submission', id: 'LIST' }],
     }),
     submitAssignment: builder.mutation<Submission, { assignmentId: string; content: string }>({

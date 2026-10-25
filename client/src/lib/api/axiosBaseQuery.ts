@@ -1,7 +1,7 @@
 // client/src/lib/api/axiosBaseQuery.ts
 
 import axios from 'axios'
-import type { AxiosRequestConfig } from 'axios'
+import type { AxiosRequestConfig, RawAxiosHeaders } from 'axios'
 import type {
   BaseQueryFn,
   FetchArgs,
@@ -27,7 +27,7 @@ export const axiosBaseQuery: BaseQueryFn<
             params: args.params,
             headers:
               args.headers && typeof args.headers === 'object'
-                ? axios.AxiosHeaders.from(args.headers as any)
+                ? axios.AxiosHeaders.from(args.headers as RawAxiosHeaders)
                 : undefined,
           }
 
@@ -36,13 +36,17 @@ export const axiosBaseQuery: BaseQueryFn<
     return {
       data: result.data,
     }
-  } catch (err: any) {
+  } catch (err) {
+    const e = err as {
+      response?: { status?: number; data?: unknown }
+      message?: string
+    }
     return {
       error: {
-        status: err?.response?.status ?? 500,
+        status: e?.response?.status ?? 500,
         data:
-          err?.response?.data ?? {
-            message: err?.message ?? 'Network error',
+          e?.response?.data ?? {
+            message: e?.message ?? 'Network error',
           },
       } as FetchBaseQueryError,
     }

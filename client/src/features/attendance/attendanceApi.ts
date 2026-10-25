@@ -47,7 +47,7 @@ export const attendanceApi = createApi({
             }
           : undefined,
       }),
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as AttendanceRecord[],
       providesTags: [{ type: 'Attendance', id: 'LIST' }],
     }),
     getMyAttendance: builder.query<MyAttendanceResult, { month?: number; year?: number } | void>({
@@ -57,7 +57,7 @@ export const attendanceApi = createApi({
           ? { month: params.month || undefined, year: params.year || undefined }
           : undefined,
       }),
-      transformResponse: (res: any) => res?.data,
+      transformResponse: (res: { data?: unknown }) => res?.data as MyAttendanceResult,
       providesTags: [{ type: 'Attendance', id: 'ME' }],
     }),
     markAttendance: builder.mutation<AttendanceRecord[], MarkPayload>({

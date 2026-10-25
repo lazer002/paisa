@@ -40,9 +40,9 @@ export default function LoginPage() {
       dispatch(setAuth({ user, token: accessToken }))
 
       navigate('/dashboard')
-    } catch (err: any) {
+    } catch (err) {
       setError(
-        err?.response?.data?.message || 'Login failed',
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Login failed',
       )
     } finally {
       setLoading(false)

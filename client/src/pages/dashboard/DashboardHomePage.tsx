@@ -11,12 +11,12 @@ import {
   FileText as FileTextIcon,
   GraduationCap,
   Megaphone,
-  MoreHorizontal,
   Plus,
   ShieldCheck,
   Users,
   Wallet,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 import { Link } from 'react-router-dom'
 
@@ -39,6 +39,9 @@ import {
   useGetStudentStatsQuery,
   useGetHRStatsQuery,
   useGetEmployeeStatsQuery,
+  useGetAccountantStatsQuery,
+  useGetCounselorStatsQuery,
+  useGetSupportStatsQuery,
 } from '@/features/stats/statsApi'
 
 import { useAppSelector } from '@/app/store'
@@ -54,7 +57,7 @@ import type { Organization } from '@/features/organizations/types'
 type StatItem = {
   label: string
   value: string | number
-  icon: any
+  icon: LucideIcon
   href?: string
   description?: string
 }
@@ -62,7 +65,7 @@ type StatItem = {
 type QuickAction = {
   label: string
   description: string
-  icon: any
+  icon: LucideIcon
   href: string
 }
 
@@ -83,18 +86,6 @@ const ROLE_LABELS: Record<string, string> = {
   student: 'Student',
   hr: 'HR',
   employee: 'Employee',
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-slate-100 text-slate-700',
-  teacher: 'bg-emerald-50 text-emerald-700',
-  student: 'bg-blue-50 text-blue-700',
-  hr: 'bg-violet-50 text-violet-700',
-  employee: 'bg-orange-50 text-orange-700',
-  principal: 'bg-indigo-50 text-indigo-700',
-  accountant: 'bg-amber-50 text-amber-700',
-  counselor: 'bg-pink-50 text-pink-700',
-  support: 'bg-cyan-50 text-cyan-700',
 }
 
 function getInitials(name?: string | null) {
@@ -341,14 +332,12 @@ function QuickActions({
    ========================================================================== */
 
 function PeopleMix({
-  role,
   stats,
 }: {
-  role?: string
   stats: {
     label: string
     value: number
-    icon: any
+    icon: LucideIcon
   }[]
 }) {
   const total = stats.reduce(
@@ -572,8 +561,6 @@ export default function DashboardHomePage() {
 
   const isSuperAdmin = role === 'super_admin'
 
-  const isAdmin = role === 'admin'
-
   const canViewOrganizations = [
     'super_admin',
     'admin',
@@ -602,7 +589,7 @@ export default function DashboardHomePage() {
   })
 
   const adminQ = useGetAdminStatsQuery(undefined, {
-    skip: role !== 'admin',
+    skip: role !== 'admin' && role !== 'principal',
   })
 
   const teacherQ = useGetTeacherStatsQuery(undefined, {
@@ -619,6 +606,18 @@ export default function DashboardHomePage() {
 
   const empQ = useGetEmployeeStatsQuery(undefined, {
     skip: role !== 'employee',
+  })
+
+  const accountantQ = useGetAccountantStatsQuery(undefined, {
+    skip: role !== 'accountant',
+  })
+
+  const counselorQ = useGetCounselorStatsQuery(undefined, {
+    skip: role !== 'counselor',
+  })
+
+  const supportQ = useGetSupportStatsQuery(undefined, {
+    skip: role !== 'support',
   })
 
   /* ------------------------------------------------------------------------
@@ -644,18 +643,28 @@ export default function DashboardHomePage() {
       'Your workforce overview',
     employee:
       'Your work at a glance',
+    principal:
+      "Here's what's happening in your organization",
+    accountant:
+      'Invoices, payments and collections',
+    counselor:
+      'Your admissions pipeline at a glance',
+    support:
+      'Your ticket queue at a glance',
+    parent:
+      "Your child's classes, attendance and invoices",
   }
 
   /* ------------------------------------------------------------------------
      STATS
      ------------------------------------------------------------------------ */
 
-  let stats: StatItem[] = []
+  let stats: StatItem[]
 
   let peopleStats: {
     label: string
     value: number
-    icon: any
+    icon: LucideIcon
   }[] = []
 
   if (role === 'super_admin') {
@@ -710,7 +719,7 @@ export default function DashboardHomePage() {
         icon: Building2,
       },
     ]
-  } else if (role === 'admin') {
+  } else if (role === 'admin' || role === 'principal') {
     const d = adminQ.data
 
     stats = [
@@ -833,32 +842,110 @@ export default function DashboardHomePage() {
         description: 'Processed payrolls',
       },
     ]
+  } else if (role === 'accountant') {
+    const d = accountantQ.data
+
+    stats = [
+      {
+        label: 'Total invoices',
+        value: d?.totalInvoices ?? '…',
+        icon: ClipboardList,
+        href: '/dashboard/invoices',
+        description: 'All invoices issued',
+      },
+      {
+        label: 'Open invoices',
+        value: d?.openInvoices ?? '…',
+        icon: Wallet,
+        href: '/dashboard/invoices',
+        description: 'Awaiting payment',
+      },
+      {
+        label: 'Outstanding (₹)',
+        value: d?.outstanding ?? '…',
+        icon: Wallet,
+        href: '/dashboard/billing',
+        description: 'Unpaid balance',
+      },
+    ]
+  } else if (role === 'counselor') {
+    const d = counselorQ.data
+
+    stats = [
+      {
+        label: 'Total leads',
+        value: d?.totalLeads ?? '…',
+        icon: Users,
+        href: '/dashboard/crm',
+        description: 'In your pipeline',
+      },
+      {
+        label: 'New leads',
+        value: d?.newLeads ?? '…',
+        icon: Users,
+        href: '/dashboard/crm',
+        description: 'Not contacted yet',
+      },
+      {
+        label: 'Converted',
+        value: d?.convertedLeads ?? '…',
+        icon: GraduationCap,
+        href: '/dashboard/crm',
+        description: 'Became enrollments',
+      },
+    ]
+  } else if (role === 'support') {
+    const d = supportQ.data
+
+    stats = [
+      {
+        label: 'Total tickets',
+        value: d?.totalTickets ?? '…',
+        icon: ClipboardList,
+        href: '/dashboard/tickets',
+        description: 'All time',
+      },
+      {
+        label: 'Open tickets',
+        value: d?.openTickets ?? '…',
+        icon: ClipboardList,
+        href: '/dashboard/tickets',
+        description: 'Needs a response',
+      },
+      {
+        label: 'Resolved',
+        value: d?.resolvedTickets ?? '…',
+        icon: ClipboardList,
+        href: '/dashboard/tickets',
+        description: 'Closed tickets',
+      },
+    ]
   } else {
-    const d = empQ.data
+    const d = role === 'employee' ? empQ.data : undefined
 
     stats = [
       {
         label: 'Attendance',
         value: d
           ? `${d.attendancePercent}%`
-          : '…',
+          : role === 'employee' ? '…' : '—',
         icon: CalendarCheck,
         href: '/dashboard/attendance',
         description: 'Your current attendance',
       },
       {
-        label: 'My payslips',
-        value: d?.myPayslips ?? '…',
+        label: role === 'parent' ? 'Invoices' : 'My payslips',
+        value: role === 'employee' ? d?.myPayslips ?? '…' : '—',
         icon: Wallet,
-        href: '/dashboard/payroll',
-        description: 'Available payslips',
+        href: role === 'parent' ? '/dashboard/invoices' : '/dashboard/payroll',
+        description: role === 'parent' ? 'Fees and receipts' : 'Available payslips',
       },
       {
-        label: 'Leaves taken',
-        value: d?.myLeaves ?? '…',
-        icon: ClipboardList,
-        href: '/dashboard/leaves',
-        description: 'Leave history',
+        label: role === 'employee' ? 'Leaves taken' : 'Classes',
+        value: role === 'employee' ? d?.myLeaves ?? '…' : '—',
+        icon: role === 'employee' ? ClipboardList : GraduationCap,
+        href: role === 'employee' ? '/dashboard/leaves' : '/dashboard/classes',
+        description: role === 'employee' ? 'Leave history' : 'My learning',
       },
     ]
   }
@@ -873,13 +960,16 @@ export default function DashboardHomePage() {
     teacherQ.isLoading ||
     studentQ.isLoading ||
     hrQ.isLoading ||
-    empQ.isLoading
+    empQ.isLoading ||
+    accountantQ.isLoading ||
+    counselorQ.isLoading ||
+    supportQ.isLoading
 
   /* ------------------------------------------------------------------------
      QUICK ACTIONS
      ------------------------------------------------------------------------ */
 
-  let quickActions: QuickAction[] = []
+  let quickActions: QuickAction[]
 
   if (role === 'super_admin') {
     quickActions = [
@@ -996,6 +1086,111 @@ export default function DashboardHomePage() {
         description: 'Manage payroll',
         icon: Wallet,
         href: '/dashboard/payroll',
+      },
+    ]
+  } else if (role === 'principal') {
+    quickActions = [
+      {
+        label: 'Departments',
+        description: 'Manage structure',
+        icon: Building2,
+        href: '/dashboard/departments',
+      },
+      {
+        label: 'Leave requests',
+        description: 'Approve or reject leaves',
+        icon: ClipboardList,
+        href: '/dashboard/leaves',
+      },
+      {
+        label: 'Reports',
+        description: 'Organization analytics',
+        icon: Activity,
+        href: '/dashboard/reports',
+      },
+    ]
+  } else if (role === 'accountant') {
+    quickActions = [
+      {
+        label: 'Invoices',
+        description: 'Issue and track invoices',
+        icon: FileTextIcon,
+        href: '/dashboard/invoices',
+      },
+      {
+        label: 'Billing',
+        description: 'Plans and subscriptions',
+        icon: Wallet,
+        href: '/dashboard/billing',
+      },
+      {
+        label: 'Payroll',
+        description: 'Review payroll',
+        icon: ClipboardList,
+        href: '/dashboard/payroll',
+      },
+    ]
+  } else if (role === 'counselor') {
+    quickActions = [
+      {
+        label: 'CRM',
+        description: 'Work your pipeline',
+        icon: Users,
+        href: '/dashboard/crm',
+      },
+      {
+        label: 'Students',
+        description: 'Review student profiles',
+        icon: GraduationCap,
+        href: '/dashboard/students',
+      },
+      {
+        label: 'Enrollments',
+        description: 'Process enrollments',
+        icon: ClipboardList,
+        href: '/dashboard/enrollments',
+      },
+    ]
+  } else if (role === 'support') {
+    quickActions = [
+      {
+        label: 'Tickets',
+        description: 'Respond to tickets',
+        icon: ClipboardList,
+        href: '/dashboard/tickets',
+      },
+      {
+        label: 'Messages',
+        description: 'Talk to customers',
+        icon: Megaphone,
+        href: '/dashboard/messages',
+      },
+      {
+        label: 'Reports',
+        description: 'Support analytics',
+        icon: Activity,
+        href: '/dashboard/reports',
+      },
+    ]
+  } else if (role === 'parent') {
+    quickActions = [
+      {
+        label: 'My classes',
+        description: "Your child's classes",
+        icon: GraduationCap,
+        href: '/dashboard/classes',
+      },
+      {
+        label: 'Attendance',
+        description: 'Attendance history',
+        icon: CalendarCheck,
+        href: '/dashboard/attendance',
+      },
+      {
+        label: 'Invoices',
+        description: 'Fees and receipts',
+        icon: Wallet,
+        href: '/dashboard/invoices',
       },
     ]
   } else {
@@ -1170,7 +1365,6 @@ export default function DashboardHomePage() {
             }
           >
             <PeopleMix
-              role={role}
               stats={peopleStats}
             />
           </div>

@@ -16,6 +16,7 @@ import {
 const APPROVER_ROLES = [
   "super_admin",
   "admin",
+  "principal",
   "hr",
 ];
 

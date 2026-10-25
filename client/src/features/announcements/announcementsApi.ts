@@ -31,7 +31,7 @@ export const announcementsApi = createApi({
   endpoints: (builder) => ({
     getAnnouncements: builder.query<Announcement[], void>({
       query: () => '/announcements',
-      transformResponse: (res: any) => res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Announcement[],
       providesTags: [{ type: 'Announcement', id: 'LIST' }],
     }),
     createAnnouncement: builder.mutation<Announcement, AnnouncementPayload>({

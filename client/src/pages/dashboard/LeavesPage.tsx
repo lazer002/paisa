@@ -7,6 +7,7 @@ import {
   useUpdateLeaveStatusMutation,
   useCancelLeaveMutation,
   type Leave,
+  type LeaveType,
 } from '@/features/leaves/leavesApi'
 import { useAppSelector } from '@/app/store'
 import { rid } from '@/features/users/usersApi'
@@ -26,7 +27,7 @@ function ApplyLeaveModal({ open, onClose }: { open: boolean; onClose: () => void
   const [applyLeave, { isLoading }] = useApplyLeaveMutation()
   const [error, setError] = useState('')
 
-  const [type, setType] = useState('casual')
+  const [type, setType] = useState<LeaveType>('casual')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [reason, setReason] = useState('')
@@ -35,10 +36,10 @@ function ApplyLeaveModal({ open, onClose }: { open: boolean; onClose: () => void
     e.preventDefault()
     setError('')
     try {
-      await applyLeave({ type: type as any, startDate, endDate, reason }).unwrap()
+      await applyLeave({ type, startDate, endDate, reason }).unwrap()
       onClose()
-    } catch (e: any) {
-      setError(e?.data?.message ?? 'Failed to apply for leave')
+    } catch (e) {
+      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to apply for leave')
     }
   }
 
@@ -47,7 +48,7 @@ function ApplyLeaveModal({ open, onClose }: { open: boolean; onClose: () => void
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Leave Type *</label>
-          <select value={type} onChange={(e) => setType(e.target.value)}
+          <select value={type} onChange={(e) => setType(e.target.value as LeaveType)}
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm capitalize outline-none focus:border-black">
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -86,7 +87,7 @@ function ApplyLeaveModal({ open, onClose }: { open: boolean; onClose: () => void
 
 export default function LeavesPage() {
   const user = useAppSelector((s) => s.auth.user)
-  const isApprover = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'hr'
+  const isApprover = ['super_admin', 'admin', 'principal', 'hr'].includes(user?.role ?? '')
 
   const { data: leaves, isLoading, isError, refetch } = useGetLeavesQuery()
   const [updateStatus] = useUpdateLeaveStatusMutation()

@@ -7,6 +7,8 @@ import {
   sendSuccess,
   sendCreated,
   sendError,
+  sendNotFound,
+  sendForbidden,
 } from "../utils/response.js";
 
 import { scopedQuery } from "../utils/peopleHelpers.js";
@@ -144,23 +146,126 @@ export const getStudents = async (
         .sort({
           createdAt: -1,
         })
-        .lean();
-
-    sendSuccess(
+        .lean();    sendSuccess(
       res,
       "Students fetched",
       students
     );
   } catch (err) {
-    console.error(
-      "Get students error:",
-      err
-    );
+    console.error("Get students error:", err);
 
-    sendError(
-      res,
-      500,
-      "Server error"
-    );
+    sendError(res, 500, "Server error");
+  }
+};
+
+// Get one student profile
+export const getStudent = async (req, res) => {
+  try {
+    const _id = await resolveRef(Student, req.params.publicId, {
+      label: "Student",
+    });
+
+    const student = await Student.findById(_id)
+      .populate("userId", "name email userCode role status")
+      .populate("instituteId", "name type")
+      .lean();
+
+    if (!student) {
+      return sendNotFound(res, "Student not found");
+    }
+
+    if (
+      req.user.role !== "super_admin" &&
+      String(student.instituteId?._id || student.instituteId) !==
+        String(req.user.instituteId)
+    ) {
+      return sendForbidden(res, "Access denied");
+    }
+
+    sendSuccess(res, "Student fetched", student);
+  } catch (err) {
+    console.error("Get student error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// Fields a manager may edit on a student profile.
+const UPDATABLE = [
+  "course",
+  "branch",
+  "year",
+  "semester",
+  "section",
+  "rollNumber",
+  "academicStatus",
+];
+
+// Update student profile
+export const updateStudent = async (req, res) => {
+  try {
+    const _id = await resolveRef(Student, req.params.publicId, {
+      label: "Student",
+    });
+
+    const student = await Student.findById(_id);
+
+    if (!student) {
+      return sendNotFound(res, "Student not found");
+    }
+
+    if (
+      req.user.role !== "super_admin" &&
+      String(student.instituteId) !== String(req.user.instituteId)
+    ) {
+      return sendForbidden(res, "Access denied");
+    }
+
+    const updates = {};
+    for (const key of UPDATABLE) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return sendError(res, 400, "No editable fields supplied");
+    }
+
+    Object.assign(student, updates);
+    await student.save();
+
+    sendSuccess(res, "Student updated", student);
+  } catch (err) {
+    console.error("Update student error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+// Delete student profile (keeps the linked user account)
+export const deleteStudent = async (req, res) => {
+  try {
+    const _id = await resolveRef(Student, req.params.publicId, {
+      label: "Student",
+    });
+
+    const student = await Student.findById(_id);
+
+    if (!student) {
+      return sendNotFound(res, "Student not found");
+    }
+
+    if (
+      req.user.role !== "super_admin" &&
+      String(student.instituteId) !== String(req.user.instituteId)
+    ) {
+      return sendForbidden(res, "Access denied");
+    }
+
+    await student.deleteOne();
+
+    sendSuccess(res, "Student profile deleted", null);
+  } catch (err) {
+    console.error("Delete student error:", err);
+    sendError(res, 500, "Server error");
   }
 };

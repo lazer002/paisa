@@ -692,6 +692,25 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.PRINCIPAL]: [
+    /* Org-head grants: the principal administers their own
+     * organization (profile, HR overview, leave approvals,
+     * payroll/billing visibility, account administration). */
+    PERMISSIONS.ORGANIZATION_READ,
+    PERMISSIONS.ORGANIZATION_UPDATE,
+    PERMISSIONS.USER_MANAGE,
+    PERMISSIONS.HR_READ,
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_APPROVE,
+    PERMISSIONS.PAYROLL_READ,
+    PERMISSIONS.INVOICE_READ,
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
+    /* Admissions oversight: read-only CRM pipeline. */
+    PERMISSIONS.CRM_READ,
+    PERMISSIONS.LEAD_READ,
+    PERMISSIONS.DEAL_READ,
+
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,
 
@@ -778,6 +797,14 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.HR]: [
+    /* HR administers the workforce: faculty profiles, org
+     * structure, payroll cleanup and the helpdesk queue. */
+    PERMISSIONS.TEACHER_READ,
+    PERMISSIONS.DEPARTMENT_CREATE,
+    PERMISSIONS.PAYROLL_DELETE,
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,
 
@@ -840,6 +867,9 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.ACCOUNTANT]: [
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.CONVERSATION_READ,
@@ -880,6 +910,9 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.COUNSELOR]: [
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.CONVERSATION_READ,
@@ -949,6 +982,15 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.TEACHER]: [
+    /* Teachers can onboard students into their classes, award
+     * gamification points, and view their own leave records. */
+    PERMISSIONS.STUDENT_CREATE,
+    PERMISSIONS.POINT_LEDGER_CREATE,
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_CREATE,
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.STUDENT_READ,
@@ -1067,6 +1109,9 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.EMPLOYEE]: [
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.EMPLOYEE_READ,
@@ -1110,6 +1155,11 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.PARENT]: [
+    /* Parents follow their child's academic life. */
+    PERMISSIONS.CLASS_READ,
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.PARENT_READ,
@@ -1160,6 +1210,11 @@ const rolePermissions = Object.freeze({
   ],
 
   [ROLES.STUDENT]: [
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_CREATE,
+    PERMISSIONS.TICKET_READ,
+    PERMISSIONS.TICKET_CREATE,
+
     PERMISSIONS.USER_READ,
 
     PERMISSIONS.STUDENT_READ,

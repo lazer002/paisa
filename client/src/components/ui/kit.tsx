@@ -3,7 +3,7 @@ import { ReactNode } from 'react'
 // ─── Polaris-inspired design tokens ──────────────────────────────────────────
 // Shopify-grade neutral surfaces, single accent, restrained color use.
 
-export const TONE_CLASSES: Record<string, string> = {
+const TONE_CLASSES: Record<string, string> = {
   success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   info: 'bg-sky-50 text-sky-700 ring-sky-600/20',
   warning: 'bg-amber-50 text-amber-700 ring-amber-600/20',
@@ -13,7 +13,7 @@ export const TONE_CLASSES: Record<string, string> = {
 }
 
 /** Map any domain status string to a Polaris tone. */
-export function toneFor(status?: string): string {
+function toneFor(status?: string): string {
   const s = (status ?? '').toLowerCase()
   if (['paid', 'active', 'approved', 'present', 'won', 'issued', 'resolved', 'completed', 'earned', 'published', 'live'].includes(s)) return 'success'
   if (['pending', 'submitted', 'draft', 'scheduled', 'partial', 'in_progress', 'review', 'medium', 'normal', 'new', 'claimed'].includes(s)) return 'warning'

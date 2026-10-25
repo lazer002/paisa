@@ -12,7 +12,10 @@ import {
   sendSuccess,
   sendCreated,
   sendError,
+  sendNotFound,
 } from "../utils/response.js";
+
+import { resolveRef } from "../utils/resolveRef.js";
 
 // Create Employee
 export const createEmployee = async (req, res) => {
@@ -162,13 +165,115 @@ export const getEmployees = async (
       "Server error"
     );
   }
-};
-
-function requestedButUnresolved(
+};function requestedButUnresolved(
   resolved,
   requested
 ) {
-  return Boolean(
-    requested && !resolved
-  );
+  return Boolean(requested && !resolved);
 }
+
+/* =========================================================
+   GET ONE EMPLOYEE
+========================================================= */
+
+export const getEmployee = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "Employee",
+    });
+
+    const employee = await User.findOne({
+      _id,
+      role: Roles.EMPLOYEE,
+      ...scopedQuery(req.user),
+    })
+      .select("-passwordHash -failedAttempts -lockedUntil")
+      .populate("instituteId", "name type")
+      .lean();
+
+    if (!employee) {
+      return sendNotFound(res, "Employee not found");
+    }
+
+    sendSuccess(res, "Employee fetched", employee);
+  } catch (err) {
+    console.error("Get employee error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+/* =========================================================
+   UPDATE EMPLOYEE
+========================================================= */
+
+export const updateEmployee = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "Employee",
+    });
+
+    const employee = await User.findOne({
+      _id,
+      role: Roles.EMPLOYEE,
+      ...scopedQuery(req.user),
+    });
+
+    if (!employee) {
+      return sendNotFound(res, "Employee not found");
+    }
+
+    const updates = {};
+
+    if (typeof req.body.name === "string" && req.body.name.trim()) {
+      updates.name = req.body.name.trim();
+    }
+
+    if (["active", "inactive"].includes(req.body.status)) {
+      updates.status = req.body.status;
+    }
+
+    if (!Object.keys(updates).length) {
+      return sendError(res, 400, "No editable fields supplied");
+    }
+
+    Object.assign(employee, updates);
+    await employee.save();
+
+    const safe = employee.toObject();
+    delete safe.passwordHash;
+
+    sendSuccess(res, "Employee updated", safe);
+  } catch (err) {
+    console.error("Update employee error:", err);
+    sendError(res, 500, "Server error");
+  }
+};
+
+/* =========================================================
+   DELETE EMPLOYEE
+========================================================= */
+
+export const deleteEmployee = async (req, res) => {
+  try {
+    const _id = await resolveRef(User, req.params.publicId, {
+      label: "Employee",
+    });
+
+    const employee = await User.findOne({
+      _id,
+      role: Roles.EMPLOYEE,
+      ...scopedQuery(req.user),
+    });
+
+    if (!employee) {
+      return sendNotFound(res, "Employee not found");
+    }
+
+    await employee.deleteOne();
+
+    sendSuccess(res, "Employee deleted", null);
+  } catch (err) {
+    console.error("Delete employee error:", err);
+    sendError(res, 500, "Server error");
+  }
+};

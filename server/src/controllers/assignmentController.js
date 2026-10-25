@@ -103,6 +103,12 @@ export const getAssignments = asyncHandler(async (req, res) => {
     query.status = "published";
   }
 
+  // Parents follow their child's academic life:
+  // institute-wide, published assignments only
+  if (req.user.role === "parent") {
+    query.status = "published";
+  }
+
   if (req.query.classId) {
     query.classId = await resolveRef(
       Class,
@@ -113,7 +119,8 @@ export const getAssignments = asyncHandler(async (req, res) => {
 
   if (
     req.query.status &&
-    req.user.role !== "student"
+    req.user.role !== "student" &&
+    req.user.role !== "parent"
   ) {
     query.status = req.query.status;
   }

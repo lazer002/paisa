@@ -125,7 +125,7 @@ export default function DepartmentsPage() {
       description: department.description ?? '',
       head:
         typeof department.head === 'object' && department.head
-          ? rid(department.head as any)
+          ? rid(department.head)
           : typeof department.head === 'string'
             ? department.head
             : '',
@@ -174,10 +174,11 @@ export default function DepartmentsPage() {
 
       setShowModal(false)
       resetForm()
-    } catch (e: any) {
+    } catch (e) {
+      const err = e as { data?: { message?: string }; error?: { data?: { message?: string } } }
       setError(
-        e?.data?.message ??
-          e?.error?.data?.message ??
+        err?.data?.message ??
+          err?.error?.data?.message ??
           (editingId
             ? 'Failed to update department'
             : 'Failed to create department'),
@@ -196,10 +197,11 @@ export default function DepartmentsPage() {
 
     try {
       await deleteDepartment(id).unwrap()
-    } catch (e: any) {
+    } catch (e) {
+      const err = e as { data?: { message?: string }; error?: { data?: { message?: string } } }
       setError(
-        e?.data?.message ??
-          e?.error?.data?.message ??
+        err?.data?.message ??
+          err?.error?.data?.message ??
           'Failed to delete department',
       )
     }

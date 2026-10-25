@@ -46,8 +46,8 @@ export const teachersApi = createApi({
   endpoints: (builder) => ({
     getTeachers: builder.query<Teacher[], void>({
       query: () => '/teachers',
-      transformResponse: (res: any) =>
-        res?.data ?? [],
+      transformResponse: (res: { data?: unknown }) =>
+        (res?.data ?? []) as Teacher[],
       providesTags: [
         {
           type: 'Teacher',
