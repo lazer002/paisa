@@ -273,8 +273,8 @@ Cross-role defects (fix once, helps many roles):
 ## 11. BACKLOG (ordered, tick when done)
 
 **P0 — security & broken build**
-- [ ] S1. Lock down `/auth/register`: drop `role`/`instituteId` from the public schema (or force default role + no tenant, or require auth+`user:create`). Fix the `roles`→`role` guard.
-- [ ] G1. Clean install under Node 22, untrack `server/node_modules`, fix button/badge casing, fix BillingPage lint, then get `npm run lint` + `npm run build` green.
+- [x] S1. (done 2026-10-27: disabled unless ALLOW_PUBLIC_REGISTRATION=true; role/tenant never accepted) Lock down `/auth/register`: drop `role`/`instituteId` from the public schema (or force default role + no tenant, or require auth+`user:create`). Fix the `roles`→`role` guard.
+- [x] G1. (done 2026-10-27) Clean install under Node 22, untrack `server/node_modules`, fix button/badge casing, fix BillingPage lint, then get `npm run lint` + `npm run build` green.
 
 **P1 — role blockers (see §8b)**
 - [ ] R1. Principal: allow on classes/assignments/teachers/payroll GET (+ salary read) — fixes 5 load-403 pages.

@@ -33,8 +33,7 @@ const roleLines = Object.entries(rolePermissions)
   )
   .join('\n')
 
-const header = `/* eslint-disable */
-// ---------------------------------------------------------------------------
+const header = `// ---------------------------------------------------------------------------
 // PERMISSIONS — client mirror (AUTO-GENERATED, do not edit by hand)
 //
 // Source of truth: server/src/utils/permissions.js

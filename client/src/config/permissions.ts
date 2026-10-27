@@ -1,4 +1,3 @@
-/* eslint-disable */
 // ---------------------------------------------------------------------------
 // PERMISSIONS — client mirror (AUTO-GENERATED, do not edit by hand)
 //

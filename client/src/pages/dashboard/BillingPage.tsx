@@ -8,7 +8,6 @@ import {
 } from '@/features/organizations/organizationsApi'
 import type { OrgPlan } from '@/features/organizations/types'
 import { usePermission } from '@/lib/auth/usePermission'
-import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import Badge from '@/components/ui/badge'
 import Button from '@/components/ui/button'

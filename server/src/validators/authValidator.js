@@ -2,17 +2,13 @@
 
 import Joi from "joi";
 
-import { ROLES } from "../config/constants.js";
 import {
   email,
   phone,
   strongPassword,
-  objectId,
   trimmedString,
   uuid,
 } from "../utils/validation.js";
-
-const roleValues = Object.values(ROLES);
 
 const registerSchema = Joi.object({
   email: email.required(),
@@ -33,13 +29,8 @@ const registerSchema = Joi.object({
 
   name: trimmedString(2, 100).required(),
 
-  role: Joi.string()
-    .valid(...roleValues)
-    .optional(),
-
-  instituteId: objectId
-    .optional()
-    .allow(null, ""),
+  // role / instituteId are deliberately absent: public sign-up must never
+  // choose a role or join a tenant (validateBody strips unknown keys).
 
   deviceId: uuid
     .optional()
@@ -48,30 +39,7 @@ const registerSchema = Joi.object({
   deviceName: trimmedString(1, 150)
     .optional()
     .allow(null, ""),
-})
-  .custom(
-    (value, helpers) => {
-      if (
-        value.roles?.includes(
-          ROLES.SUPER_ADMIN
-        )
-      ) {
-        return helpers.error(
-          "any.invalid",
-          {
-            message:
-              "super_admin cannot be assigned through public registration",
-          }
-        );
-      }
-
-      return value;
-    }
-  )
-  .messages({
-    "any.invalid":
-      "{{#message}}",
-  });
+});
 
 const loginSchema = Joi.object({
   email: email.required(),

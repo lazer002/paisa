@@ -370,6 +370,14 @@ const env = Object.freeze({
       5
     ),
 
+  // Self-service sign-up. Off by default: accounts are created by admins
+  // via /users. When enabled, sign-ups get the default role and no tenant.
+  ALLOW_PUBLIC_REGISTRATION:
+    getBooleanEnv(
+      "ALLOW_PUBLIC_REGISTRATION",
+      false
+    ),
+
   SESSION_TTL_SECONDS:
     getNumberEnv(
       "SESSION_TTL_SECONDS",

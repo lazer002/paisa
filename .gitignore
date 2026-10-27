@@ -8,3 +8,7 @@
 .env*
 
 .claude
+
+# build artifacts
+*.tsbuildinfo
+dist

@@ -2,6 +2,7 @@
 
 import authService from "../services/authService.js";
 import ApiError from "../utils/ApiError.js";
+import env from "../config/env.js";
 
 import {
   sendSuccess,
@@ -164,14 +165,20 @@ const clearRefreshTokenCookie = (res) => {
 
 const register = async (req, res, next) => {
   try {
+    if (!env.ALLOW_PUBLIC_REGISTRATION) {
+      throw ApiError.forbidden(
+        "Public registration is disabled. Ask your administrator for an account.",
+        { code: "REGISTRATION_DISABLED" }
+      );
+    }
+
+    // Role and tenant are never taken from the public request body;
+    // authService.register applies the default role with no tenant.
     const {
       email,
       phone,
       password,
       name,
-      role,
-      instituteId,
-      ...additionalData
     } = req.body;
 
     const user =
@@ -180,9 +187,6 @@ const register = async (req, res, next) => {
         phone,
         password,
         name,
-        role,
-        instituteId,
-        ...additionalData,
       });
 
     return sendCreated(res, {

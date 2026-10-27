@@ -250,8 +250,6 @@ const register = async ({
   phone,
   password,
   name,
-  role,
-  instituteId,
 }) => {
   const normalizedEmail =
     normalizeEmail(email);
@@ -320,14 +318,11 @@ const register = async ({
 
       passwordHash,
 
-      role:
-        role ,
-
-      instituteId:
-        instituteId || null,
+      // Public sign-up: model default role, no tenant. Privileged
+      // accounts are only created through authenticated /users routes.
+      instituteId: null,
     });
 
-    
   return sanitizeUser(
     user
   );
