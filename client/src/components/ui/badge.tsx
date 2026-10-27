@@ -7,14 +7,15 @@ interface BadgeProps {
   color?: BadgeColor
 }
 
+// Polaris badge tones: success, critical, warning, info, magic, neutral, attention
 const colors: Record<BadgeColor, string> = {
-  green: 'bg-green-100 text-green-700',
-  red: 'bg-red-100 text-red-700',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  blue: 'bg-blue-100 text-blue-700',
-  purple: 'bg-purple-100 text-purple-700',
-  gray: 'bg-gray-100 text-gray-600',
-  orange: 'bg-orange-100 text-orange-700',
+  green: 'bg-[#affebf] text-[#014b40]',
+  red: 'bg-[#fedad9] text-[#8e0b21]',
+  yellow: 'bg-[#ffef9d] text-[#4f4700]',
+  blue: 'bg-[#e0f0ff] text-[#00527c]',
+  purple: 'bg-[#f1ecff] text-[#5700d1]',
+  gray: 'bg-[#e3e3e3] text-[#616161]',
+  orange: 'bg-[#ffd6a4] text-[#5e4200]',
 }
 
 export type { BadgeColor }
@@ -22,7 +23,7 @@ export type { BadgeColor }
 export default function Badge({ children, color = 'gray' }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${colors[color]}`}
+      className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-medium capitalize ${colors[color]}`}
     >
       {children}
     </span>

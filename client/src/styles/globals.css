@@ -1,24 +1,237 @@
+@import "@fontsource-variable/inter";
 @import "tailwindcss";
 
-html,
-body,
-#root {
-  height: 100%;
+/* ==========================================================================
+   Polaris-style design tokens
+   Overriding Tailwind's theme here restyles every existing utility class
+   (gray-*, rounded-*, shadow-*, text-sm, font-sans) across all pages.
+   ========================================================================== */
+
+@theme {
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* Polaris neutral scale (text #303030, secondary #616161, border #e3e3e3) */
+  --color-gray-50: #f7f7f7;
+  --color-gray-100: #f1f1f1;
+  --color-gray-200: #e3e3e3;
+  --color-gray-300: #cccccc;
+  --color-gray-400: #8a8a8a;
+  --color-gray-500: #616161;
+  --color-gray-600: #575757;
+  --color-gray-700: #4a4a4a;
+  --color-gray-800: #3a3a3a;
+  --color-gray-900: #303030;
+  --color-gray-950: #1a1a1a;
+
+  /* Polaris semantic surfaces */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f7f7f7;
+  --color-bg: #f1f1f1;
+  --color-nav: #ebebeb;
+  --color-topbar: #1a1a1a;
+  --color-interactive: #005bd3;
+
+  /* Polaris type scale: bodyMd 13/20, bodySm 12/16, bodyLg 14/20 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.25rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.5rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+
+  /* Polaris radii: controls 8px, cards 12px */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
+
+  /* Polaris elevation */
+  --shadow-sm: 0 1px 0 0 rgba(26, 26, 26, 0.07), 0 1px 2px 0 rgba(26, 26, 26, 0.04);
+  --shadow: 0 1px 0 0 rgba(26, 26, 26, 0.07), 0 2px 4px -1px rgba(26, 26, 26, 0.08);
+  --shadow-md: 0 4px 6px -2px rgba(26, 26, 26, 0.2);
+  --shadow-lg: 0 8px 16px -4px rgba(26, 26, 26, 0.22);
+  --shadow-xl: 0 12px 20px -8px rgba(26, 26, 26, 0.24);
+  --shadow-2xl: 0 20px 20px -8px rgba(26, 26, 26, 0.28);
 }
 
-body {
-  margin: 0;
-  font-family: sans-serif;
-  background: #f5f5f5;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    color: var(--color-gray-900);
+    background: var(--color-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.01em;
+  }
+
+  /* Polaris focus ring for every interactive element */
+  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 1px;
+  }
 }
 
-/* index.css / globals.css */
+/* ==========================================================================
+   Polaris component primitives (used by components/ui)
+   ========================================================================== */
+
+@layer components {
+  .p-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow:
+      0 1px 0 0 rgba(26, 26, 26, 0.07),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.08),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  }
+
+  .p-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border-radius: var(--radius-lg);
+    font-weight: 550;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+    user-select: none;
+  }
+
+  .p-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .p-btn-primary {
+    color: #fff;
+    background:
+      linear-gradient(180deg, rgba(48, 48, 48, 0) 63.53%, rgba(255, 255, 255, 0.15) 100%),
+      #303030;
+    box-shadow:
+      inset 0 -1px 0 1px rgba(0, 0, 0, 0.8),
+      inset 0 0 0 1px #303030,
+      inset 0 0.5px 0 1.5px rgba(255, 255, 255, 0.25);
+  }
+
+  .p-btn-primary:hover:not(:disabled) {
+    background:
+      linear-gradient(180deg, rgba(48, 48, 48, 0) 63.53%, rgba(255, 255, 255, 0.15) 100%),
+      #1a1a1a;
+  }
+
+  .p-btn-primary:active:not(:disabled) {
+    background: #1a1a1a;
+    box-shadow: inset 0 3px 0 0 #000;
+  }
+
+  .p-btn-secondary {
+    color: #303030;
+    background: #fff;
+    box-shadow:
+      inset 0 -1px 0 0 #b5b5b5,
+      inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+      inset 0 0.5px 0 1.5px #fff;
+  }
+
+  .p-btn-secondary:hover:not(:disabled) {
+    background: #fafafa;
+  }
+
+  .p-btn-secondary:active:not(:disabled) {
+    background: #f7f7f7;
+    box-shadow: inset 0 2px 1px 0 rgba(26, 26, 26, 0.2);
+  }
+
+  .p-btn-critical {
+    color: #fff;
+    background:
+      linear-gradient(180deg, rgba(229, 28, 0, 0) 63.53%, rgba(255, 255, 255, 0.15) 100%),
+      #c70a24;
+    box-shadow:
+      inset 0 -1px 0 1px #8e0b21,
+      inset 0 0 0 1px #a30a24,
+      inset 0 0.5px 0 1.5px rgba(255, 255, 255, 0.35);
+  }
+
+  .p-btn-critical:hover:not(:disabled) {
+    background:
+      linear-gradient(180deg, rgba(229, 28, 0, 0) 63.53%, rgba(255, 255, 255, 0.15) 100%),
+      #a30a24;
+  }
+
+  .p-btn-plain {
+    color: #303030;
+    background: transparent;
+  }
+
+  .p-btn-plain:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .p-input {
+    width: 100%;
+    min-height: 2rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid #8a8a8a;
+    border-top-color: #898f94;
+    background: #fdfdfd;
+    padding: 0.375rem 0.75rem;
+    font-size: var(--text-sm);
+    line-height: 1.25rem;
+    color: #303030;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .p-input:hover {
+    border-color: #616161;
+    background: #fafafa;
+  }
+
+  .p-input:focus {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 1px;
+    border-color: #8a8a8a;
+    background: #fff;
+  }
+
+  .p-input::placeholder {
+    color: #8a8a8a;
+  }
+}
+
+/* ==========================================================================
+   Sidebar scrollbar
+   ========================================================================== */
 
 .sidebar-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #d1d5db transparent;
+  scrollbar-color: #cccccc transparent;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
@@ -30,10 +243,10 @@ body {
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #cccccc;
   border-radius: 999px;
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #8a8a8a;
 }

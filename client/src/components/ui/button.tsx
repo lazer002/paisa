@@ -7,17 +7,18 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
 }
 
+// Polaris button tones (styles live in globals.css → .p-btn-*)
 const variants = {
-  primary: 'bg-black text-white hover:opacity-90',
-  secondary: 'bg-gray-100 text-gray-800 hover:bg-gray-200',
-  danger: 'bg-red-500 text-white hover:bg-red-600',
-  ghost: 'bg-transparent text-gray-600 hover:bg-gray-100',
+  primary: 'p-btn-primary',
+  secondary: 'p-btn-secondary',
+  danger: 'p-btn-critical',
+  ghost: 'p-btn-plain',
 }
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  sm: 'min-h-7 px-2.5 py-1 text-xs',
+  md: 'min-h-8 px-3 py-1.5 text-sm',
+  lg: 'min-h-10 px-4 py-2 text-base',
 }
 
 export default function Button({
@@ -32,11 +33,11 @@ export default function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center gap-2 rounded-xl font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`p-btn ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {loading && (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
       )}
       {children}
     </button>

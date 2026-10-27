@@ -1,11 +1,13 @@
 import {
   LogOut,
   Menu,
-  ChevronDown,
-  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Settings,
 } from 'lucide-react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import NotificationBell from '@/components/notifications/NotificationBell'
 
@@ -14,28 +16,65 @@ import { useAppDispatch, useAppSelector } from '@/app/store'
 import { logout } from '@/lib/store/authSlice'
 import { navForRole, ROLE_LABEL, type Role } from '@/config/roles'
 
+const getInitials = (name?: string) => {
+  if (!name) return 'U'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+}
+
+const isActivePath = (pathname: string, path: string) =>
+  pathname === path || (path !== '/dashboard' && pathname.startsWith(path + '/'))
+
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  const menuRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   const dispatch = useAppDispatch()
   const user = useAppSelector((s) => s.auth.user)
 
+  const sections = useMemo(() => (user ? navForRole(user.role) : []), [user])
+
+  // Settings is pinned to the bottom of the sidebar, so drop it from the list
+  const navSections = useMemo(
+    () =>
+      sections
+        .map((s) => ({ ...s, items: s.items.filter((i) => i.path !== '/dashboard/settings') }))
+        .filter((s) => s.items.length > 0),
+    [sections],
+  )
+
+  // Unique nav destinations for the "jump to page" search
+  const destinations = useMemo(() => {
+    const seen = new Set<string>()
+    return sections
+      .flatMap((s) => s.items.map((i) => ({ ...i, heading: s.heading })))
+      .filter((i) => (seen.has(i.path) ? false : (seen.add(i.path), true)))
+  }, [sections])
+
+  const matches = query.trim()
+    ? destinations.filter((d) => d.label.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
+    : []
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
   if (!user) return null
-
-  const sections = navForRole(user.role)
-
-  const currentLabel = sections
-    .flatMap((s) => s.items)
-    .find(
-      (i) =>
-        location.pathname === i.path ||
-        (i.path !== '/dashboard' &&
-          location.pathname.startsWith(i.path + '/'))
-    )?.label
 
   const roleLabel = ROLE_LABEL[user.role as Role] ?? user.role
 
@@ -45,213 +84,175 @@ export default function DashboardLayout() {
     } catch {
       // Still logout locally if API is unavailable.
     }
-
     dispatch(logout())
     navigate('/login')
   }
 
-  const getInitials = (name?: string) => {
-    if (!name) return 'U'
-
-    const parts = name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-
-    if (parts.length === 1) {
-      return parts[0].slice(0, 2).toUpperCase()
-    }
-
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  const goTo = (path: string) => {
+    setQuery('')
+    setSearchOpen(false)
+    setMobileOpen(false)
+    navigate(path)
   }
 
-  return (
-    <div className="min-h-screen bg-[#f6f7f9] text-gray-950">
-      {/* ================================================================ */}
-      {/* MOBILE OVERLAY                                                   */}
-      {/* ================================================================ */}
+  const sidebarWidth = collapsed ? 'lg:w-[60px]' : 'lg:w-[240px]'
 
+  return (
+    <div className="min-h-screen bg-bg text-gray-900">
+      {/* ── TOP BAR (Polaris dark) ─────────────────────────────────────── */}
+      <header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-3 bg-topbar px-3 lg:px-4">
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="rounded-lg p-1.5 text-[#e3e3e3] transition hover:bg-white/10 lg:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu size={20} />
+        </button>
+
+        <Link to="/dashboard" className="flex shrink-0 items-center gap-2 lg:w-[224px]">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#36fba1] text-xs font-black text-[#1a1a1a]">
+            P
+          </span>
+          <span className="hidden text-[15px] font-bold tracking-tight text-white sm:inline">PAISA</span>
+        </Link>
+
+        {/* Jump-to-page search */}
+        <div ref={searchRef} className="relative mx-auto w-full max-w-[480px]">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#b5b5b5]" />
+          <input
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true) }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && matches[0]) goTo(matches[0].path)
+              if (e.key === 'Escape') { setQuery(''); setSearchOpen(false) }
+            }}
+            placeholder="Search pages"
+            aria-label="Search pages"
+            className="h-8 w-full rounded-lg border border-[#4a4a4a] bg-[#303030] pl-9 pr-3 text-sm text-white placeholder:text-[#b5b5b5] transition hover:border-[#616161] focus:bg-[#3a3a3a]"
+          />
+          {searchOpen && matches.length > 0 && (
+            <div className="p-card absolute inset-x-0 top-10 z-50 overflow-hidden py-1.5 shadow-xl">
+              {matches.map((m) => {
+                const Icon = m.icon
+                return (
+                  <button
+                    key={m.path}
+                    type="button"
+                    onClick={() => goTo(m.path)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                  >
+                    <Icon size={16} className="text-gray-500" />
+                    <span className="font-medium">{m.label}</span>
+                    <span className="ml-auto text-xs text-gray-400">{m.heading}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <NotificationBell />
+
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition hover:bg-white/10"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#c4fde1] text-[11px] font-bold text-[#0c5132]">
+                {getInitials(user.name)}
+              </span>
+              <span className="hidden max-w-[140px] truncate text-sm font-medium text-[#e3e3e3] sm:block">
+                {user.name}
+              </span>
+            </button>
+
+            {menuOpen && (
+              <div role="menu" className="p-card absolute right-0 top-11 z-50 w-60 overflow-hidden py-1.5 shadow-xl">
+                <div className="px-3 pb-2 pt-1">
+                  <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
+                  <p className="truncate text-xs text-gray-500">{user.email}</p>
+                  <span className="mt-1.5 inline-flex rounded-lg bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                    {roleLabel}
+                  </span>
+                </div>
+                <div className="my-1 border-t border-gray-200" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); navigate('/dashboard/settings') }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
+                >
+                  <Settings size={16} className="text-gray-500" /> Settings
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-[#8e0b21] hover:bg-[#fedad9]/60"
+                >
+                  <LogOut size={16} /> Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ── MOBILE OVERLAY ─────────────────────────────────────────────── */}
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close navigation"
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
         />
       )}
 
-      {/* ================================================================ */}
-      {/* SIDEBAR                                                          */}
-      {/* ================================================================ */}
-
+      {/* ── SIDEBAR (Polaris navigation) ───────────────────────────────── */}
       <aside
         className={[
-          'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-gray-200 bg-white',
-          'transition-all duration-300 ease-in-out',
-          collapsed ? 'w-[78px]' : 'w-[246px]',
-          mobileOpen
-            ? 'translate-x-0'
-            : '-translate-x-full lg:translate-x-0',
+          'fixed bottom-0 left-0 top-14 z-40 flex w-[240px] flex-col bg-nav transition-[width,transform] duration-200',
+          sidebarWidth,
+          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
-        {/* -------------------------------------------------------------- */}
-        {/* BRAND                                                          */}
-        {/* -------------------------------------------------------------- */}
-
-        <div
-          className={[
-            'flex h-[66px] shrink-0 items-center border-b border-gray-100',
-            collapsed
-              ? 'justify-center px-3'
-              : 'justify-between px-4',
-          ].join(' ')}
-        >
-          {!collapsed ? (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2.5"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-950 text-xs font-black text-white">
-                P
-              </div>
-
-              <div>
-                <div className="text-[17px] font-black tracking-[-0.04em] text-gray-950">
-                  PAISA
-                </div>
-
-                <div className="text-[10px] font-medium text-gray-400">
-                  {roleLabel}
-                </div>
-              </div>
-            </Link>
-          ) : (
-            <Link
-              to="/dashboard"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-950 text-xs font-black text-white"
-            >
-              P
-            </Link>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            className={[
-              'rounded-lg p-2 text-gray-400 transition',
-              'hover:bg-gray-100 hover:text-gray-900',
-              collapsed ? 'hidden lg:block' : '',
-            ].join(' ')}
-            aria-label={
-              collapsed ? 'Expand sidebar' : 'Collapse sidebar'
-            }
-          >
-            <Menu
-              size={17}
-              className={[
-                'transition-transform duration-300',
-                collapsed ? 'rotate-180' : '',
-              ].join(' ')}
-            />
-          </button>
-        </div>
-
-        {/* -------------------------------------------------------------- */}
-        {/* USER / WORKSPACE CARD                                          */}
-        {/* -------------------------------------------------------------- */}
-
-        {!collapsed && (
-          <div className="border-b border-gray-100 p-3">
-            <div className="rounded-xl bg-gray-50 p-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-950 text-[11px] font-bold text-white">
-                  {getInitials(user.name)}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-gray-900">
-                    {user.name}
-                  </p>
-
-                  <p className="mt-0.5 truncate text-[11px] text-gray-500">
-                    {roleLabel}
-                  </p>
-                </div>
-
-                <ChevronDown
-                  size={14}
-                  className="shrink-0 text-gray-400"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* -------------------------------------------------------------- */}
-        {/* NAVIGATION                                                      */}
-        {/* -------------------------------------------------------------- */}
-
-        <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4 sidebar-scroll">
-          {sections.map((section) => (
-            <div
-              key={section.heading}
-              className="mb-5"
-            >
+        <nav className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2 py-3">
+          {navSections.map((section) => (
+            <div key={section.heading} className="mb-3">
               {!collapsed && (
-                <div className="mb-2 flex items-center gap-1 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">
-                  <span>{section.heading}</span>
-                  <ChevronDown size={9} />
-                </div>
+                <p className="mb-1 px-2 text-xs font-medium text-gray-500">{section.heading}</p>
               )}
-
-              <div className="space-y-1">
+              <div className="space-y-px">
                 {section.items.map((item) => {
                   const Icon = item.icon
-
-                  const active =
-                    location.pathname === item.path ||
-                    (item.path !== '/dashboard' &&
-                      location.pathname.startsWith(
-                        item.path + '/'
-                      ))
-
+                  const active = isActivePath(location.pathname, item.path)
                   return (
                     <Link
-                      key={item.path}
+                      key={`${section.heading}-${item.path}`}
                       to={item.path}
                       title={collapsed ? item.label : undefined}
                       onClick={() => setMobileOpen(false)}
+                      aria-current={active ? 'page' : undefined}
                       className={[
-                        'group relative flex items-center rounded-xl',
-                        'transition-all duration-150',
-                        collapsed
-                          ? 'justify-center px-2 py-2.5'
-                          : 'gap-3 px-3 py-2.5',
+                        'group flex items-center rounded-lg text-sm transition-colors',
+                        collapsed ? 'justify-center px-2 py-1.5' : 'gap-2 px-2 py-1.5',
                         active
-                          ? 'bg-gray-950 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950',
+                          ? 'bg-white font-semibold text-gray-900 shadow-sm'
+                          : 'font-medium text-gray-700 hover:bg-black/[0.05] hover:text-gray-900',
                       ].join(' ')}
                     >
                       <Icon
-                        size={17}
-                        strokeWidth={active ? 2.2 : 1.8}
-                        className={[
-                          'shrink-0 transition-transform duration-150',
-                          active
-                            ? 'text-white'
-                            : 'text-gray-500 group-hover:text-gray-900',
-                        ].join(' ')}
+                        size={18}
+                        strokeWidth={active ? 2.2 : 1.9}
+                        className={active ? 'shrink-0 text-gray-900' : 'shrink-0 text-gray-500 group-hover:text-gray-900'}
                       />
-
-                      {!collapsed && (
-                        <span className="truncate text-[13px] font-medium">
-                          {item.label}
-                        </span>
-                      )}
-
-                      {!collapsed && active && (
-                        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
-                      )}
+                      {!collapsed && <span className="truncate">{item.label}</span>}
                     </Link>
                   )
                 })}
@@ -260,105 +261,40 @@ export default function DashboardLayout() {
           ))}
         </nav>
 
-        {/* -------------------------------------------------------------- */}
-        {/* LOGOUT                                                          */}
-        {/* -------------------------------------------------------------- */}
-
-        <div className="shrink-0 border-t border-gray-100 p-3">
-          <button
-            type="button"
-            onClick={handleLogout}
+        <div className="shrink-0 space-y-px border-t border-black/[0.06] px-2 py-2">
+          <Link
+            to="/dashboard/settings"
+            onClick={() => setMobileOpen(false)}
+            title={collapsed ? 'Settings' : undefined}
             className={[
-              'flex w-full items-center rounded-xl',
-              'text-[13px] font-medium text-gray-600',
-              'transition-all duration-150',
-              collapsed
-                ? 'justify-center px-2 py-2.5'
-                : 'gap-3 px-3 py-2.5',
-              'hover:bg-red-50 hover:text-red-600',
+              'flex items-center rounded-lg text-sm transition-colors',
+              collapsed ? 'justify-center px-2 py-1.5' : 'gap-2 px-2 py-1.5',
+              isActivePath(location.pathname, '/dashboard/settings')
+                ? 'bg-white font-semibold text-gray-900 shadow-sm'
+                : 'font-medium text-gray-700 hover:bg-black/[0.05]',
             ].join(' ')}
           >
-            <LogOut
-              size={17}
-              className="shrink-0"
-            />
-
-            {!collapsed && <span>Logout</span>}
+            <Settings size={18} className="shrink-0 text-gray-500" />
+            {!collapsed && <span>Settings</span>}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className={[
+              'hidden w-full items-center rounded-lg text-sm font-medium text-gray-500 transition-colors hover:bg-black/[0.05] hover:text-gray-900 lg:flex',
+              collapsed ? 'justify-center px-2 py-1.5' : 'gap-2 px-2 py-1.5',
+            ].join(' ')}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {!collapsed && <span>Collapse</span>}
           </button>
         </div>
       </aside>
 
-      {/* ================================================================ */}
-      {/* MAIN CONTENT                                                     */}
-      {/* ================================================================ */}
-
-      <div
-        className={[
-          'min-h-screen transition-all duration-300',
-          collapsed ? 'lg:pl-[78px]' : 'lg:pl-[246px]',
-        ].join(' ')}
-      >
-        {/* -------------------------------------------------------------- */}
-        {/* TOPBAR                                                          */}
-        {/* -------------------------------------------------------------- */}
-
-        <header className="sticky top-0 z-30 flex h-[66px] items-center justify-between border-b border-gray-200 bg-white/95 px-4 backdrop-blur lg:px-6">
-          {/* LEFT */}
-
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 lg:hidden"
-            >
-              <Menu size={20} />
-            </button>
-
-            <div className="min-w-0">
-              <h1 className="truncate text-[16px] font-semibold tracking-[-0.01em] text-gray-950">
-                {currentLabel ?? 'Dashboard'}
-              </h1>
-            </div>
-          </div>
-
-          {/* RIGHT */}
-
-          <div className="flex items-center gap-2.5">
-            <NotificationBell />
-
-            <div className="mx-1 hidden h-7 w-px bg-gray-200 sm:block" />
-
-            <div className="hidden text-right sm:block">
-              <p className="max-w-[150px] truncate text-xs font-semibold text-gray-900">
-                {user.name}
-              </p>
-
-              <p className="text-[10px] text-gray-500">
-                {roleLabel}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-950 text-[11px] font-bold text-white"
-            >
-              {getInitials(user.name)}
-            </button>
-
-            <button
-              type="button"
-              className="hidden rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-900 sm:block"
-            >
-              <MoreHorizontal size={17} />
-            </button>
-          </div>
-        </header>
-
-        {/* -------------------------------------------------------------- */}
-        {/* PAGE                                                             */}
-        {/* -------------------------------------------------------------- */}
-
-        <main className="min-h-[calc(100vh-66px)] p-4 sm:p-5 lg:p-6">
+      {/* ── PAGE ───────────────────────────────────────────────────────── */}
+      <div className={['pt-14 transition-[padding] duration-200', collapsed ? 'lg:pl-[60px]' : 'lg:pl-[240px]'].join(' ')}>
+        <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1320px] px-4 py-5 sm:px-6 lg:py-6">
           <Outlet />
         </main>
       </div>
