@@ -1,6 +1,7 @@
 // src/controllers/classController.js
 
 import { Class } from "../models/Class.js";
+import { childUserIdsFor } from "../utils/parentScope.js";
 
 import { User } from "../models/User.js";
 
@@ -92,6 +93,12 @@ export const getClasses = asyncHandler(async (req, res) => {
 
   if (req.user.role === "student") {
     query.studentIds = req.user._id;
+  }
+
+  if (req.user.role === "parent") {
+    query.studentIds = {
+      $in: await childUserIdsFor(req.user),
+    };
   }
 
   if (status) {
@@ -189,6 +196,23 @@ export const getClass = asyncHandler(async (req, res) => {
       return sendForbidden(
         res,
         "You are not enrolled in this class"
+      );
+    }
+  }
+
+  if (req.user.role === "parent") {
+    const childIds = (
+      await childUserIdsFor(req.user)
+    ).map(String);
+
+    const isChildClass = cls.studentIds?.some((student) =>
+      childIds.includes(String(student._id || student))
+    );
+
+    if (!isChildClass) {
+      return sendForbidden(
+        res,
+        "None of your children are in this class"
       );
     }
   }

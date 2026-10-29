@@ -9,6 +9,7 @@
 // the invoice's payment history.
 
 import { Invoice } from "../models/Payment.js";
+import { childUserIdsFor } from "../utils/parentScope.js";
 import { User } from "../models/User.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
@@ -143,6 +144,12 @@ export const getInvoices = asyncHandler(
       query.studentId = req.user._id;
     }
 
+    if (req.user.role === "parent") {
+      query.studentId = {
+        $in: await childUserIdsFor(req.user),
+      };
+    }
+
     if (req.user.role === "employee") {
       query.employeeId = req.user._id;
     }
@@ -170,10 +177,26 @@ export const getInvoices = asyncHandler(
 );
 
 export const getInvoice = asyncHandler(async (req, res) => {
-  const invoice = await Invoice.findOne({
+  const query = scoped(req, {
     publicId: req.params.publicId,
-    ...scoped(req),
   });
+
+  // Same ownership rules as getInvoices.
+  if (req.user.role === "student") {
+    query.studentId = req.user._id;
+  }
+
+  if (req.user.role === "parent") {
+    query.studentId = {
+      $in: await childUserIdsFor(req.user),
+    };
+  }
+
+  if (req.user.role === "employee") {
+    query.employeeId = req.user._id;
+  }
+
+  const invoice = await Invoice.findOne(query);
 
   if (!invoice) {
     return sendNotFound(res, "Invoice not found");

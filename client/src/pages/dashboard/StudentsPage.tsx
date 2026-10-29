@@ -182,6 +182,13 @@ function EditStudentModal({
   onClose: () => void
 }) {
   const [updateStudent, { isLoading }] = useUpdateStudentMutation()
+  const { data: users } = useGetUsersQuery({ role: 'parent' })
+  const parents = (users ?? []).filter((u) => u.role === 'parent')
+  // Selection is tracked by user _id; null until the user touches it.
+  const [guardianEdit, setGuardianEdit] = useState<string[] | null>(null)
+  const guardians = guardianEdit ?? student.guardianUserIds ?? []
+  const toggleGuardian = (id: string) =>
+    setGuardianEdit(guardians.includes(id) ? guardians.filter((g) => g !== id) : [...guardians, id])
 
   const [course, setCourse] = useState(student.course ?? '')
   const [branch, setBranch] = useState(student.branch ?? '')
@@ -211,6 +218,13 @@ function EditStudentModal({
           section: section.trim() || null,
           rollNumber: rollNumber.trim() || null,
           academicStatus,
+          ...(guardianEdit
+            ? {
+                guardianUserIds: parents
+                  .filter((p) => guardianEdit.includes(p._id))
+                  .map((p) => rid(p)),
+              }
+            : {}),
         },
       }).unwrap()
       onClose()
@@ -281,6 +295,26 @@ function EditStudentModal({
               <option value="dropped_out">Dropped out</option>
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Parent accounts</label>
+          {parents.length === 0 ? (
+            <p className="text-xs text-gray-400">No parent accounts in this organization yet.</p>
+          ) : (
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
+              {parents.map((p) => (
+                <label key={p._id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={guardians.includes(p._id)}
+                    onChange={() => toggleGuardian(p._id)}
+                  />
+                  {p.name} <span className="text-xs text-gray-400">{p.email}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

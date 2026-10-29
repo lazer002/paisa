@@ -15,6 +15,35 @@ import { scopedQuery } from "../utils/peopleHelpers.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
 
+// Resolve parent publicIds to user _ids; they must be parent accounts
+// of the same institute.
+const resolveGuardians = async (refs, instituteId) => {
+  // An unknown or malformed parent id is a bad request, not a server error.
+  let ids;
+
+  try {
+    ids = await Promise.all(
+      (Array.isArray(refs) ? refs : []).map((ref) =>
+        resolveRef(User, ref, { label: "Parent" })
+      )
+    );
+  } catch {
+    throw new Error("GUARDIAN_INVALID");
+  }
+
+  const parents = await User.find({
+    _id: { $in: ids },
+    role: Roles.PARENT,
+    instituteId,
+  }).select("_id");
+
+  if (parents.length !== new Set(ids.map(String)).size) {
+    throw new Error("GUARDIAN_INVALID");
+  }
+
+  return parents.map((p) => p._id);
+};
+
 // Create student profile
 export const createStudent = async (
   req,
@@ -26,6 +55,7 @@ export const createStudent = async (
       enrollmentNumber,
       course,
       year,
+      guardianUserIds,
     } = req.body;
 
     if (
@@ -94,6 +124,12 @@ export const createStudent = async (
         enrollmentNumber,
         course,
         year,
+        guardianUserIds: guardianUserIds
+          ? await resolveGuardians(
+              guardianUserIds,
+              instituteId
+            )
+          : [],
       });
 
     sendCreated(
@@ -102,6 +138,14 @@ export const createStudent = async (
       student
     );
   } catch (err) {
+    if (err?.message === "GUARDIAN_INVALID") {
+      return sendError(
+        res,
+        400,
+        "Guardians must be parent accounts of this institute"
+      );
+    }
+
     if (
       err?.code === 11000
     ) {
@@ -227,6 +271,13 @@ export const updateStudent = async (req, res) => {
       }
     }
 
+    if (req.body.guardianUserIds !== undefined) {
+      updates.guardianUserIds = await resolveGuardians(
+        req.body.guardianUserIds,
+        student.instituteId
+      );
+    }
+
     if (!Object.keys(updates).length) {
       return sendError(res, 400, "No editable fields supplied");
     }
@@ -236,6 +287,14 @@ export const updateStudent = async (req, res) => {
 
     sendSuccess(res, "Student updated", student);
   } catch (err) {
+    if (err?.message === "GUARDIAN_INVALID") {
+      return sendError(
+        res,
+        400,
+        "Guardians must be parent accounts of this institute"
+      );
+    }
+
     console.error("Update student error:", err);
     sendError(res, 500, "Server error");
   }

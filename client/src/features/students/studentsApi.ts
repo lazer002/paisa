@@ -17,6 +17,8 @@ export interface StudentProfile {
   section?: string | null
   rollNumber?: string | null
   academicStatus?: AcademicStatus
+  /** Linked parent accounts (user _ids). */
+  guardianUserIds?: string[]
 }
 
 export interface UpdateStudentPayload {
@@ -27,6 +29,8 @@ export interface UpdateStudentPayload {
   section?: string | null
   rollNumber?: string | null
   academicStatus?: AcademicStatus
+  /** Parent accounts (publicIds) allowed to see this student's records. */
+  guardianUserIds?: string[]
 }
 
 const unwrap = (res: { data?: unknown }) =>

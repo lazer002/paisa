@@ -315,6 +315,18 @@ enrollmentNumber: {
     /* AUDIT / LIFECYCLE                                                       */
     /* ---------------------------------------------------------------------- */
 
+    // Parent accounts allowed to see this student's records
+    guardianUserIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+      index: true,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

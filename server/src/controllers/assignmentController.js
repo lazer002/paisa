@@ -1,6 +1,7 @@
 // src/controllers/assignmentController.js
 
 import { Assignment } from "../models/Assignment.js";
+import { visibleClassIdsFor } from "../utils/parentScope.js";
 import { Class } from "../models/Class.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
@@ -103,9 +104,12 @@ export const getAssignments = asyncHandler(async (req, res) => {
     query.status = "published";
   }
 
-  // Parents follow their child's academic life:
-  // institute-wide, published assignments only
+  // Parents see only their linked children's published assignments
   if (req.user.role === "parent") {
+    query.classId = {
+      $in: await visibleClassIdsFor(req.user),
+    };
+
     query.status = "published";
   }
 
@@ -160,6 +164,21 @@ export const getAssignment = asyncHandler(async (req, res) => {
       res,
       "Access denied"
     );
+  }
+
+  // Students and parents only see published work for their own classes.
+  const visibleClasses = await visibleClassIdsFor(req.user);
+
+  if (
+    visibleClasses &&
+    (assignment.status !== "published" ||
+      !visibleClasses.some(
+        (id) =>
+          String(id) ===
+          String(assignment.classId?._id ?? assignment.classId)
+      ))
+  ) {
+    return sendNotFound(res, "Assignment not found");
   }
 
   sendSuccess(
