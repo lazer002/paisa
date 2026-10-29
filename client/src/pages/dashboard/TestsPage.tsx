@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, Send, Check, Play } from 'lucide-react'
+import { Plus, Trash2, Send, Check, Play, Pencil } from 'lucide-react'
 
 import {
   useGetTestsQuery,
@@ -8,12 +8,14 @@ import {
   useUpdateTestMutation,
   useGetQuestionsQuery,
   useCreateQuestionMutation,
+  useUpdateQuestionMutation,
   useDeleteQuestionMutation,
   useGetAttemptsQuery,
   useGradeAttemptMutation,
   useStartAttemptMutation,
   type SchoolTest,
   type TestAttempt,
+  type TestQuestion,
 } from '@/features/assessment/assessmentApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
@@ -38,6 +40,7 @@ export default function TestsPage() {
   const isStaff = can('test:create')
   // Principals can build tests but hold no attempt permissions, so grading stays hidden for them.
   const canGrade = can('test_attempt:read')
+  const canEditQuestion = can('question:update')
   const isStudent = role === 'student'
 
   const [tab, setTab] = useState<TabId>('tests')
@@ -54,6 +57,7 @@ export default function TestsPage() {
   const [updateTest] = useUpdateTestMutation()
   const [deleteTest] = useDeleteTestMutation()
   const [createQuestion] = useCreateQuestionMutation()
+  const [updateQuestion] = useUpdateQuestionMutation()
   const [deleteQuestion] = useDeleteQuestionMutation()
   const [gradeAttempt] = useGradeAttemptMutation()
   const [startAttempt] = useStartAttemptMutation()
@@ -62,6 +66,7 @@ export default function TestsPage() {
 
   const [showCreate, setShowCreate] = useState(false)
   const [showQuestion, setShowQuestion] = useState(false)
+  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null)
 
   // ── Create test form ──
   const [title, setTitle] = useState('')
@@ -78,6 +83,7 @@ export default function TestsPage() {
   const [qPoints, setQPoints] = useState('1')
   const [qOptions, setQOptions] = useState<string[]>(['', ''])
   const [qCorrect, setQCorrect] = useState('0')
+  const [qTrueFalse, setQTrueFalse] = useState('true')
 
   const resetTestForm = () => {
     setTitle(''); setClassId(''); setType('quiz'); setDuration('30')
@@ -104,30 +110,77 @@ export default function TestsPage() {
     }
   }
 
-  const handleCreateQuestion = async () => {
+  const resetQuestionForm = () => {
+    setQText(''); setQType('single_choice'); setQPoints('1')
+    setQOptions(['', '']); setQCorrect('0'); setQTrueFalse('true')
+  }
+
+  const openCreateQuestion = () => {
+    resetQuestionForm()
+    setEditingQuestion(null)
+    setShowQuestion(true)
+  }
+
+  const openEditQuestion = (q: TestQuestion) => {
+    setEditingQuestion(q)
+    setQText(q.text)
+    setQType(q.type)
+    setQPoints(String(q.points ?? 1))
+    const opts = q.options ?? []
+    setQOptions(opts.length ? opts.map((o) => o.text) : ['', ''])
+    const correctIndex = opts.findIndex((o) => o.isCorrect)
+    setQCorrect(String(correctIndex >= 0 ? correctIndex : 0))
+    setQTrueFalse(String(q.correctAnswer).toLowerCase() === 'false' ? 'false' : 'true')
+    setShowQuestion(true)
+  }
+
+  const closeQuestionForm = () => {
+    setShowQuestion(false)
+    setEditingQuestion(null)
+  }
+
+  const handleSaveQuestion = async () => {
     if (!qText) return
+    // Types this form cannot build answers for (e.g. multiple choice) keep their stored options and answer.
+    const answer = QUESTION_TYPES.includes(qType)
+      ? {
+          options:
+            qType === 'single_choice'
+              ? qOptions.filter(Boolean).map((text, i) => ({ text, isCorrect: String(i) === qCorrect }))
+              : [],
+          correctAnswer:
+            qType === 'single_choice'
+              ? qOptions[Number(qCorrect)] ?? null
+              : qType === 'true_false'
+                ? qTrueFalse
+                : null,
+        }
+      : {}
     try {
-      await createQuestion({
-        text: qText,
-        type: qType,
-        points: Number(qPoints) || 1,
-        status: 'published',
-        options:
-          qType === 'single_choice'
-            ? qOptions.filter(Boolean).map((text, i) => ({ text, isCorrect: String(i) === qCorrect }))
-            : [],
-        correctAnswer:
-          qType === 'single_choice'
-            ? qOptions[Number(qCorrect)] ?? null
-            : qType === 'true_false'
-              ? 'true'
-              : null,
-      }).unwrap()
-      setShowQuestion(false)
-      setQText(''); setQOptions(['', '']); setQCorrect('0')
-      setToast({ msg: 'Question added to bank', tone: 'success' })
+      if (editingQuestion) {
+        await updateQuestion({
+          id: editingQuestion.publicId ?? editingQuestion._id,
+          payload: { text: qText, type: qType, points: Number(qPoints) || 1, ...answer },
+        }).unwrap()
+        setToast({ msg: 'Question updated', tone: 'success' })
+      } else {
+        await createQuestion({
+          text: qText,
+          type: qType,
+          points: Number(qPoints) || 1,
+          status: 'published',
+          ...answer,
+        }).unwrap()
+        setToast({ msg: 'Question added to bank', tone: 'success' })
+      }
+      closeQuestionForm()
+      resetQuestionForm()
     } catch (e: unknown) {
-      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create question', tone: 'critical' })
+      setToast({
+        msg: (e as { data?: { message?: string } })?.data?.message
+          ?? (editingQuestion ? 'Failed to update question' : 'Failed to create question'),
+        tone: 'critical',
+      })
     }
   }
 
@@ -258,7 +311,7 @@ export default function TestsPage() {
     },
   ]
 
-  const questionColumns: Column<{ _id: string; publicId?: string; text: string; type: string; points?: number; difficulty: string }>[] = [
+  const questionColumns: Column<TestQuestion>[] = [
     { key: 'text', header: 'Question', render: (q) => <p className="max-w-md truncate text-gray-800">{q.text}</p> },
     { key: 'type', header: 'Type', render: (q) => <span className="text-gray-500">{q.type.replace(/_/g, ' ')}</span> },
     { key: 'points', header: 'Points', render: (q) => <span className="text-gray-500">{q.points ?? 1}</span> },
@@ -268,12 +321,24 @@ export default function TestsPage() {
       header: '',
       className: 'text-right',
       render: (q) => (
-        <button
-          onClick={() => deleteQuestion(q.publicId ?? q._id)}
-          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="flex justify-end gap-1.5">
+          {canEditQuestion && (
+            <button
+              onClick={() => openEditQuestion(q)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+              title="Edit"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          <button
+            onClick={() => deleteQuestion(q.publicId ?? q._id)}
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       ),
     },
   ]
@@ -326,7 +391,7 @@ export default function TestsPage() {
         subtitle={isStudent ? 'Published tests for your classes' : 'Build tests from the question bank and grade attempts'}
         actions={isStaff ? (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setShowQuestion(true)}><Plus size={15} /> Question</Button>
+            <Button variant="secondary" onClick={openCreateQuestion}><Plus size={15} /> Question</Button>
             <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Test</Button>
           </div>
         ) : undefined}
@@ -384,7 +449,7 @@ export default function TestsPage() {
           keyOf={(q) => q.publicId ?? q._id}
           emptyTitle="Question bank is empty"
           emptyHint="Add questions first, then attach them to tests"
-          emptyAction={<Button onClick={() => setShowQuestion(true)}><Plus size={15} /> Add Question</Button>}
+          emptyAction={<Button onClick={openCreateQuestion}><Plus size={15} /> Add Question</Button>}
         />
       )}
 
@@ -492,15 +557,15 @@ export default function TestsPage() {
         </div>
       </ModalShell>
 
-      {/* Create question */}
+      {/* Create / edit question */}
       <ModalShell
         open={showQuestion}
-        onClose={() => setShowQuestion(false)}
-        title="New Question"
+        onClose={closeQuestionForm}
+        title={editingQuestion ? 'Edit Question' : 'New Question'}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowQuestion(false)}>Cancel</Button>
-            <Button onClick={handleCreateQuestion}>Add to Bank</Button>
+            <Button variant="secondary" onClick={closeQuestionForm}>Cancel</Button>
+            <Button onClick={handleSaveQuestion}>{editingQuestion ? 'Save changes' : 'Add to Bank'}</Button>
           </>
         }
       >
@@ -514,6 +579,7 @@ export default function TestsPage() {
                 {QUESTION_TYPES.map((t) => (
                   <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
                 ))}
+                {!QUESTION_TYPES.includes(qType) && <option value={qType}>{qType.replace(/_/g, ' ')}</option>}
               </select>
             </Field>
             <Field label="Points">
@@ -551,7 +617,17 @@ export default function TestsPage() {
             </Field>
           )}
           {qType === 'true_false' && (
-            <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">Correct answer is recorded as “true”.</p>
+            <Field label="Correct answer">
+              <select className={inputCls} value={qTrueFalse} onChange={(e) => setQTrueFalse(e.target.value)}>
+                <option value="true">True</option>
+                <option value="false">False</option>
+              </select>
+            </Field>
+          )}
+          {!QUESTION_TYPES.includes(qType) && (
+            <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              This question type keeps its stored options and answer; only the text and points change here.
+            </p>
           )}
           {['short_answer', 'numeric'].includes(qType) && (
             <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">Answer is graded manually after submission.</p>

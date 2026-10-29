@@ -31,6 +31,7 @@ import {
 } from "../config/userRoleConfig.js";
 
 import  {ROLES }  from "../config/constants.js";
+import { canManageRole } from "../utils/permissions.js";
 
 
 export const createUser = async (req, res) => {
@@ -818,6 +819,27 @@ export const updateUser = async (req, res) => {
       String(target._id) === String(req.user._id);
 
     // =========================================================
+    // TENANT + HIERARCHY (every non-super-admin)
+    // =========================================================
+
+    if (
+      req.user.role !== ROLES.SUPER_ADMIN &&
+      req.user.role !== ROLES.ADMIN &&
+      !isSelf
+    ) {
+      const sameOrg =
+        String(target.instituteId ?? "") ===
+        String(req.user.instituteId ?? "");
+
+      if (
+        !sameOrg ||
+        !canManageRole(req.user.role, target.role)
+      ) {
+        return sendForbidden(res, "Access denied");
+      }
+    }
+
+    // =========================================================
     // ADMIN ACCESS
     // =========================================================
 
@@ -1260,6 +1282,37 @@ export const deleteUser = async (
         400,
         "You cannot delete your own account"
       );
+    }
+
+    // Non-super-admins may only remove users of their own
+    // organization whose role ranks strictly below theirs
+    // (an admin can never remove another admin or a super admin).
+    if (
+      req.user.role !==
+      ROLES.SUPER_ADMIN
+    ) {
+      const sameOrg =
+        String(target.instituteId ?? "") ===
+        String(req.user.instituteId ?? "");
+
+      if (!sameOrg) {
+        return sendForbidden(
+          res,
+          "Access denied"
+        );
+      }
+
+      if (
+        !canManageRole(
+          req.user.role,
+          target.role
+        )
+      ) {
+        return sendForbidden(
+          res,
+          "You cannot delete a user with an equal or higher role"
+        );
+      }
     }
 
     // Soft delete / deactivate.

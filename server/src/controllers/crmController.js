@@ -371,12 +371,78 @@ export const deleteDeal = asyncHandler(async (req, res) => {
    PIPELINES
 ========================================================= */
 
+const DEFAULT_PIPELINE_STAGES = [
+  { name: "Qualification" },
+  { name: "Proposal" },
+  { name: "Negotiation" },
+  { name: "Closed Won", type: "won" },
+  { name: "Closed Lost", type: "lost" },
+];
+
+const STAGE_TYPES = ["open", "won", "lost"];
+
+// The Pipeline model requires a unique `key` and `order`
+// per stage. Callers send names (strings or { name, type }),
+// so keys are derived from names and order follows the
+// array position.
+const normalizeStages = (stages) => {
+  const keys = new Set();
+
+  return stages.map((raw, index) => {
+    const stage =
+      typeof raw === "string" ? { name: raw } : raw || {};
+
+    const name = String(stage.name || "").trim();
+
+    const base =
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/(^_|_$)/g, "") || `stage_${index + 1}`;
+
+    let key = base;
+    let suffix = 2;
+
+    while (keys.has(key)) {
+      key = `${base}_${suffix++}`;
+    }
+
+    keys.add(key);
+
+    const type = STAGE_TYPES.includes(stage.type)
+      ? stage.type
+      : "open";
+
+    return {
+      name,
+      key,
+      order: index + 1,
+      type,
+      isClosed: type !== "open",
+    };
+  });
+};
+
 export const createPipeline = asyncHandler(
   async (req, res) => {
     const { name, stages, type } = req.body;
 
     if (!name) {
       return sendError(res, 400, "Name is required");
+    }
+
+    if (stages !== undefined && !Array.isArray(stages)) {
+      return sendError(res, 400, "Stages must be an array");
+    }
+
+    const normalized = normalizeStages(
+      stages && stages.length
+        ? stages
+        : DEFAULT_PIPELINE_STAGES
+    );
+
+    if (normalized.some((stage) => !stage.name)) {
+      return sendError(res, 400, "Every stage needs a name");
     }
 
     const pipeline = await Pipeline.create({
@@ -388,13 +454,17 @@ export const createPipeline = asyncHandler(
 
       type: type || "sales",
 
-      stages: stages || [
-        { name: "Qualification", order: 1 },
-        { name: "Proposal", order: 2 },
-        { name: "Negotiation", order: 3 },
-        { name: "Closed Won", order: 4 },
-        { name: "Closed Lost", order: 5 },
-      ],
+      stages: normalized,
+
+      defaultStageKey: normalized[0].key,
+
+      wonStageKey:
+        normalized.find((stage) => stage.type === "won")
+          ?.key || null,
+
+      lostStageKey:
+        normalized.find((stage) => stage.type === "lost")
+          ?.key || null,
 
       status: "active",
     });

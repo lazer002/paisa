@@ -81,7 +81,7 @@ export interface Pipeline {
   name: string
   type?: string
   status: string
-  stages?: { name: string; order?: number }[]
+  stages?: { _id?: string; name: string; key?: string; order?: number; type?: string }[]
   createdAt: string
 }
 
@@ -417,6 +417,10 @@ export const platformApi = createApi({
       query: (body) => ({ url: '/gamification/achievements', method: 'POST', body }),
       invalidatesTags: [{ type: 'Achievement', id: 'LIST' }],
     }),
+    updateAchievement: builder.mutation<Achievement, { id: string; payload: Record<string, unknown> }>({
+      query: ({ id, payload }) => ({ url: `/gamification/achievements/${id}`, method: 'PUT', body: payload }),
+      invalidatesTags: [{ type: 'Achievement', id: 'LIST' }, { type: 'Achievement', id: 'AWARDS' }],
+    }),
     deleteAchievement: builder.mutation<void, string>({
       query: (id) => ({ url: `/gamification/achievements/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Achievement', id: 'LIST' }],
@@ -476,7 +480,7 @@ export const {
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,
-  useGetAchievementsQuery, useCreateAchievementMutation, useDeleteAchievementMutation,
+  useGetAchievementsQuery, useCreateAchievementMutation, useUpdateAchievementMutation, useDeleteAchievementMutation,
   useAwardAchievementMutation, useGetUserAchievementsQuery,
   useAwardPointsMutation, useGetPointsLedgerQuery, useGetLeaderboardQuery,
   useGetEventsQuery, useCreateEventMutation, useUpdateEventMutation, useDeleteEventMutation,

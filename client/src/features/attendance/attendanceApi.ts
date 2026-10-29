@@ -111,6 +111,13 @@ export const attendanceApi = createApi({
       query: (body) => ({ url: '/geofences', method: 'POST', body }),
       invalidatesTags: ['Geofence'],
     }),
+    updateGeofence: builder.mutation<
+      Geofence,
+      { id: string; payload: Partial<GeofencePayload> & { status?: 'active' | 'inactive' } }
+    >({
+      query: ({ id, payload }) => ({ url: `/geofences/${id}`, method: 'PUT', body: payload }),
+      invalidatesTags: ['Geofence'],
+    }),
     deleteGeofence: builder.mutation<void, string>({
       query: (id) => ({ url: `/geofences/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Geofence'],
@@ -162,5 +169,6 @@ export const {
   useCloseQrSessionMutation,
   useGetGeofencesQuery,
   useCreateGeofenceMutation,
+  useUpdateGeofenceMutation,
   useDeleteGeofenceMutation,
 } = attendanceApi

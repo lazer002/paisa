@@ -39,6 +39,8 @@ import {
   useGetUsersQuery
 } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
+import DeleteUserDialog from '@/components/platform-admin/DeleteUserDialog'
+import { useUserDeleteGate } from '@/components/platform-admin/useUserDeleteGate'
 
 import type {
   UpdateUserPayload,
@@ -286,6 +288,12 @@ const { data: departments = [] } =
     useState(false)
 
   const [menuOpen, setMenuOpen] =
+    useState(false)
+
+  const { canDelete } =
+    useUserDeleteGate()
+
+  const [confirmDelete, setConfirmDelete] =
     useState(false)
 
 const [form, setForm] = useState({
@@ -603,7 +611,21 @@ if (user && user !== prevUser) {
 
                   {menuOpen && (
                     <div className="absolute right-0 top-12 z-20 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                      {user.status ===
+                      {canDelete(user) &&
+                      user.status !==
+                        'inactive' ? (
+                        // Server DELETE = soft delete (status → inactive),
+                        // so it replaces "Deactivate" for permitted actors.
+                        <button
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setConfirmDelete(true)
+                          }}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Delete user…
+                        </button>
+                      ) : user.status ===
                       'active' ? (
                         <button
                           onClick={deactivate}
@@ -663,6 +685,15 @@ if (user && user !== prevUser) {
             )}
           </div>
         </div>
+
+        {confirmDelete && (
+          <DeleteUserDialog
+            user={user}
+            onClose={() =>
+              setConfirmDelete(false)
+            }
+          />
+        )}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="h-28 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800" />

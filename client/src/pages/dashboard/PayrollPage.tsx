@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Wallet, Plus, DollarSign } from 'lucide-react'
+import { Wallet, Plus, DollarSign, Trash2, AlertTriangle } from 'lucide-react'
 
 import {
   useGetPayrollsQuery,
   useCreatePayrollMutation,
   useUpdatePayrollStatusMutation,
+  useDeletePayrollMutation,
   type Payroll,
 } from '@/features/payroll/payrollApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -127,10 +129,27 @@ export default function PayrollPage() {
   const user = useAppSelector((s) => s.auth.user)
   const canManage = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'hr'
   const isOwnOnly = user?.role === 'employee'
+  const { can } = usePermission()
+  // DELETE /payroll/:id is limited to super_admin/admin/hr — the payroll:delete holders.
+  const canDelete = can('payroll:delete')
 
   const { data: payrolls, isLoading, isError, refetch } = useGetPayrollsQuery()
   const [updateStatus] = useUpdatePayrollStatusMutation()
+  const [deletePayroll, { isLoading: deletePending }] = useDeletePayrollMutation()
   const [showProcess, setShowProcess] = useState(false)
+  const [deleteItem, setDeleteItem] = useState<Payroll | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    setDeleteError('')
+    try {
+      await deletePayroll(rid(deleteItem)).unwrap()
+      setDeleteItem(null)
+    } catch (e) {
+      setDeleteError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to delete payroll record')
+    }
+  }
 
   const empName = (p: Payroll) =>
     typeof p.employeeId === 'object' ? p.employeeId?.name ?? '—' : '—'
@@ -208,9 +227,20 @@ export default function PayrollPage() {
                   {canManage && (
                     <td className="px-4 py-3 text-right">
                       {p.status !== 'paid' && (
-                        <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'paid' })}>
-                          Mark Paid
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'paid' })}>
+                            Mark Paid
+                          </Button>
+                          {canDelete && (
+                            <button
+                              onClick={() => { setDeleteItem(p); setDeleteError('') }}
+                              className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   )}
@@ -222,6 +252,23 @@ export default function PayrollPage() {
       )}
 
       {canManage && showProcess && <ProcessPayrollModal open={showProcess} onClose={() => setShowProcess(false)} />}
+
+      <Modal open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Delete Payroll Record" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4">
+            <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-500" />
+            <p className="text-sm text-red-700">
+              Delete the {deleteItem ? `${MONTHS[deleteItem.month - 1]} ${deleteItem.year}` : ''} payroll for{' '}
+              <strong>{deleteItem ? empName(deleteItem) : ''}</strong>? This cannot be undone.
+            </p>
+          </div>
+          {deleteError && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{deleteError}</div>}
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDeleteItem(null)} disabled={deletePending}>Cancel</Button>
+            <Button variant="danger" onClick={handleDelete} loading={deletePending}>Delete</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

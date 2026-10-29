@@ -56,8 +56,15 @@ const ApiErrorFor = () =>
 
 export const createSalaryStructure = asyncHandler(
   async (req, res) => {
-    const { name, type, baseSalary, components, payFrequency } =
-      req.body;
+    const {
+      name,
+      type,
+      baseSalary,
+      components,
+      payFrequency,
+      effectiveFrom,
+      effectiveTo,
+    } = req.body;
 
     if (!name || baseSalary === undefined) {
       return sendError(
@@ -81,6 +88,11 @@ export const createSalaryStructure = asyncHandler(
       components: components || [],
 
       payFrequency: payFrequency || "monthly",
+
+      // The model requires effectiveFrom; default to today.
+      effectiveFrom: effectiveFrom || new Date(),
+
+      effectiveTo: effectiveTo || null,
 
       status: "active",
     });
@@ -133,6 +145,8 @@ export const updateSalaryStructure = asyncHandler(
       "baseSalary",
       "components",
       "payFrequency",
+      "effectiveFrom",
+      "effectiveTo",
       "status",
     ];
 

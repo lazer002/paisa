@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { BookMarked, Plus, Trash2, ExternalLink, FileVideo, FileText, Link2 } from 'lucide-react'
+import { BookMarked, Plus, Trash2, ExternalLink, FileVideo, FileText, Link2, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   useGetMaterialsQuery,
   useCreateMaterialMutation,
+  useUpdateMaterialMutation,
   useDeleteMaterialMutation,
+  type StudyMaterial,
 } from '@/features/assignments/assignmentsApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
@@ -22,33 +24,76 @@ const TYPE_ICON: Record<string, LucideIcon> = {
 export default function MaterialsPage() {
   const { can } = usePermission()
   const canUpload = can('study_material:create')
+  const canEdit = can('study_material:update')
 
   const { data: materials, isLoading, isError, refetch } = useGetMaterialsQuery()
-  const { data: classes } = useGetClassesQuery(undefined, { skip: !canUpload })
+  const { data: classes } = useGetClassesQuery(undefined, { skip: !canUpload && !canEdit })
 
   const [createMaterial, { isLoading: createPending }] = useCreateMaterialMutation()
+  const [updateMaterial, { isLoading: updatePending }] = useUpdateMaterialMutation()
   const [deleteMaterial] = useDeleteMaterialMutation()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing] = useState<StudyMaterial | null>(null)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [subject, setSubject] = useState('')
   const [type, setType] = useState('link')
   const [classId, setClassId] = useState('')
+  const [description, setDescription] = useState('')
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setTitle(''); setUrl(''); setSubject(''); setType('link'); setClassId(''); setDescription(''); setError('')
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setEditing(null)
+    setShowCreate(true)
+  }
+
+  const openEdit = (m: StudyMaterial) => {
+    setError('')
+    setEditing(m)
+    setTitle(m.title)
+    setUrl(m.url)
+    setSubject(m.subject ?? '')
+    setType(m.type ?? 'other')
+    setClassId(m.classId && typeof m.classId === 'object' ? m.classId.publicId ?? m.classId._id : m.classId ?? '')
+    setDescription(m.description ?? '')
+    setShowCreate(true)
+  }
+
+  const closeForm = () => {
+    setShowCreate(false)
+    setEditing(null)
+  }
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     try {
-      await createMaterial({
-        title, url, subject: subject || undefined, type,
-        classId: classId || undefined,
-      }).unwrap()
-      setShowCreate(false)
-      setTitle(''); setUrl(''); setSubject('')
+      if (editing) {
+        await updateMaterial({
+          id: editing.publicId ?? editing._id,
+          // An empty class clears it; the server then makes the material institute-wide.
+          payload: { title, url, subject, type, description, classId: classId || null },
+        }).unwrap()
+      } else {
+        await createMaterial({
+          title, url, subject: subject || undefined, type,
+          description: description || undefined,
+          classId: classId || undefined,
+        }).unwrap()
+      }
+      closeForm()
+      resetForm()
     } catch (e) {
-      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to upload material')
+      setError(
+        (e as { data?: { message?: string } })?.data?.message
+          ?? (editing ? 'Failed to update material' : 'Failed to upload material'),
+      )
     }
   }
 
@@ -57,7 +102,7 @@ export default function MaterialsPage() {
       <PageHeader
         title="Study Materials"
         subtitle={canUpload ? 'Share resources with your classes' : 'Resources shared by your teachers'}
-        actions={canUpload ? <Button onClick={() => setShowCreate(true)}><Plus size={16} /> Add Material</Button> : undefined}
+        actions={canUpload ? <Button onClick={openCreate}><Plus size={16} /> Add Material</Button> : undefined}
       />
 
       {isLoading ? (
@@ -69,7 +114,7 @@ export default function MaterialsPage() {
           icon={<BookMarked size={48} />}
           title="No materials yet"
           hint={canUpload ? 'Share the first resource' : 'Materials will appear here'}
-          action={canUpload ? <Button onClick={() => setShowCreate(true)}><Plus size={16} /> Add Material</Button> : undefined}
+          action={canUpload ? <Button onClick={openCreate}><Plus size={16} /> Add Material</Button> : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -80,12 +125,20 @@ export default function MaterialsPage() {
               <div key={m.publicId ?? m._id} className="group rounded-2xl bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-start justify-between">
                   <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600"><Icon size={18} /></div>
-                  {canUpload && (
-                    <button onClick={() => deleteMaterial(m.publicId ?? m._id)}
-                      className="rounded-lg p-1.5 text-red-400 opacity-0 transition hover:bg-red-50 group-hover:opacity-100" title="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                  <div className="flex gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                    {canEdit && (
+                      <button onClick={() => openEdit(m)}
+                        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" title="Edit">
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    {canUpload && (
+                      <button onClick={() => deleteMaterial(m.publicId ?? m._id)}
+                        className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <h3 className="font-semibold text-gray-900">{m.title}</h3>
                 {m.description && <p className="mt-1 line-clamp-2 text-xs text-gray-400">{m.description}</p>}
@@ -105,8 +158,8 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Add Study Material" size="md">
-        <form onSubmit={handleCreate} className="space-y-4">
+      <Modal open={showCreate} onClose={closeForm} title={editing ? 'Edit Study Material' : 'Add Study Material'} size="md">
+        <form onSubmit={handleSubmitForm} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Title *</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Algebra Worksheet 1"
@@ -126,6 +179,8 @@ export default function MaterialsPage() {
                 <option value="pdf">PDF</option>
                 <option value="video">Video</option>
                 <option value="other">Other</option>
+                {/* Keep a type set elsewhere (e.g. document) selectable when editing. */}
+                {!['link', 'pdf', 'video', 'other'].includes(type) && <option value={type}>{type}</option>}
               </select>
             </div>
             <div>
@@ -144,10 +199,15 @@ export default function MaterialsPage() {
             <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Mathematics"
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
           </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+              className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+          </div>
           {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
           <div className="flex justify-end gap-3 border-t pt-4">
-            <Button variant="secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button type="submit" loading={createPending}>Add</Button>
+            <Button variant="secondary" type="button" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" loading={createPending || updatePending}>{editing ? 'Save changes' : 'Add'}</Button>
           </div>
         </form>
       </Modal>

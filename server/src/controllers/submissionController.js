@@ -3,8 +3,11 @@
 import { Submission } from "../models/Submission.js";
 import { Assignment } from "../models/Assignment.js";
 import { Class } from "../models/Class.js";
+import { User } from "../models/User.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
+import { resolveRef } from "../utils/resolveRef.js";
+import { hasAnyPermission } from "../utils/permissions.js";
 
 import {
   sendSuccess,
@@ -13,6 +16,19 @@ import {
   sendForbidden,
   sendError,
 } from "../utils/response.js";
+
+// Tenant filter for every non-super_admin query.
+const tenantScope = (req) =>
+  req.user.role === "super_admin"
+    ? {}
+    : { instituteId: req.user.instituteId };
+
+// Clients send assignment publicIds; ObjectIds are still accepted.
+const resolveAssignmentId = (req, reference) =>
+  resolveRef(Assignment, reference, {
+    label: "Assignment",
+    scope: tenantScope(req),
+  });
 
 // Submit assignment
 export const submitAssignment = asyncHandler(
@@ -39,9 +55,13 @@ export const submitAssignment = asyncHandler(
     }
 
     const assignment =
-      await Assignment.findById(
-        assignmentId
-      );
+      await Assignment.findOne({
+        _id: await resolveAssignmentId(
+          req,
+          assignmentId
+        ),
+        ...tenantScope(req),
+      });
 
     if (!assignment) {
       return sendNotFound(
@@ -90,7 +110,7 @@ export const submitAssignment = asyncHandler(
 
     const existing =
       await Submission.findOne({
-        assignmentId,
+        assignmentId: assignment._id,
         studentId:
           req.user._id,
       });
@@ -130,7 +150,11 @@ export const submitAssignment = asyncHandler(
 
     const submission =
       await Submission.create({
-        assignmentId,
+        assignmentId: assignment._id,
+        instituteId:
+          assignment.instituteId,
+        maxScore:
+          assignment.maxScore ?? 100,
         studentId:
           req.user._id,
         content,
@@ -153,7 +177,17 @@ export const submitAssignment = asyncHandler(
 export const getSubmissions =
   asyncHandler(
     async (req, res) => {
-      const query = {};
+      const query = {
+        ...tenantScope(req),
+      };
+
+      const assignmentId =
+        req.query.assignmentId
+          ? await resolveAssignmentId(
+              req,
+              req.query.assignmentId
+            )
+          : null;
 
       // Students see only their own
       // submissions
@@ -163,6 +197,11 @@ export const getSubmissions =
       ) {
         query.studentId =
           req.user._id;
+
+        if (assignmentId) {
+          query.assignmentId =
+            assignmentId;
+        }
       }
 
       // Teachers see only submissions
@@ -171,12 +210,10 @@ export const getSubmissions =
         req.user.role ===
         "teacher"
       ) {
-        if (
-          req.query.assignmentId
-        ) {
+        if (assignmentId) {
           const assignment =
             await Assignment.findById(
-              req.query.assignmentId
+              assignmentId
             );
 
           if (!assignment) {
@@ -201,7 +238,7 @@ export const getSubmissions =
           }
 
           query.assignmentId =
-            req.query.assignmentId;
+            assignmentId;
         } else {
           const myAssignments =
             await Assignment.find({
@@ -218,20 +255,39 @@ export const getSubmissions =
         }
       }
 
-      // Admin / super admin
+      // Admin / principal / super admin — only graders see the
+      // whole institute's submissions.
       else {
         if (
-          req.query.assignmentId
+          !hasAnyPermission(req.user, [
+            "submission:update",
+            "submission:manage",
+          ])
         ) {
+          return sendForbidden(
+            res,
+            "You cannot view these submissions"
+          );
+        }
+
+        if (assignmentId) {
           query.assignmentId =
-            req.query.assignmentId;
+            assignmentId;
         }
 
         if (
           req.query.studentId
         ) {
           query.studentId =
-            req.query.studentId;
+            await resolveRef(
+              User,
+              req.query.studentId,
+              {
+                label: "Student",
+                scope:
+                  tenantScope(req),
+              }
+            );
         }
       }
 
@@ -246,11 +302,11 @@ export const getSubmissions =
         )
           .populate(
             "studentId",
-            "name email userCode"
+            "publicId name email userCode"
           )
           .populate(
             "assignmentId",
-            "title maxScore dueDate"
+            "publicId title maxScore dueDate"
           )
           .populate(
             "gradedBy",
@@ -276,14 +332,15 @@ export const getSubmission =
         await Submission.findOne({
           publicId:
             req.params.publicId,
+          ...tenantScope(req),
         })
           .populate(
             "studentId",
-            "name email userCode"
+            "publicId name email userCode"
           )
           .populate(
             "assignmentId",
-            "title maxScore dueDate createdBy"
+            "publicId title maxScore dueDate createdBy"
           )
           .populate(
             "gradedBy",
@@ -328,21 +385,7 @@ export const getSubmission =
 export const gradeSubmission =
   asyncHandler(
     async (req, res) => {
-      if (
-        ![
-          "super_admin",
-          "admin",
-          "teacher",
-        ].includes(
-          req.user.role
-        )
-      ) {
-        return sendForbidden(
-          res,
-          "Only teachers or admins can grade submissions"
-        );
-      }
-
+      // The route gate (submission:update) decides who may grade.
       const {
         score,
         feedback,
@@ -360,6 +403,7 @@ export const gradeSubmission =
         await Submission.findOne({
           publicId:
             req.params.publicId,
+          ...tenantScope(req),
         }).populate(
           "assignmentId",
           "maxScore createdBy"
@@ -399,6 +443,19 @@ export const gradeSubmission =
           ?.maxScore || 100;
 
       if (
+        !Number.isFinite(
+          Number(score)
+        ) ||
+        Number(score) < 0
+      ) {
+        return sendError(
+          res,
+          400,
+          "Score must be a non-negative number"
+        );
+      }
+
+      if (
         Number(score) >
         maxScore
       ) {
@@ -418,6 +475,13 @@ export const gradeSubmission =
           {
             score:
               Number(score),
+            maxScore,
+            percentage:
+              Math.round(
+                (Number(score) /
+                  maxScore) *
+                  10000
+              ) / 100,
             feedback,
             status: "graded",
             gradedAt:
@@ -432,11 +496,11 @@ export const gradeSubmission =
         )
           .populate(
             "studentId",
-            "name email"
+            "publicId name email userCode"
           )
           .populate(
             "assignmentId",
-            "title maxScore dueDate"
+            "publicId title maxScore dueDate"
           )
           .populate(
             "gradedBy",

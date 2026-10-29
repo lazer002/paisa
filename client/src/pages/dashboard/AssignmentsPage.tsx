@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Trash2, Send } from 'lucide-react'
+import { BookOpen, Plus, Trash2, Send, Pencil, ClipboardCheck } from 'lucide-react'
 import {
   useGetAssignmentsQuery,
   useCreateAssignmentMutation,
+  useUpdateAssignmentMutation,
   useDeleteAssignmentMutation,
   type Assignment,
   type Submission,
@@ -20,12 +21,16 @@ import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
+import SubmissionsGradingModal from '@/components/learning/SubmissionsGradingModal'
 
 export default function AssignmentsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role
   const { can } = usePermission()
   const canCreate = can('assignment:create')
+  const canEdit = can('assignment:update')
+  // Mirrors PUT /submissions/:id/grade (submission:update).
+  const canGrade = can('submission:update')
   const isStudent = role === 'student'
 
   const { data: assignments, isLoading, isError, refetch } = useGetAssignmentsQuery()
@@ -33,10 +38,13 @@ export default function AssignmentsPage() {
   const { data: submissions } = useGetSubmissionsQuery(undefined, { skip: !isStudent })
 
   const [createAssignment, { isLoading: createPending }] = useCreateAssignmentMutation()
+  const [updateAssignment, { isLoading: updatePending }] = useUpdateAssignmentMutation()
   const [deleteAssignment] = useDeleteAssignmentMutation()
   const [submitAssignment, { isLoading: submitPending }] = useSubmitAssignmentMutation()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing] = useState<Assignment | null>(null)
+  const [gradingFor, setGradingFor] = useState<Assignment | null>(null)
   const [error, setError] = useState('')
   const [classId, setClassId] = useState('')
   const [title, setTitle] = useState('')
@@ -52,17 +60,52 @@ export default function AssignmentsPage() {
       (typeof s.assignmentId === 'object' ? s.assignmentId?.publicId ?? s.assignmentId?._id : s.assignmentId) === rid(assignment),
     )
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setClassId(''); setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100'); setError('')
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setEditing(null)
+    setShowCreate(true)
+  }
+
+  const openEdit = (a: Assignment) => {
+    setError('')
+    setEditing(a)
+    setTitle(a.title)
+    setDescription(a.description ?? '')
+    setDueDate(a.dueDate ? a.dueDate.slice(0, 10) : '')
+    setMaxScore(String(a.maxScore ?? 100))
+    setShowCreate(true)
+  }
+
+  const closeForm = () => {
+    setShowCreate(false)
+    setEditing(null)
+  }
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     try {
-      await createAssignment({
-        classId, title, description, dueDate: dueDate || undefined, maxScore: Number(maxScore) || 100,
-      }).unwrap()
-      setShowCreate(false)
-      setTitle(''); setDescription(''); setDueDate('')
+      if (editing) {
+        await updateAssignment({
+          id: rid(editing),
+          payload: { title, description, dueDate: dueDate || null, maxScore: Number(maxScore) || 100 },
+        }).unwrap()
+      } else {
+        await createAssignment({
+          classId, title, description, dueDate: dueDate || undefined, maxScore: Number(maxScore) || 100,
+        }).unwrap()
+      }
+      closeForm()
+      resetForm()
     } catch (e) {
-      setError((e as { data?: { message?: string } })?.data?.message ?? 'Failed to create assignment')
+      setError(
+        (e as { data?: { message?: string } })?.data?.message
+          ?? (editing ? 'Failed to update assignment' : 'Failed to create assignment'),
+      )
     }
   }
 
@@ -71,7 +114,7 @@ export default function AssignmentsPage() {
       <PageHeader
         title={isStudent ? 'My Assignments' : 'Assignments'}
         subtitle={isStudent ? 'Submit your work before the deadline' : 'Create assignments and grade submissions'}
-        actions={canCreate ? <Button onClick={() => setShowCreate(true)}><Plus size={16} /> New Assignment</Button> : undefined}
+        actions={canCreate ? <Button onClick={openCreate}><Plus size={16} /> New Assignment</Button> : undefined}
       />
 
       {isLoading ? (
@@ -83,7 +126,7 @@ export default function AssignmentsPage() {
           icon={<BookOpen size={48} />}
           title="No assignments yet"
           hint={canCreate ? 'Create the first assignment for a class' : 'Assignments will appear here'}
-          action={canCreate ? <Button onClick={() => setShowCreate(true)}><Plus size={16} /> New Assignment</Button> : undefined}
+          action={canCreate ? <Button onClick={openCreate}><Plus size={16} /> New Assignment</Button> : undefined}
         />
       ) : (
         <div className="space-y-3">
@@ -119,6 +162,17 @@ export default function AssignmentsPage() {
                         </Button>
                       )
                     )}
+                    {canGrade && !isStudent && (
+                      <Button size="sm" variant="secondary" onClick={() => setGradingFor(a)}>
+                        <ClipboardCheck size={13} /> Submissions
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <button onClick={() => openEdit(a)}
+                        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" title="Edit">
+                        <Pencil size={15} />
+                      </button>
+                    )}
                     {canCreate && (
                       <button onClick={() => deleteAssignment(rid(a))}
                         className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
@@ -133,19 +187,26 @@ export default function AssignmentsPage() {
         </div>
       )}
 
-      {/* Create modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Assignment" size="md">
-        <form onSubmit={handleCreate} className="space-y-4">
+      {/* Create / edit modal */}
+      <Modal open={showCreate} onClose={closeForm} title={editing ? 'Edit Assignment' : 'New Assignment'} size="md">
+        <form onSubmit={handleSubmitForm} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Class *</label>
-            <select value={classId} onChange={(e) => setClassId(e.target.value)} required
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
-              <option value="">— Select class —</option>
-              {(classes ?? []).map((c) => (
-                <option key={rid(c)} value={rid(c)}>{c.name} · {c.subject}</option>
-              ))}
-            </select>
-            {(classes ?? []).length === 0 && (
+            {editing ? (
+              <p className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                {typeof editing.classId === 'object' ? editing.classId?.name : '—'}
+                <span className="ml-2 text-xs text-gray-400">(the class cannot be changed)</span>
+              </p>
+            ) : (
+              <select value={classId} onChange={(e) => setClassId(e.target.value)} required
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black">
+                <option value="">— Select class —</option>
+                {(classes ?? []).map((c) => (
+                  <option key={rid(c)} value={rid(c)}>{c.name} · {c.subject}</option>
+                ))}
+              </select>
+            )}
+            {!editing && (classes ?? []).length === 0 && (
               <p className="mt-1 text-xs text-amber-600">Create a class first on the Classes page.</p>
             )}
           </div>
@@ -167,17 +228,20 @@ export default function AssignmentsPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Max score</label>
-              <input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
+              <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
             </div>
           </div>
           {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
           <div className="flex justify-end gap-3 border-t pt-4">
-            <Button variant="secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button type="submit" loading={createPending}>Create</Button>
+            <Button variant="secondary" type="button" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" loading={createPending || updatePending}>{editing ? 'Save changes' : 'Create'}</Button>
           </div>
         </form>
       </Modal>
+
+      {/* Grade submissions (graders) */}
+      <SubmissionsGradingModal assignment={gradingFor} onClose={() => setGradingFor(null)} />
 
       {/* Submit modal (students) */}
       <Modal open={!!submitFor} onClose={() => setSubmitFor(null)} title={`Submit — ${submitFor?.title ?? ''}`} size="md">

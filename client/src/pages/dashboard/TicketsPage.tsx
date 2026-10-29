@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, LifeBuoy, Send } from 'lucide-react'
+import { Plus, LifeBuoy, Send, Trash2 } from 'lucide-react'
 
 import {
   useGetTicketsQuery,
@@ -7,10 +7,12 @@ import {
   useCreateTicketMutation,
   useUpdateTicketMutation,
   useAddTicketMessageMutation,
+  useDeleteTicketMutation,
   type SupportTicket,
 } from '@/features/platform/platformApi'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -19,10 +21,14 @@ import {
 } from '@/components/ui/kit'
 
 const STAFF_ROLES = ['super_admin', 'admin', 'hr', 'support']
+// ticketController.deleteTicket also requires one of these roles on top of ticket:delete
+const DELETE_ROLES = ['super_admin', 'admin']
 
 export default function TicketsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const isStaff = STAFF_ROLES.includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canDelete = can('ticket:delete') && DELETE_ROLES.includes(user?.role ?? '')
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -37,6 +43,7 @@ export default function TicketsPage() {
   const [createTicket] = useCreateTicketMutation()
   const [updateTicket] = useUpdateTicketMutation()
   const [addMessage] = useAddTicketMessageMutation()
+  const [deleteTicket] = useDeleteTicketMutation()
 
   const [subject, setSubject] = useState('')
   const [description, setDescription] = useState('')
@@ -76,6 +83,17 @@ export default function TicketsPage() {
       setToast({ msg: `Ticket ${status.replace('_', ' ')}`, tone: 'success' })
     } catch (e: unknown) {
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Update failed', tone: 'critical' })
+    }
+  }
+
+  const removeTicket = async (t: SupportTicket) => {
+    if (!window.confirm(`Delete ticket "${t.subject}" and its whole conversation? This cannot be undone.`)) return
+    try {
+      await deleteTicket(rid(t)).unwrap()
+      if (openTicketId === rid(t)) setOpenTicketId(null)
+      setToast({ msg: 'Ticket deleted', tone: 'success' })
+    } catch (e: unknown) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Delete failed', tone: 'critical' })
     }
   }
 
@@ -119,6 +137,16 @@ export default function TicketsPage() {
               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Close
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); removeTicket(t) }}
+              className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+              aria-label="Delete ticket"
+              title="Delete ticket"
+            >
+              <Trash2 size={13} />
             </button>
           )}
         </div>

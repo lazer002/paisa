@@ -499,7 +499,7 @@ const updateProfile = async (req, res, next) => {
       if (trimmed.length < 2 || trimmed.length > 100) {
         throw ApiError.badRequest(
           "Name must be 2-100 characters",
-          "INVALID_NAME"
+          { code: "INVALID_NAME" }
         );
       }
 
@@ -524,7 +524,7 @@ const updateProfile = async (req, res, next) => {
       if (!matches) {
         throw ApiError.badRequest(
           "Current password is incorrect",
-          "INVALID_CURRENT_PASSWORD"
+          { code: "INVALID_CURRENT_PASSWORD" }
         );
       }
 

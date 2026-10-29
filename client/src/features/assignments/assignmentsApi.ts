@@ -61,10 +61,11 @@ export interface StudyMaterial {
   publicId?: string
   title: string
   description?: string
-  classId?: { _id: string; name: string } | string | null
+  classId?: { _id: string; publicId?: string; name: string } | string | null
   subject?: string
   type?: string
   url: string
+  visibility?: 'class_only' | 'institute' | 'public'
   uploadedBy?: { _id: string; name: string } | string
   createdAt: string
 }
@@ -86,6 +87,10 @@ export const materialsApi = createApi({
       query: (payload) => ({ url: '/study-materials', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Material', id: 'LIST' }],
     }),
+    updateMaterial: builder.mutation<StudyMaterial, { id: string; payload: { title?: string; url?: string; description?: string; classId?: string | null; subject?: string; type?: string } }>({
+      query: ({ id, payload }) => ({ url: `/study-materials/${id}`, method: 'PUT', body: payload }),
+      invalidatesTags: [{ type: 'Material', id: 'LIST' }],
+    }),
     deleteMaterial: builder.mutation<void, string>({
       query: (id) => ({ url: `/study-materials/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Material', id: 'LIST' }],
@@ -93,7 +98,12 @@ export const materialsApi = createApi({
   }),
 })
 
-export const { useGetMaterialsQuery, useCreateMaterialMutation, useDeleteMaterialMutation } = materialsApi
+export const {
+  useGetMaterialsQuery,
+  useCreateMaterialMutation,
+  useUpdateMaterialMutation,
+  useDeleteMaterialMutation,
+} = materialsApi
 
 // ─── Submissions ─────────────────────────────────────────────────────────────
 
@@ -104,13 +114,14 @@ export interface Submission {
   assignmentId:
     | { _id: string; publicId?: string; title: string; maxScore?: number; dueDate?: string }
     | string
-  studentId: { _id: string; name: string; email: string; userCode?: string } | string
+  studentId: { _id: string; publicId?: string; name: string; email: string; userCode?: string } | string
   content?: string
   status: 'submitted' | 'graded'
   score?: number
   feedback?: string
   gradedBy?: { _id: string; name: string } | string
   submittedAt?: string
+  gradedAt?: string
 }
 
 export const submissionsApi = createApi({

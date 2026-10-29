@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Building2, Globe, Mail, MapPin, Phone, Users, Layers,
-  Network, ShieldCheck, Calendar, ArrowUp,
+  Network, ShieldCheck, Calendar, ArrowUp, Trash2,
 } from 'lucide-react'
+import DeleteOrganizationDialog from '@/components/platform-admin/DeleteOrganizationDialog'
+import { useCanManageOrganizations } from '@/components/platform-admin/useCanManageOrganizations'
 import {
   useGetOrganizationsQuery,
 } from '@/features/organizations/organizationsApi'
@@ -193,6 +195,8 @@ export default function OrganizationDetailPage() {
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
   const isSuperAdmin = user?.role === 'super_admin'
+  const canDeleteOrg = useCanManageOrganizations()
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { data, isLoading, isError, refetch } = useGetOrganizationsQuery({ limit: 100 })
   const { data: members } = useGetUsersQuery()
@@ -260,16 +264,37 @@ export default function OrganizationDetailPage() {
               </div>
             </div>
           </div>
-          {isSuperAdmin && (
-            <Link
-              to="/dashboard/organizations"
-              className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
-            >
-              Manage
-            </Link>
+          {(isSuperAdmin || canDeleteOrg) && (
+            <div className="flex flex-wrap gap-2">
+              {isSuperAdmin && (
+                <Link
+                  to="/dashboard/organizations"
+                  className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+                >
+                  Manage
+                </Link>
+              )}
+              {canDeleteOrg && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <DeleteOrganizationDialog
+          organization={org}
+          onClose={() => setConfirmDelete(false)}
+          onDeleted={() => navigate('/dashboard/organizations')}
+        />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

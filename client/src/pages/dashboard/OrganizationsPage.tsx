@@ -49,6 +49,7 @@ import {
 import {
   useGetUsersQuery,
 } from "@/features/users/usersApi";
+import PlatformOrganizationsList from "@/components/platform-admin/PlatformOrganizationsList";
 
 // Free-form shape of loosely-typed API payloads in this file: property access is
 // intentionally dynamic, so a strict `unknown` record would require rewriting
@@ -2435,7 +2436,18 @@ function AdminWelcomeStrip({
   );
 }
 
-export default function AdminOrganizationDashboard() {
+/**
+ * /dashboard/organizations serves two audiences:
+ * - super_admin: platform-wide list with create/delete (PlatformOrganizationsList)
+ * - admin/principal: their own organization's workspace dashboard below
+ */
+export default function OrganizationsPage() {
+  const role = useAppSelector((state) => state.auth.user?.role);
+  if (role === "super_admin") return <PlatformOrganizationsList />;
+  return <AdminOrganizationDashboard />;
+}
+
+function AdminOrganizationDashboard() {
   const navigate = useNavigate();
   const currentUser = useAppSelector(
     (state) => state.auth.user

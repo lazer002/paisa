@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { Plus, Trophy, Award, Zap, Medal } from 'lucide-react'
+import { Plus, Trophy, Award, Zap, Medal, Pencil } from 'lucide-react'
 
 import {
   useGetAchievementsQuery,
   useCreateAchievementMutation,
+  useUpdateAchievementMutation,
   useDeleteAchievementMutation,
   useAwardAchievementMutation,
   useGetUserAchievementsQuery,
   useAwardPointsMutation,
   useGetLeaderboardQuery,
+  useGetPointsLedgerQuery,
   type Achievement,
   type UserAchievement,
+  type PointEntry,
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
@@ -32,8 +35,13 @@ const RARITY_RING: Record<string, string> = {
 }
 
 export default function GamificationPage() {
-  const { canAny } = usePermission()
+  const { can, canAny } = usePermission()
   const canManage = canAny('achievement:create', 'point_ledger:create')
+  const canCreateAchievement = can('achievement:create')
+  const canAward = canAny('achievement:create', 'achievement:manage')
+  const canEditAchievement = can('achievement:update')
+  const canDeleteAchievement = can('achievement:delete')
+  const canReadLedger = can('point_ledger:read')
 
   const [tab, setTab] = useState<TabId>('leaderboard')
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
@@ -42,13 +50,18 @@ export default function GamificationPage() {
   const { data: awards } = useGetUserAchievementsQuery()
   const { data: leaderboard } = useGetLeaderboardQuery()
   const { data: users } = useGetUsersQuery(undefined, { skip: !canManage })
+  const { data: ledger, isLoading: ledgerLoading, isError: ledgerError, refetch: refetchLedger } =
+    useGetPointsLedgerQuery(undefined, { skip: !canReadLedger || tab !== 'ledger' })
 
   const [createAchievement] = useCreateAchievementMutation()
+  const [updateAchievement] = useUpdateAchievementMutation()
   const [deleteAchievement] = useDeleteAchievementMutation()
   const [awardAchievement] = useAwardAchievementMutation()
   const [awardPoints] = useAwardPointsMutation()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing] = useState<Achievement | null>(null)
+  const [achievementStatus, setAchievementStatus] = useState('active')
   const [awardFor, setAwardFor] = useState<Achievement | null>(null)
   const [awardUserId, setAwardUserId] = useState('')
   const [pointsUserId, setPointsUserId] = useState('')
@@ -60,18 +73,83 @@ export default function GamificationPage() {
   const [rarity, setRarity] = useState('common')
   const [points, setPoints] = useState('50')
 
+  const openCreate = () => {
+    setEditing(null)
+    setName(''); setShortDescription(''); setRarity('common'); setPoints('50'); setAchievementStatus('active')
+    setShowCreate(true)
+  }
+
+  const openEdit = (a: Achievement) => {
+    setEditing(a)
+    setName(a.name)
+    setShortDescription(a.shortDescription ?? '')
+    setRarity(a.rarity)
+    setPoints(String(a.points ?? 0))
+    setAchievementStatus(a.status)
+    setShowCreate(true)
+  }
+
   const submitAchievement = async () => {
     if (!name) return
     try {
-      await createAchievement({ name, shortDescription: shortDescription || undefined, rarity, points: Number(points) || 10 }).unwrap()
+      if (editing) {
+        await updateAchievement({
+          id: rid(editing),
+          payload: {
+            name,
+            shortDescription: shortDescription || null,
+            rarity,
+            points: Number(points) || 0,
+            status: achievementStatus,
+          },
+        }).unwrap()
+      } else {
+        await createAchievement({ name, shortDescription: shortDescription || undefined, rarity, points: Number(points) || 10 }).unwrap()
+      }
       setShowCreate(false)
+      setToast({ msg: editing ? 'Achievement updated' : 'Achievement created', tone: 'success' })
+      setEditing(null)
       setName(''); setShortDescription('')
-      setToast({ msg: 'Achievement created', tone: 'success' })
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Failed to create'
+      const message = e instanceof Error ? e.message : editing ? 'Failed to update' : 'Failed to create'
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? message, tone: 'critical' })
     }
   }
+
+  const ledgerColumns: Column<PointEntry>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      render: (p) => (
+        <div>
+          <p className="font-medium text-gray-900">{typeof p.userId === 'object' ? p.userId?.name ?? '—' : '—'}</p>
+          <p className="text-xs text-gray-400">{typeof p.userId === 'object' ? p.userId?.userCode ?? '' : ''}</p>
+        </div>
+      ),
+    },
+    { key: 'type', header: 'Type', render: (p) => <StatusBadge status={p.type} /> },
+    {
+      key: 'points',
+      header: 'Points',
+      render: (p) => {
+        // Ledger stores absolute points; the sign comes from the balance movement.
+        const delta = (p.balanceAfter ?? 0) - (p.balanceBefore ?? 0)
+        const negative = delta < 0
+        return (
+          <span className={`font-medium ${negative ? 'text-rose-600' : 'text-amber-600'}`}>
+            {negative ? '−' : '+'}{Math.abs(p.points)}
+          </span>
+        )
+      },
+    },
+    { key: 'balance', header: 'Balance', render: (p) => <span className="text-gray-700">{p.balanceAfter ?? '—'}</span> },
+    { key: 'reason', header: 'Reason', render: (p) => <span className="text-gray-500">{p.description ?? '—'}</span> },
+    {
+      key: 'when',
+      header: 'When',
+      render: (p) => <span className="text-gray-500">{new Date(p.createdAt).toLocaleString()}</span>,
+    },
+  ]
 
   const giveAward = async () => {
     if (!awardFor || !awardUserId) return
@@ -118,23 +196,36 @@ export default function GamificationPage() {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (a) =>
-        canManage && (
-          <div className="flex justify-end gap-1.5">
+      render: (a) => (
+        <div className="flex justify-end gap-1.5">
+          {canAward && (
             <button
               onClick={() => setAwardFor(a)}
               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Award
             </button>
+          )}
+          {canEditAchievement && (
+            <button
+              onClick={() => openEdit(a)}
+              aria-label="Edit achievement"
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          {canDeleteAchievement && (
             <button
               onClick={() => deleteAchievement(rid(a))}
+              aria-label="Delete achievement"
               className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
             >
               ✕
             </button>
-          </div>
-        ),
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -171,12 +262,10 @@ export default function GamificationPage() {
       <PageHeader
         title="Gamification"
         subtitle="Achievements, points, and friendly competition"
-        actions={canManage ? (
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setTab('achievements')}>
-              <Plus size={15} /> Achievement
-            </Button>
-          </div>
+        actions={canCreateAchievement ? (
+          <Button variant="secondary" onClick={() => { setTab('achievements'); openCreate() }}>
+            <Plus size={15} /> Achievement
+          </Button>
         ) : undefined}
       />
 
@@ -185,6 +274,7 @@ export default function GamificationPage() {
           { id: 'leaderboard', label: 'Leaderboard' },
           { id: 'achievements', label: 'Achievements', count: achievements?.length },
           { id: 'awards', label: 'Recent Awards', count: awards?.length },
+          ...(canReadLedger ? [{ id: 'ledger' as TabId, label: 'Points Ledger' }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -262,8 +352,8 @@ export default function GamificationPage() {
           keyOf={(a) => rid(a)}
           emptyTitle="No achievements defined"
           emptyHint="Create badges your people can earn"
-          emptyAction={canManage ? (
-            <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Achievement</Button>
+          emptyAction={canCreateAchievement ? (
+            <Button onClick={openCreate}><Plus size={15} /> New Achievement</Button>
           ) : undefined}
         />
       )}
@@ -278,15 +368,28 @@ export default function GamificationPage() {
         />
       )}
 
-      {/* Create achievement */}
+      {tab === 'ledger' && canReadLedger && (
+        <DataTable
+          columns={ledgerColumns}
+          rows={ledger}
+          keyOf={(p) => p.publicId ?? p._id}
+          loading={ledgerLoading}
+          error={ledgerError}
+          onRetry={refetchLedger}
+          emptyTitle="No point movements yet"
+          emptyHint="Points awarded or deducted appear here"
+        />
+      )}
+
+      {/* Create / edit achievement */}
       <ModalShell
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="New Achievement"
+        title={editing ? 'Edit Achievement' : 'New Achievement'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={submitAchievement}>Create</Button>
+            <Button onClick={submitAchievement}>{editing ? 'Save' : 'Create'}</Button>
           </>
         }
       >
@@ -309,6 +412,15 @@ export default function GamificationPage() {
               <input type="number" className={inputCls} value={points} onChange={(e) => setPoints(e.target.value)} />
             </Field>
           </div>
+          {editing && (
+            <Field label="Status">
+              <select className={inputCls} value={achievementStatus} onChange={(e) => setAchievementStatus(e.target.value)}>
+                {['draft', 'active', 'inactive', 'archived'].map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </Field>
+          )}
         </div>
       </ModalShell>
 

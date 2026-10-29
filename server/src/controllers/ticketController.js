@@ -6,6 +6,8 @@
 
 import { Ticket } from "../models/Ticket.js";
 import { TicketMessage } from "../models/TicketMessage.js";
+import { User } from "../models/User.js";
+import { resolveRef } from "../utils/resolveRef.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -18,6 +20,12 @@ import {
 } from "../utils/response.js";
 
 import ApiError from "../utils/ApiError.js";
+
+// The assignee lives in `assignment.assignedTo`; clients read it as `assigneeId`.
+const withAssignee = (ticket) => {
+  const json = ticket.toJSON();
+  return { ...json, assigneeId: json.assignment?.assignedTo ?? null };
+};
 
 const scoped = (req, extra = {}) => {
   if (req.user.role === "super_admin") {
@@ -101,12 +109,12 @@ export const getTickets = asyncHandler(async (req, res) => {
 
   const tickets = await Ticket.find(query)
     .populate("requesterId", "name email userCode")
-    .populate("assigneeId", "name email")
+    .populate("assignment.assignedTo", "name email")
     .sort({ createdAt: -1 });
 
   return sendSuccess(res, {
     message: "Tickets fetched",
-    data: tickets,
+    data: tickets.map(withAssignee),
   });
 });
 
@@ -116,7 +124,7 @@ export const getTicket = asyncHandler(async (req, res) => {
     ...scoped(req),
   })
     .populate("requesterId", "name email userCode")
-    .populate("assigneeId", "name email");
+    .populate("assignment.assignedTo", "name email");
 
   if (!ticket) {
     return sendNotFound(res, "Ticket not found");
@@ -142,7 +150,7 @@ export const getTicket = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Ticket fetched",
-    data: { ticket, messages },
+    data: { ticket: withAssignee(ticket), messages },
   });
 });
 
@@ -197,22 +205,34 @@ export const updateTicket = asyncHandler(async (req, res) => {
   }
 
   if (assigneeId !== undefined && isStaff) {
-    ticket.assigneeId = assigneeId || null;
+    const assignedTo = assigneeId
+      ? await resolveRef(User, assigneeId, {
+          label: "Assignee",
+          scope: { instituteId: ticket.instituteId },
+        })
+      : null;
+
+    ticket.assignment = {
+      ...(ticket.assignment?.toObject?.() ?? {}),
+      assignedTo,
+      assignedBy: assignedTo ? req.user._id : null,
+      assignedAt: assignedTo ? new Date() : null,
+    };
   }
 
   await ticket.save();
 
   return sendSuccess(res, {
     message: "Ticket updated",
-    data: ticket,
+    data: withAssignee(ticket),
   });
 });
 
 export const deleteTicket = asyncHandler(
   async (req, res) => {
-    const ticket = await Ticket.findOne({
-      publicId: req.params.publicId,
-    });
+    const ticket = await Ticket.findOne(
+      scoped(req, { publicId: req.params.publicId })
+    );
 
     if (!ticket) {
       return sendNotFound(res, "Ticket not found");

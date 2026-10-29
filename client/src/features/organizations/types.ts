@@ -76,10 +76,29 @@ export interface CreateOrgPayload {
   description?: string
   logo?: string
   website?: string
-  contact?: OrgContact
+  /**
+   * `contact.email` is REQUIRED by the server on create: it becomes the login
+   * of the organization's first admin. `contact.name` is only used as that
+   * admin's display name (it is not stored on the organization).
+   */
+  contact?: OrgContact & { name?: string }
   meta?: OrgMeta
   plan?: OrgPlan
   settings?: Partial<OrgSettings>
+}
+
+/** `data` of a successful POST /organizations. */
+export interface CreateOrgResult {
+  organization: Organization
+  admin: {
+    id: string
+    email: string
+    name: string
+    role: string
+    mustChangePassword: boolean
+  }
+  /** One-time temporary password for the new admin (must be changed on first login). */
+  temporaryPassword: string
 }
 
 export type UpdateOrgPayload = Partial<CreateOrgPayload> & { status?: OrgStatus }

@@ -12,6 +12,68 @@ Last updated: 2026-10-29
 
 ---
 
+## 0. CURRENT STATUS & COMPLETION PLAN (live: keep this section current every session)
+
+**Goal set by the owner (2026-10-29): make the project 100% complete.** That means every role can do its
+job end to end, every feature in §8c is built, and the integrations below are live.
+Work is done in waves; each wave is verified (tests, lint, build, live API calls) and then committed.
+
+### Reports (where to look)
+- **Per-role report** → §8b: pages, actions, ~% done, and what's left per role.
+- **Per-feature report** → §8c: UI-route coverage, ~depth %, and what's missing per feature.
+- **Known bugs** → §9. **Ordered backlog** → §11. **History** → §12.
+- How these were measured: the real route gates were run for each role (195 routes), the client nav was mapped
+  to hooks and then endpoints, and the 11 demo users made 210 live GETs. The audit scripts (gates.mjs,
+  client-map.mjs, runtime.mjs) are in the session scratchpad, not the repo. Re-run them, or redo the method in §8b.
+
+### Snapshot (2026-10-29)
+- Health: all 11 roles' pages load with **0 errors** against the real DB. 17/17 server tests pass. Client lint and
+  build pass. The server boots on Atlas.
+- Roles ~50–75% done (§8b). Features: strongest are people, departments, classes, attendance, audit and CRM basics
+  (75–90%). Weakest are billing, CRM activities, payroll calculation, live sessions and reports (0–50%) (§8c).
+
+### Decisions (owner, 2026-10-29)
+| Area | Decision |
+|---|---|
+| Payments | **Razorpay**, built as if keys exist (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in server/.env) |
+| Email | **Resend API** (`RESEND_API_KEY`, `EMAIL_FROM`); log to console when unset |
+| File storage | **Local disk now, S3-ready** adapter (`STORAGE_PROVIDER=local`, `STORAGE_PATH=./uploads`) |
+| Commits | **One verified commit per wave** on `feature/roles-polaris`; never push without asking |
+| Defaults (not asked) | Live video = Jitsi meeting links (no key) · realtime = socket.io · AI features only when an API key is set |
+
+### Waves
+- **Wave 1: bugs** ✅ committed `3fe1187`: B4 grading 403, B5 counselor class picker, B6 profile/password 404,
+  plus `GET /auth/me` 500.
+- **Wave 2: UI for existing APIs (U1)** ✅ done 2026-10-29 (committed, see §12):
+  - [x] CRM pipelines tab (`components/platform-ui/PipelinesPanel.tsx`), event edit, announcement edit,
+    achievement edit + points ledger, payroll delete, geofence edit, notification broadcast
+    (`components/comms/BroadcastNotificationModal.tsx`).
+  - [x] Messages: edit/delete own messages, add participants + leave (group chats).
+  - [x] Learning: submission grading modal (`components/learning/SubmissionsGradingModal.tsx`), edit assignment,
+    edit material, edit question; B7 + B8 fixed.
+  - [x] Platform: super_admin org list + create (shows one-time admin temp password) + delete (soft); user delete
+    (= deactivate) for super_admin/admin (`components/platform-admin/`).
+  - [x] Ticket delete, salary-structure edit, review/certificate delete.
+- **Wave 3: features with no outside service**: CRM activities/tasks/notes · leave balances + policies ·
+  payroll calculation from salary structure + attendance + leave/LOP, payslip PDF · ticket assignment/SLA/internal
+  notes/templates · certificate print + public verification · CSV/PDF export for reports and lists (H5) · employee
+  lifecycle stages · richer demo seed · Joi validation (H3) · tenant-isolation tests (H2) · finish H1.
+- **Wave 4: integrations**:
+  - [x] Payments module (committed separately 2026-10-29, verified live; see §12): Payment model, manual payments with receipts,
+    refunds, Razorpay order/verify/webhook, client Pay online + payment history + printable receipts.
+  - [ ] Billing subscriptions (F4): org plan purchase through Razorpay.
+  - [ ] Email via Resend: forgot/reset password, invoice issued, welcome, notification delivery.
+  - [ ] File uploads: storage adapter + `/api/files`; documents, materials and submissions use real files.
+  - [ ] Live video (Jitsi links) · realtime messaging and notifications (socket.io) · optional AI features.
+- **Wave 5: final pass**: re-run the §8b/§8c audits, aim for every role at ~100% of its scope, update reports.
+
+### Cleanup owed
+- Test data left in the shared demo DB by the stopped Learning agent: assignment `ass_NV53mA67ZH71onHj6-hzeA`
+  ("UI-AGENT grading test") with one student submission. There's also a ₹1000 test invoice for the demo student
+  with 2 payments and 1 refund (payments test). Keep it as demo data, or delete it.
+
+---
+
 ## 1. What this project is
 
 **PAISA**: a multi-tenant SaaS covering ERP, HRMS, LMS and CRM for schools,
@@ -325,6 +387,20 @@ Cross-role defects (fix once, helps many roles):
   `PUT /auth/profile` (lines 40, 51); authRoutes.js has no such route, so both return 404.
 - **B5 🟡 Counselor enrollment form has an empty class dropdown.** EnrollmentsPage fetches `/classes` when
   `canManage`, but counselor lacks `class:read` → 403 → enrollments can only be created without a class.
+- **B7 🟠 (fixed 2026-10-29, uncommitted) Students could not submit assignments.** `submitAssignment` used
+  `findById(publicId)` and omitted `instituteId`. Submission lists also leaked to parent/hr. Fixed in
+  submissionController.js.
+- **B8 🟠 Creating any study material fails.** The client sends a class publicId, which fails to cast to ObjectId;
+  without a class, the default `visibility: class_only` rejects it. Same raw `classId` problem in update and list
+  filter. Fix: `resolveRef(Class, …)` + visibility `institute` when no class.
+- **B9 (fixed 2026-10-29, uncommitted)** Manual payments never stored history (`invoice.payments` isn't in the
+  schema) and partial payments set the invalid status `"partial"`. Replaced by the Payment model + paymentService.
+- **G8** `server/src/models/Invoice.js` is a stray duplicate of the EmployeeDocument model (the real Invoice is in
+  `Payment.js`). Delete it. Unused models: Device, AttendanceEvent, Streak, Leaderboard, CRMActivity/Task/Note.
+- **G9** `ApiError.xxx(msg, "CODE")` is used everywhere, but the factories take `{ code }` objects, so most error
+  codes silently become BAD_REQUEST/FORBIDDEN etc. New code uses `{ code: "..." }`.
+- **G10** Client typecheck: use `npx tsc -p tsconfig.json --noEmit`. `tsconfig.app.json` lacks the `@/*` alias and
+  gives bogus "Cannot find module" errors.
 - **G3** Two gating styles (§7) can drift. Long-term: migrate to permission-based.
 - **G4** Seed script added 2026-10-29 (`server/src/utils/seed.js`); its dry run validates, but saving against a real MongoDB is still unverified. Server has 17 pure-function tests; no DB or client tests.
 - **G5** Only `authValidator.js` exists. Most write routes have no Joi validation, so check mass-assignment on create/update controllers.
@@ -368,8 +444,13 @@ Cross-role defects (fix once, helps many roles):
 - [x] B4. (done 2026-10-29: grade gate = test_attempt:manage|test:manage|test:update; principal gets test_attempt:read) Let teachers (own tests) and principals grade attempts: grant/gate by a grading permission, not `test_attempt:update`.
 - [x] B6. (done 2026-10-29; also fixed `GET /auth/me`, which 500ed because authService default export lacked sanitizeUser) Add `PUT /auth/profile` (name/phone + password change with currentPassword check, revoke other sessions).
 - [x] B5. (done 2026-10-29: counselor gets class:read) Counselor enrollment class picker: grant `class:read` or expose a lightweight class list.
-- [ ] U1. Missing UIs on existing APIs: submission grading, org create/delete, user delete, pipelines, edit forms (assignments/materials/questions/events/salary structures/geofences), notification broadcast.
-- [ ] F4. Billing: real subscription/payment flow (decide product scope first).
+- [x] U1. (done 2026-10-29, Wave 2) Missing UIs on existing APIs: submission grading, org create/delete, user delete, pipelines, edit forms (assignments/materials/questions/events/salary structures/geofences), notification broadcast.
+- [x] B8. (done 2026-10-29) Study material create/update/filter with class publicIds (see §9).
+- [ ] B10. Students see every study material: the list doesn't filter by visibility/enrollment (`studyMaterialController` list).
+- [ ] O1. Org follow-ups: list total counts deleted orgs; OrganizationDetailPage loads ≤100 orgs to find one (org 101+ = "not found"); no restore UI (`restore()` exists on the model); deleting an org doesn't deactivate its users (sign-in blocks them).
+- [ ] T1. Ticket assignment UI (server now stores `assignment.assignedTo` and returns `assigneeId`; no picker in TicketsPage).
+- [~] P1. (payments module done 2026-10-29, uncommitted) Razorpay payments, receipts, refunds. Needs live keys to test checkout.
+- [ ] F4. Billing: real subscription/payment flow (decided: Razorpay, see §0).
 - [ ] F5. Companies/Institutes: proper management views, or fold them into Organizations filters.
 
 **P2 — models + permissions with zero implementation**
@@ -390,6 +471,37 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-10-29 (PM) — Status report + Wave 2 finished.** Re-checked the uncommitted tree (lint, tsc, build,
+  17/17 tests green), found Wave 2 ~60% landed, finished the rest with 3 parallel agents (no file overlap).
+  Security fixes found on the way: `deleteUser` had no org/role check (any admin could deactivate users in other
+  orgs; also `canManageRole` was never imported, so `updateUser` crashed on role/email changes) and `updateUser`
+  let non-admin roles with `user:update` edit users in other orgs or above them; both now enforce same org +
+  `canManageRole`. Regression found by `e2e:smoke`: `GET /tickets` 500ed for every role once tickets existed
+  (`populate("assigneeId")` on a field the model doesn't have) — now populates `assignment.assignedTo`, writes the
+  assignee there (resolved by publicId, same tenant) and returns `assigneeId` for the client. Verified live against
+  the running dev server: `e2e:smoke` 171/171; `e2e:flows` 39/42 (the 3 failures are check-in/out "already today"
+  state from an earlier run, not code); a Wave 2 script (12/12: B8 with/without class, material edit + class filter,
+  teacher grades / student 403, admin can't delete admin, principal can't edit admin, admin can't create org,
+  super_admin creates + deletes org); ticket assign/unassign. NOT clicked through in a browser.
+  Open items recorded as B10, O1, T1.
+
+- **2026-10-29 — "Make it 100%" kickoff: waves 1, 2 (partial) and 4 (payments).** Owner decisions recorded in §0.
+  Wave 1 committed (`3fe1187`). Wave 2 was split across 4 parallel agents with no file overlap. The owner stopped
+  the Platform agent (no changes) and the Learning agent. The Learning agent's `submissionController.js` fixes are
+  uncommitted (B7). The other two agents were still running at the time of writing. Wave 4 payments (uncommitted):
+  - Server: `models/PaymentTransaction.js` (`Payment`), `services/razorpay.js` (REST + HMAC checks),
+    `services/paymentService.js` (single path for payments and refunds, receipt numbers `RCPT-YYYY-NNNNN`,
+    idempotent on gateway payment id), `controllers/paymentController.js`, `routes/paymentRoutes.js` mounted at
+    `/api/payments`. The webhook route is unauthenticated and checked by signature, using `req.rawBody` from the
+    JSON parser's `verify` hook in app.js. New env keys are in config/env.js. `billingController.recordPayment`
+    now goes through the service.
+  - Client: `features/payments/paymentsApi.ts` (registered in store), `components/payments/PayOnlineButton.tsx`
+    (Razorpay Checkout) and `InvoicePaymentsModal.tsx` (history, printable receipt, refund), wired into InvoicesPage.
+  - Verified live: manual partial payment → receipt + `partially_paid`; drafts and overpayment rejected; webhook
+    bad signature 400, good 200, replay idempotent → invoice `paid`; refund 403 for student, 200 for accountant;
+    student and parent see only their own/children's payments; order without keys 503. NOT verified: real
+    checkout/verify against Razorpay (needs keys).
 
 - **2026-10-29 — Full per-role re-audit (static + runtime).** Rebuilt §8b using the real route gates (195
   routes), client nav→hook→endpoint mapping and 210 live GETs as the 11 demo users: 0 load failures. New bugs

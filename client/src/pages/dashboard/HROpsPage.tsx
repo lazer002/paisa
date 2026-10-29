@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { Plus, Trash2, BadgeCheck, Award as AwardIcon } from 'lucide-react'
+import { Plus, Trash2, Pencil, BadgeCheck, Award as AwardIcon } from 'lucide-react'
 
 import {
   useGetSalaryStructuresQuery,
   useCreateSalaryStructureMutation,
+  useUpdateSalaryStructureMutation,
   useDeleteSalaryStructureMutation,
   useGetReviewsQuery,
   useCreateReviewMutation,
   useUpdateReviewMutation,
+  useDeleteReviewMutation,
   useGetCertificatesQuery,
   useCreateCertificateMutation,
   useRevokeCertificateMutation,
+  useDeleteCertificateMutation,
   type SalaryStructure,
   type PerformanceReview,
   type Certificate,
@@ -32,6 +35,11 @@ export default function HROpsPage() {
   const canReview = can('performance:create')
   const canCertificate = can('certificate:create')
   const canManage = canStructure || canReview || canCertificate
+  // Mirrors hrOpsRoutes.js: PUT/DELETE each have their own permission.
+  const canUpdateStructure = can('salary_structure:update')
+  const canDeleteStructure = can('salary_structure:delete')
+  const canDeleteReview = can('performance:delete')
+  const canDeleteCertificate = can('certificate:delete')
 
   const canReadStructures = can('salary_structure:read')
   const canReadReviews = can('performance:read')
@@ -52,13 +60,18 @@ export default function HROpsPage() {
   const { data: employees } = useGetUsersQuery({ role: 'employee' }, { skip: !canManage })
 
   const [createStructure] = useCreateSalaryStructureMutation()
+  const [updateStructure] = useUpdateSalaryStructureMutation()
   const [deleteStructure] = useDeleteSalaryStructureMutation()
+  const [deleteReview] = useDeleteReviewMutation()
+  const [deleteCertificate] = useDeleteCertificateMutation()
   const [createReview] = useCreateReviewMutation()
   const [updateReview] = useUpdateReviewMutation()
   const [createCertificate] = useCreateCertificateMutation()
   const [revokeCertificate] = useRevokeCertificateMutation()
 
   const [showStructure, setShowStructure] = useState(false)
+  // publicId of the structure being edited; null while the modal creates a new one
+  const [editingStructureId, setEditingStructureId] = useState<string | null>(null)
   const [showReview, setShowReview] = useState(false)
   const [showCertificate, setShowCertificate] = useState(false)
 
@@ -73,15 +86,72 @@ export default function HROpsPage() {
   const [certUserId, setCertUserId] = useState('')
   const [certTitle, setCertTitle] = useState('')
 
+  const errMsg = (e: unknown, fallback: string) =>
+    (e as { data?: { message?: string } })?.data?.message ?? fallback
+
+  const openCreateStructure = () => {
+    setEditingStructureId(null)
+    setName(''); setBaseSalary(''); setPayFrequency('monthly')
+    setShowStructure(true)
+  }
+
+  const openEditStructure = (s: SalaryStructure) => {
+    setEditingStructureId(rid(s))
+    setName(s.name ?? '')
+    setBaseSalary(String(s.baseSalary ?? ''))
+    setPayFrequency(s.payFrequency ?? 'monthly')
+    setShowStructure(true)
+  }
+
+  const closeStructure = () => {
+    setShowStructure(false)
+    setEditingStructureId(null)
+  }
+
   const submitStructure = async () => {
     if (!name || !baseSalary) return
+    const payload = { name, baseSalary: Number(baseSalary), payFrequency }
     try {
-      await createStructure({ name, baseSalary: Number(baseSalary), payFrequency }).unwrap()
-      setShowStructure(false)
+      if (editingStructureId) {
+        await updateStructure({ id: editingStructureId, payload }).unwrap()
+      } else {
+        await createStructure(payload).unwrap()
+      }
+      setToast({ msg: editingStructureId ? 'Salary structure updated' : 'Salary structure created', tone: 'success' })
+      closeStructure()
       setName(''); setBaseSalary('')
-      setToast({ msg: 'Salary structure created', tone: 'success' })
     } catch (e) {
-      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create', tone: 'critical' })
+      setToast({ msg: errMsg(e, editingStructureId ? 'Failed to update' : 'Failed to create'), tone: 'critical' })
+    }
+  }
+
+  const removeStructure = async (s: SalaryStructure) => {
+    if (!window.confirm(`Delete salary structure "${s.name}"? This cannot be undone.`)) return
+    try {
+      await deleteStructure(rid(s)).unwrap()
+      setToast({ msg: 'Salary structure deleted', tone: 'success' })
+    } catch (e) {
+      setToast({ msg: errMsg(e, 'Failed to delete'), tone: 'critical' })
+    }
+  }
+
+  const removeReview = async (r: PerformanceReview) => {
+    if (!window.confirm(`Delete review "${r.title}"? This cannot be undone.`)) return
+    try {
+      await deleteReview(rid(r)).unwrap()
+      setToast({ msg: 'Review deleted', tone: 'success' })
+    } catch (e) {
+      setToast({ msg: errMsg(e, 'Failed to delete review'), tone: 'critical' })
+    }
+  }
+
+  const removeCertificate = async (c: Certificate) => {
+    if (!window.confirm(`Delete certificate "${c.title}"? This cannot be undone.`)) return
+    try {
+      await deleteCertificate(rid(c)).unwrap()
+      setToast({ msg: 'Certificate deleted', tone: 'success' })
+    } catch (e) {
+      setToast({ msg: errMsg(e, 'Failed to delete certificate'), tone: 'critical' })
     }
   }
 
@@ -122,18 +192,31 @@ export default function HROpsPage() {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (r) =>
-        canReview && r.status === 'draft' ? (
-          <button
-            onClick={async () => {
-              await updateReview({ id: r.publicId ?? r._id, payload: { status: 'in_progress' } })
-              setToast({ msg: 'Review started', tone: 'success' })
-            }}
-            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            Start
-          </button>
-        ) : null,
+      render: (r) => (
+        <div className="flex justify-end gap-1.5">
+          {canReview && r.status === 'draft' && (
+            <button
+              onClick={async () => {
+                await updateReview({ id: r.publicId ?? r._id, payload: { status: 'in_progress' } })
+                setToast({ msg: 'Review started', tone: 'success' })
+              }}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              Start
+            </button>
+          )}
+          {canDeleteReview && (
+            <button
+              onClick={() => removeReview(r)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+              aria-label="Delete review"
+              title="Delete review"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -164,18 +247,31 @@ export default function HROpsPage() {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (c) =>
-        canCertificate && c.status === 'issued' ? (
-          <button
-            onClick={async () => {
-              await revokeCertificate(rid(c))
-              setToast({ msg: 'Certificate revoked', tone: 'success' })
-            }}
-            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
-          >
-            Revoke
-          </button>
-        ) : null,
+      render: (c) => (
+        <div className="flex justify-end gap-1.5">
+          {canCertificate && c.status === 'issued' && (
+            <button
+              onClick={async () => {
+                await revokeCertificate(rid(c))
+                setToast({ msg: 'Certificate revoked', tone: 'success' })
+              }}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+            >
+              Revoke
+            </button>
+          )}
+          {canDeleteCertificate && (
+            <button
+              onClick={() => removeCertificate(c)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+              aria-label="Delete certificate"
+              title="Delete certificate"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -192,15 +288,30 @@ export default function HROpsPage() {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (s) =>
-        canStructure && (
-          <button
-            onClick={() => deleteStructure(rid(s))}
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-          >
-            <Trash2 size={14} />
-          </button>
-        ),
+      render: (s) => (
+        <div className="flex justify-end gap-1">
+          {canUpdateStructure && (
+            <button
+              onClick={() => openEditStructure(s)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Edit salary structure"
+              title="Edit"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          {canDeleteStructure && (
+            <button
+              onClick={() => removeStructure(s)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+              aria-label="Delete salary structure"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -211,7 +322,7 @@ export default function HROpsPage() {
         subtitle={can('hr:read') ? 'Salary structures, performance reviews, and certificates' : 'Your documents, reviews and certificates'}
         actions={canManage ? (
           <div className="flex gap-2">
-            {tab === 'structures' && canStructure && <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button>}
+            {tab === 'structures' && canStructure && <Button onClick={openCreateStructure}><Plus size={15} /> Structure</Button>}
             {tab === 'reviews' && canReview && <Button onClick={() => setShowReview(true)}><Plus size={15} /> Review</Button>}
             {tab === 'certificates' && canCertificate && <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button>}
           </div>
@@ -236,7 +347,7 @@ export default function HROpsPage() {
           keyOf={(s) => s.publicId ?? s._id}
           emptyTitle="No salary structures"
           emptyHint="Define pay templates to standardize compensation"
-          emptyAction={canStructure ? <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button> : undefined}
+          emptyAction={canStructure ? <Button onClick={openCreateStructure}><Plus size={15} /> Structure</Button> : undefined}
         />
       )}
 
@@ -267,12 +378,12 @@ export default function HROpsPage() {
       {/* Structure modal */}
       <ModalShell
         open={showStructure}
-        onClose={() => setShowStructure(false)}
-        title="New Salary Structure"
+        onClose={closeStructure}
+        title={editingStructureId ? 'Edit Salary Structure' : 'New Salary Structure'}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowStructure(false)}>Cancel</Button>
-            <Button onClick={submitStructure}>Create</Button>
+            <Button variant="secondary" onClick={closeStructure}>Cancel</Button>
+            <Button onClick={submitStructure}>{editingStructureId ? 'Save' : 'Create'}</Button>
           </>
         }
       >

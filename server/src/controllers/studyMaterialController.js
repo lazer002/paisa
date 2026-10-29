@@ -1,8 +1,10 @@
 // src/controllers/studyMaterialController.js
 
 import { StudyMaterial } from "../models/StudyMaterial.js";
+import { Class } from "../models/Class.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
+import { resolveRef } from "../utils/resolveRef.js";
 
 import {
   sendSuccess,
@@ -11,6 +13,54 @@ import {
   sendForbidden,
   sendError,
 } from "../utils/response.js";
+
+const VISIBILITIES = [
+  "class_only",
+  "institute",
+  "public",
+];
+
+// Tenant filter for every non-super_admin query.
+const tenantScope = (req) =>
+  req.user.role === "super_admin"
+    ? {}
+    : { instituteId: req.user.instituteId };
+
+// Clients send class publicIds; ObjectIds are still accepted.
+const resolveClassId = (req, reference) =>
+  resolveRef(Class, reference, {
+    label: "Class",
+    scope: tenantScope(req),
+  });
+
+// A material tied to a class is class-only unless the caller says
+// otherwise; one without a class can only be institute-wide (or public).
+const pickVisibility = (
+  requested,
+  classId
+) => {
+  if (requested === undefined) {
+    return classId
+      ? "class_only"
+      : "institute";
+  }
+
+  if (!VISIBILITIES.includes(requested)) {
+    return { error: "Invalid visibility" };
+  }
+
+  if (
+    requested === "class_only" &&
+    !classId
+  ) {
+    return {
+      error:
+        "A class is required for class-only materials",
+    };
+  }
+
+  return requested;
+};
 
 export const createStudyMaterial = asyncHandler(
   async (req, res) => {
@@ -22,6 +72,7 @@ export const createStudyMaterial = asyncHandler(
       type,
       url,
       fileSize,
+      visibility,
     } = req.body;
 
     if (!title || !url) {
@@ -32,13 +83,36 @@ export const createStudyMaterial = asyncHandler(
       );
     }
 
+    const resolvedClassId =
+      await resolveClassId(
+        req,
+        classId
+      );
+
+    const resolvedVisibility =
+      pickVisibility(
+        visibility,
+        resolvedClassId
+      );
+
+    if (resolvedVisibility?.error) {
+      return sendError(
+        res,
+        400,
+        resolvedVisibility.error
+      );
+    }
+
     const material =
       await StudyMaterial.create({
         instituteId:
           req.user.instituteId,
 
         classId:
-          classId || null,
+          resolvedClassId,
+
+        visibility:
+          resolvedVisibility,
 
         uploadedBy:
           req.user._id,
@@ -86,7 +160,10 @@ export const getStudyMaterials = asyncHandler(
 
     if (req.query.classId) {
       query.classId =
-        req.query.classId;
+        await resolveClassId(
+          req,
+          req.query.classId
+        );
     }
 
     if (req.query.subject) {
@@ -112,7 +189,7 @@ export const getStudyMaterials = asyncHandler(
         )
         .populate(
           "classId",
-          "name subject"
+          "publicId name subject"
         )
         .sort({
           createdAt: -1,
@@ -179,9 +256,7 @@ export const updateStudyMaterial =
       "subject",
       "type",
       "url",
-      "classId",
       "fileSize",
-      "isPublic",
     ];
 
     const updates = {};
@@ -198,6 +273,44 @@ export const updateStudyMaterial =
       }
     }
 
+    // Class and visibility move together: the model's
+    // class-only rule runs on save, not on findOneAndUpdate.
+    if (
+      req.body.classId !== undefined ||
+      req.body.visibility !== undefined
+    ) {
+      const nextClassId =
+        req.body.classId !== undefined
+          ? await resolveClassId(
+              req,
+              req.body.classId
+            )
+          : material.classId;
+
+      const nextVisibility =
+        pickVisibility(
+          req.body.visibility,
+          nextClassId
+        );
+
+      if (nextVisibility?.error) {
+        return sendError(
+          res,
+          400,
+          nextVisibility.error
+        );
+      }
+
+      updates.classId =
+        nextClassId || null;
+
+      updates.visibility =
+        nextVisibility;
+    }
+
+    updates.updatedBy =
+      req.user._id;
+
     const updated =
       await StudyMaterial.findOneAndUpdate(
         {
@@ -209,7 +322,15 @@ export const updateStudyMaterial =
           new: true,
           runValidators: true,
         }
-      );
+      )
+        .populate(
+          "uploadedBy",
+          "name"
+        )
+        .populate(
+          "classId",
+          "publicId name subject"
+        );
 
     sendSuccess(
       res,

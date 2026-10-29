@@ -113,9 +113,20 @@ export const messagingApi = createApi({
         { type: 'Conversation', id: 'LIST' },
       ],
     }),
-    deleteMessage: builder.mutation<void, string>({
-      query: (id) => ({ url: `/messages/${id}`, method: 'DELETE' }),
+    addConversationParticipants: builder.mutation<Conversation, { id: string; userIds: string[] }>({
+      query: ({ id, userIds }) => ({ url: `/conversations/${id}/participants`, method: 'POST', body: { userIds } }),
       invalidatesTags: [{ type: 'Conversation', id: 'LIST' }],
+    }),
+    editMessage: builder.mutation<ChatMessage, { id: string; conversationId: string; text: string }>({
+      query: ({ id, text }) => ({ url: `/messages/${id}`, method: 'PUT', body: { text } }),
+      invalidatesTags: (r, e, { conversationId }) => [{ type: 'Message', id: conversationId }],
+    }),
+    deleteMessage: builder.mutation<void, { id: string; conversationId: string }>({
+      query: ({ id }) => ({ url: `/messages/${id}`, method: 'DELETE' }),
+      invalidatesTags: (r, e, { conversationId }) => [
+        { type: 'Message', id: conversationId },
+        { type: 'Conversation', id: 'LIST' },
+      ],
     }),
 
     // ── Live sessions ──
@@ -145,8 +156,10 @@ export const {
   useCreateGroupConversationMutation,
   useMarkConversationReadMutation,
   useLeaveConversationMutation,
+  useAddConversationParticipantsMutation,
   useGetMessagesQuery,
   useSendMessageMutation,
+  useEditMessageMutation,
   useDeleteMessageMutation,
   useGetLiveSessionsQuery,
   useCreateLiveSessionMutation,

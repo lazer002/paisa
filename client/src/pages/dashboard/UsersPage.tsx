@@ -25,9 +25,12 @@ import {
   BookOpen,
   Hash,
   UserCheck,
+  Trash2,
 } from 'lucide-react'
 
 import { useAppSelector } from '@/app/store'
+import DeleteUserDialog from '@/components/platform-admin/DeleteUserDialog'
+import { useUserDeleteGate } from '@/components/platform-admin/useUserDeleteGate'
 import {
   useGetUsersQuery,
   useCreateUserMutation,
@@ -2908,6 +2911,7 @@ function UserRow({
   onView,
   onEdit,
   onDeactivate,
+  onDelete,
   navigate: Navigate,
 
 }: {
@@ -2915,8 +2919,15 @@ function UserRow({
   onView: () => void
   onEdit: () => void
   onDeactivate: () => void
+  /** Present only when the signed-in user may delete this row. */
+  onDelete?: () => void
   navigate: (path: string) => void
 }) {
+  // Row click navigates to the detail page; action buttons must not.
+  const action = (fn: () => void) => (event: React.MouseEvent) => {
+    event.stopPropagation()
+    fn()
+  }
   return (
  <tr
   key={user.publicId}
@@ -2958,7 +2969,7 @@ function UserRow({
       <td className="px-5 py-4 text-right">
         <div className="flex justify-end gap-1">
           <button
-            onClick={onView}
+            onClick={action(onView)}
             title="View"
             className="rounded-lg p-2 text-gray-400 transition hover:bg-white hover:text-gray-900"
           >
@@ -2966,21 +2977,34 @@ function UserRow({
           </button>
 
           <button
-            onClick={onEdit}
+            onClick={action(onEdit)}
             title="Edit"
             className="rounded-lg p-2 text-gray-400 transition hover:bg-white hover:text-gray-900"
           >
             <Pencil size={16} />
           </button>
 
-          {user.status === 'active' && (
-            <button
-              onClick={onDeactivate}
-              title="Deactivate"
-              className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
-            >
-              <UserX size={16} />
-            </button>
+          {onDelete ? (
+            user.status !== 'inactive' && (
+              <button
+                onClick={action(onDelete)}
+                title={`Delete ${user.name}`}
+                aria-label={`Delete ${user.name}`}
+                className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 size={16} />
+              </button>
+            )
+          ) : (
+            user.status === 'active' && (
+              <button
+                onClick={action(onDeactivate)}
+                title="Deactivate"
+                className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+              >
+                <UserX size={16} />
+              </button>
+            )
           )}
         </div>
       </td>
@@ -3090,6 +3114,12 @@ const Navigate = useNavigate()
 
   const [updateUser] =
     useUpdateUserMutation()
+
+  const { canDelete } =
+    useUserDeleteGate()
+
+  const [deletingUser, setDeletingUser] =
+    useState<UserRecord | null>(null)
 
   const availableCreateRoles =
     getRoleOptions(
@@ -3561,6 +3591,14 @@ const Navigate = useNavigate()
                             user
                           )
                         }
+                        onDelete={
+                          canDelete(user)
+                            ? () =>
+                                setDeletingUser(
+                                  user
+                                )
+                            : undefined
+                        }
                         navigate={Navigate}
                       />
                     )
@@ -3604,6 +3642,15 @@ const Navigate = useNavigate()
           setSelectedUser(null)
         }
       />
+
+      {deletingUser && (
+        <DeleteUserDialog
+          user={deletingUser}
+          onClose={() =>
+            setDeletingUser(null)
+          }
+        />
+      )}
     </div>
   )
 }

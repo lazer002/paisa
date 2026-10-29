@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LogIn, LogOut, MapPin, Trash2, KeyRound } from 'lucide-react'
+import { LogIn, LogOut, MapPin, Trash2, KeyRound, Pencil } from 'lucide-react'
 
 import {
   useSelfCheckMutation,
@@ -9,14 +9,17 @@ import {
   useCloseQrSessionMutation,
   useGetGeofencesQuery,
   useCreateGeofenceMutation,
+  useUpdateGeofenceMutation,
   useDeleteGeofenceMutation,
   browserTimezone,
+  type Geofence,
   type QrSessionOpened,
 } from '@/features/attendance/attendanceApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
 import Button from '@/components/ui/button'
-import { inputCls, Toast } from '@/components/ui/kit'
+import { inputCls, Toast, StatusBadge } from '@/components/ui/kit'
+import { usePermission } from '@/lib/auth/usePermission'
 
 type ToastState = { msg: string; tone: 'success' | 'critical' } | null
 
@@ -196,11 +199,116 @@ export function OpenSessionPanel() {
   )
 }
 
+/** One check-in area: shows its details, or an inline edit form. */
+function GeofenceRow({
+  fence,
+  onToast,
+}: {
+  fence: Geofence
+  onToast: (t: ToastState) => void
+}) {
+  const { can } = usePermission()
+  const [updateGeofence, { isLoading }] = useUpdateGeofenceMutation()
+  const [deleteGeofence] = useDeleteGeofenceMutation()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(fence.name)
+  const [latitude, setLatitude] = useState(String(fence.center?.latitude ?? ''))
+  const [longitude, setLongitude] = useState(String(fence.center?.longitude ?? ''))
+  const [radius, setRadius] = useState(String(fence.radiusMeters ?? 150))
+  const [status, setStatus] = useState<'active' | 'inactive'>(fence.status === 'inactive' ? 'inactive' : 'active')
+
+  const id = fence.publicId ?? fence._id
+
+  const save = async () => {
+    if (!name.trim() || !latitude || !longitude) return
+    try {
+      await updateGeofence({
+        id,
+        payload: {
+          name: name.trim(),
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          radiusMeters: Number(radius) || 150,
+          status,
+        },
+      }).unwrap()
+      setEditing(false)
+      onToast({ msg: 'Check-in area updated', tone: 'success' })
+    } catch (e) {
+      onToast({ msg: errorMessage(e, 'Could not update area'), tone: 'critical' })
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="grid grid-cols-2 gap-2 px-3 py-2 sm:grid-cols-6">
+        <input className={inputCls} placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className={inputCls} placeholder="Latitude" value={latitude} onChange={(e) => setLatitude(e.target.value)} />
+        <input className={inputCls} placeholder="Longitude" value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+        <input
+          className={inputCls}
+          type="number"
+          min={1}
+          placeholder="Radius (m)"
+          value={radius}
+          onChange={(e) => setRadius(e.target.value)}
+        />
+        <select
+          className={inputCls}
+          value={status}
+          onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+          title="Inactive areas are ignored at check-in"
+        >
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={save} loading={isLoading}>Save</Button>
+          <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2 text-sm">
+      <span className="text-gray-700">
+        {fence.name}{' '}
+        <span className="text-xs text-gray-400">
+          {fence.center?.latitude.toFixed(4)}, {fence.center?.longitude.toFixed(4)} · {fence.radiusMeters} m
+        </span>
+        {fence.status && fence.status !== 'active' && (
+          <span className="ml-2"><StatusBadge status={fence.status} /></span>
+        )}
+      </span>
+      <span className="flex gap-1">
+        {can('geofence:update') && (
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-black"
+            title="Edit"
+          >
+            <Pencil size={14} />
+          </button>
+        )}
+        {can('geofence:delete') && (
+          <button
+            onClick={() => deleteGeofence(id)}
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </span>
+    </div>
+  )
+}
+
 /** Admin: approved check-in areas. With none configured, check-in is accepted anywhere. */
 export function GeofencePanel() {
   const { data: fences } = useGetGeofencesQuery()
   const [createGeofence, { isLoading }] = useCreateGeofenceMutation()
-  const [deleteGeofence] = useDeleteGeofenceMutation()
 
   const [name, setName] = useState('')
   const [latitude, setLatitude] = useState('')
@@ -260,21 +368,7 @@ export function GeofencePanel() {
       {(fences ?? []).length > 0 && (
         <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">
           {(fences ?? []).map((f) => (
-            <div key={f._id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <span className="text-gray-700">
-                {f.name}{' '}
-                <span className="text-xs text-gray-400">
-                  {f.center?.latitude.toFixed(4)}, {f.center?.longitude.toFixed(4)} · {f.radiusMeters} m
-                </span>
-              </span>
-              <button
-                onClick={() => deleteGeofence(f.publicId ?? f._id)}
-                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
+            <GeofenceRow key={f._id} fence={f} onToast={setToast} />
           ))}
         </div>
       )}

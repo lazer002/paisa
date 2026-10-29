@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Plus, CalendarDays, MapPin, Clock, Trash2 } from 'lucide-react'
+import { Plus, CalendarDays, MapPin, Clock, Trash2, Pencil } from 'lucide-react'
 
 import {
   useGetEventsQuery,
   useCreateEventMutation,
+  useUpdateEventMutation,
   useDeleteEventMutation,
   type CalendarEvent,
 } from '@/features/platform/platformApi'
@@ -13,17 +14,28 @@ import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import { SectionCard, ModalShell, Field, inputCls, Toast, StatusBadge } from '@/components/ui/kit'
 
+// ISO timestamp → value for <input type="datetime-local"> in the viewer's timezone.
+const toLocalInput = (iso?: string | null) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 export default function EventsPage() {
   const { can } = usePermission()
   const canCreate = can('notification:create')
+  const canUpdate = can('notification:update')
   const canDelete = can('notification:delete')
 
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing] = useState<CalendarEvent | null>(null)
 
   const { data: events, isLoading, isError, refetch } = useGetEventsQuery()
 
   const [createEvent] = useCreateEventMutation()
+  const [updateEvent] = useUpdateEventMutation()
   const [deleteEvent] = useDeleteEventMutation()
 
   const [title, setTitle] = useState('')
@@ -47,22 +59,62 @@ export default function EventsPage() {
     }
   }, [events, now])
 
+  const resetForm = () => {
+    setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setLocation(''); setEventType('meeting')
+  }
+
+  const openCreate = () => {
+    setEditing(null)
+    resetForm()
+    setShowCreate(true)
+  }
+
+  const openEdit = (e: CalendarEvent) => {
+    setEditing(e)
+    setTitle(e.title)
+    setDescription(e.description ?? '')
+    setStartsAt(toLocalInput(e.startsAt))
+    setEndsAt(toLocalInput(e.endsAt))
+    setLocation(e.location ?? '')
+    setEventType(e.type)
+    setShowCreate(true)
+  }
+
   const submit = async () => {
     if (!title || !startsAt) return
     try {
-      await createEvent({
-        title,
-        description: description || undefined,
-        startsAt,
-        endsAt: endsAt || undefined,
-        location: location || undefined,
-        type: eventType,
-      }).unwrap()
+      if (editing) {
+        // Send explicit nulls so cleared optional fields are cleared server-side.
+        await updateEvent({
+          id: rid(editing),
+          payload: {
+            title,
+            description: description || null,
+            startsAt: new Date(startsAt).toISOString(),
+            endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+            location: location || null,
+            type: eventType,
+          },
+        }).unwrap()
+      } else {
+        await createEvent({
+          title,
+          description: description || undefined,
+          startsAt,
+          endsAt: endsAt || undefined,
+          location: location || undefined,
+          type: eventType,
+        }).unwrap()
+      }
       setShowCreate(false)
-      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setLocation('')
-      setToast({ msg: 'Event scheduled', tone: 'success' })
+      setToast({ msg: editing ? 'Event updated' : 'Event scheduled', tone: 'success' })
+      setEditing(null)
+      resetForm()
     } catch (e: unknown) {
-      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create event', tone: 'critical' })
+      setToast({
+        msg: (e as { data?: { message?: string } })?.data?.message ?? (editing ? 'Failed to update event' : 'Failed to create event'),
+        tone: 'critical',
+      })
     }
   }
 
@@ -97,6 +149,16 @@ export default function EventsPage() {
         </div>
       </div>
       <StatusBadge status={e.status} />
+      {canUpdate && (
+        <button
+          onClick={() => openEdit(e)}
+          className="rounded-lg p-1.5 text-gray-300 transition hover:bg-gray-100 hover:text-gray-600"
+          title="Edit event"
+          aria-label={`Edit ${e.title}`}
+        >
+          <Pencil size={14} />
+        </button>
+      )}
       {canDelete && (
         <button
           onClick={() => remove(e)}
@@ -113,7 +175,7 @@ export default function EventsPage() {
       <PageHeader
         title="Events"
         subtitle="Your organization calendar"
-        actions={canCreate ? <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Event</Button> : undefined}
+        actions={canCreate ? <Button onClick={openCreate}><Plus size={15} /> New Event</Button> : undefined}
       />
 
       {isLoading ? (
@@ -142,7 +204,7 @@ export default function EventsPage() {
                   <CalendarDays size={32} className="mb-2 text-gray-200" />
                   <p className="text-sm text-gray-500">No upcoming events</p>
                   {canCreate && (
-                    <Button className="mt-3" onClick={() => setShowCreate(true)}><Plus size={15} /> Schedule one</Button>
+                    <Button className="mt-3" onClick={openCreate}><Plus size={15} /> Schedule one</Button>
                   )}
                 </div>
               ) : (
@@ -167,11 +229,11 @@ export default function EventsPage() {
       <ModalShell
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="New Event"
+        title={editing ? 'Edit Event' : 'New Event'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={submit}>Schedule</Button>
+            <Button onClick={submit}>{editing ? 'Save' : 'Schedule'}</Button>
           </>
         }
       >

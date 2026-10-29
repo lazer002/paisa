@@ -15,6 +15,7 @@ import {
 } from '@/features/platform/platformApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import PartiesPanel from '@/components/crm/PartiesPanel'
+import PipelinesPanel from '@/components/platform-ui/PipelinesPanel'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -22,16 +23,18 @@ import {
   type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'leads' | 'deals' | 'contacts' | 'customers'
+type TabId = 'leads' | 'deals' | 'pipelines' | 'contacts' | 'customers'
 
-const STAGES = ['qualification', 'proposal', 'negotiation', 'won', 'lost']
+// Keys must match the Deal model's `stage` enum (server/src/models/Deal.js).
+const STAGES = ['qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost']
+const CLOSED_STAGES = ['closed_won', 'closed_lost']
 
 const STAGE_LABEL: Record<string, string> = {
   qualification: 'Qualification',
   proposal: 'Proposal',
   negotiation: 'Negotiation',
-  won: 'Won',
-  lost: 'Lost',
+  closed_won: 'Won',
+  closed_lost: 'Lost',
 }
 
 export default function CRMPage() {
@@ -40,6 +43,9 @@ export default function CRMPage() {
 
   const canLeads = can('lead:read')
   const canDeals = can('deal:read')
+  const canUpdateDeal = can('deal:update')
+  const canDeleteDeal = can('deal:delete')
+  const canPipelines = can('pipeline:read')
 
   // Support only holds customer:read, so the page opens on what the role may see.
   const [tab, setTab] = useState<TabId>(() =>
@@ -130,7 +136,7 @@ export default function CRMPage() {
 
   const moveStage = async (d: Deal, stage: string) => {
     try {
-      await updateDealStage({ id: d.publicId ?? d._id, stage, status: stage === 'won' ? 'won' : stage === 'lost' ? 'lost' : 'open' }).unwrap()
+      await updateDealStage({ id: d.publicId ?? d._id, stage, status: stage === 'closed_won' ? 'won' : stage === 'closed_lost' ? 'lost' : 'open' }).unwrap()
       setToast({ msg: `Moved to ${STAGE_LABEL[stage]}`, tone: 'success' })
     } catch {
       setToast({ msg: 'Failed to move deal', tone: 'critical' })
@@ -198,6 +204,7 @@ export default function CRMPage() {
         tabs={[
           ...(canLeads ? [{ id: 'leads' as TabId, label: 'Leads', count: leads?.length }] : []),
           ...(canDeals ? [{ id: 'deals' as TabId, label: 'Deal Pipeline', count: deals?.length }] : []),
+          ...(canPipelines ? [{ id: 'pipelines' as TabId, label: 'Pipelines' }] : []),
           ...(can('contact:read') ? [{ id: 'contacts' as TabId, label: 'Contacts' }] : []),
           ...(can('customer:read') ? [{ id: 'customers' as TabId, label: 'Customers' }] : []),
         ]}
@@ -240,6 +247,7 @@ export default function CRMPage() {
         </>
       )}
 
+      {tab === 'pipelines' && <PipelinesPanel />}
       {tab === 'contacts' && <PartiesPanel kind="contacts" />}
       {tab === 'customers' && <PartiesPanel kind="customers" />}
 
@@ -262,9 +270,9 @@ export default function CRMPage() {
                     <div key={d.publicId ?? d._id} className="group rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm">
                       <p className="text-sm font-medium text-gray-800">{d.title}</p>
                       <p className="mt-0.5 text-xs text-gray-400">₹{(d.value ?? 0).toLocaleString()}</p>
-                      {canManage && stage !== 'won' && stage !== 'lost' && (
+                      {(canUpdateDeal || canDeleteDeal) && !CLOSED_STAGES.includes(stage) && (
                         <div className="mt-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                          {STAGES.filter((s) => !['won', 'lost'].includes(s) && s !== stage).slice(0, 2).map((s) => (
+                          {canUpdateDeal && STAGES.filter((s) => !CLOSED_STAGES.includes(s) && s !== stage).slice(0, 2).map((s) => (
                             <button
                               key={s}
                               onClick={() => moveStage(d, s)}
@@ -273,18 +281,30 @@ export default function CRMPage() {
                               → {STAGE_LABEL[s]}
                             </button>
                           ))}
-                          <button
-                            onClick={() => moveStage(d, 'won')}
-                            className="rounded border border-emerald-200 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 transition hover:bg-emerald-50"
-                          >
-                            Win
-                          </button>
-                          <button
-                            onClick={() => deleteDeal(d.publicId ?? d._id)}
-                            className="ml-auto rounded p-0.5 text-gray-300 transition hover:text-rose-500"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                          {canUpdateDeal && (
+                            <>
+                              <button
+                                onClick={() => moveStage(d, 'closed_won')}
+                                className="rounded border border-emerald-200 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                Win
+                              </button>
+                              <button
+                                onClick={() => moveStage(d, 'closed_lost')}
+                                className="rounded border border-rose-200 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 transition hover:bg-rose-50"
+                              >
+                                Lose
+                              </button>
+                            </>
+                          )}
+                          {canDeleteDeal && (
+                            <button
+                              onClick={() => deleteDeal(d.publicId ?? d._id)}
+                              className="ml-auto rounded p-0.5 text-gray-300 transition hover:text-rose-500"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Megaphone, Plus, Pencil, Trash2, AlertTriangle,
+  Megaphone, Plus, Pencil, Trash2, AlertTriangle, BellRing,
 } from 'lucide-react'
 
 import {
@@ -17,6 +17,10 @@ import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
+import { Tabs, Toast } from '@/components/ui/kit'
+import Can from '@/components/auth/Can'
+import BroadcastNotificationModal from '@/components/comms/BroadcastNotificationModal'
+import NotificationsList from '@/components/comms/NotificationsList'
 
 const PRIORITY_COLOR: Record<string, 'red' | 'orange' | 'gray'> = {
   high: 'red', medium: 'orange', low: 'gray',
@@ -141,6 +145,9 @@ export default function AnnouncementsPage() {
   const [editItem, setEditItem] = useState<Announcement | null>(null)
   const [deleteItem, setDeleteItem] = useState<Announcement | null>(null)
   const [formError, setFormError] = useState('')
+  const [tab, setTab] = useState<'announcements' | 'notifications'>('announcements')
+  const [showBroadcast, setShowBroadcast] = useState(false)
+  const [toast, setToast] = useState('')
 
   const handleSubmit = async (d: { title: string; content: string; targetRoles: string[]; priority: 'low' | 'medium' | 'high' }) => {
     setFormError('')
@@ -167,14 +174,34 @@ export default function AnnouncementsPage() {
       <PageHeader
         title="Announcements"
         subtitle={canManage ? 'Post notices to your organization' : 'Notices from your organization'}
-        actions={canManage ? (
-          <Button onClick={() => { setShowCreate(true); setFormError('') }}>
-            <Plus size={16} /> New Announcement
-          </Button>
-        ) : undefined}
+        actions={
+          <div className="flex gap-2">
+            <Can permission="notification:create">
+              <Button variant="secondary" onClick={() => setShowBroadcast(true)}>
+                <BellRing size={16} /> Send Notification
+              </Button>
+            </Can>
+            {canManage && (
+              <Button onClick={() => { setShowCreate(true); setFormError('') }}>
+                <Plus size={16} /> New Announcement
+              </Button>
+            )}
+          </div>
+        }
       />
 
-      {isLoading ? (
+      <Tabs
+        tabs={[
+          { id: 'announcements', label: 'Announcements' },
+          { id: 'notifications', label: 'My Notifications' },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {tab === 'notifications' ? (
+        <NotificationsList />
+      ) : isLoading ? (
         <LoadingList rows={4} />
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
@@ -242,6 +269,15 @@ export default function AnnouncementsPage() {
           initial={editItem}
         />
       )}
+
+      {showBroadcast && (
+        <BroadcastNotificationModal
+          open={showBroadcast}
+          onClose={() => setShowBroadcast(false)}
+          onSent={(n) => setToast(`Notification sent to ${n} ${n === 1 ? 'person' : 'people'}`)}
+        />
+      )}
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
 
       <Modal open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Delete Announcement" size="sm">
         <div className="space-y-4">

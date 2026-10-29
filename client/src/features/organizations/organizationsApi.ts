@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
 import { axiosBaseQuery } from '@/lib/api/axiosBaseQuery'
-import type { Organization, CreateOrgPayload, UpdateOrgPayload } from './types'
+import type { Organization, CreateOrgPayload, CreateOrgResult, UpdateOrgPayload } from './types'
 
 export interface OrgListParams {
   page?: number
@@ -15,13 +15,29 @@ export interface OrgListResult {
   total: number
   page: number
   limit: number
+  /** Total page count when the server reports it. */
+  pages?: number
 }
 
-function normalizeListResponse(res: { data?: unknown }): OrgListResult {
+type Pagination = { total?: number; page?: number; pages?: number; limit?: number }
+
+function normalizeListResponse(
+  res: { data?: unknown; pagination?: Pagination },
+  _meta?: unknown,
+  arg?: OrgListParams | void,
+): OrgListResult {
   const outer = res?.data as Record<string, unknown> | unknown[] | undefined
   const d = (Array.isArray(outer) ? undefined : (outer as Record<string, unknown> | undefined)?.data) ?? outer
   if (Array.isArray(d)) {
-    return { data: d as Organization[], total: d.length, page: 1, limit: d.length }
+    // Server shape: { success, data: [...], pagination: { total, page, pages } }
+    const p = res?.pagination
+    return {
+      data: d as Organization[],
+      total: p?.total ?? d.length,
+      page: p?.page ?? 1,
+      limit: p?.limit ?? arg?.limit ?? d.length,
+      pages: p?.pages,
+    }
   }
   const obj = d as Record<string, unknown> | undefined
   const pagination = obj?.pagination as { total?: number; page?: number; limit?: number } | undefined
@@ -61,8 +77,11 @@ export const organizationsApi = createApi({
           : [{ type: 'Organization' as const, id: 'LIST' }],
     }),
 
-    addOrganization: builder.mutation<Organization, CreateOrgPayload>({
+    // Super admin only. Also creates the org's first admin user from
+    // contact.email and returns a one-time temporary password.
+    addOrganization: builder.mutation<CreateOrgResult, CreateOrgPayload>({
       query: (payload) => ({ url: '/organizations', method: 'POST', body: payload }),
+      transformResponse: (r: { data?: CreateOrgResult }) => (r?.data ?? r) as CreateOrgResult,
       invalidatesTags: [{ type: 'Organization', id: 'LIST' }],
     }),
 
@@ -74,6 +93,8 @@ export const organizationsApi = createApi({
       ],
     }),
 
+    // Super admin only. Soft delete (isDeleted + deletedAt); members of a
+    // deleted org can no longer authenticate.
     deleteOrganization: builder.mutation<{ success: boolean }, string>({
       query: (id) => ({ url: `/organizations/${id}`, method: 'DELETE' }),
       invalidatesTags: (r, e, id) => [

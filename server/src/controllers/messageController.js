@@ -45,6 +45,39 @@ const assertTenant = (req, row) => {
   }
 };
 
+// resolveRef only returns an _id, so load the user to check the tenant.
+const loadOrgUser = async (req, reference) => {
+  const id = await resolveRef(User, reference, {
+    label: "User",
+  });
+
+  const user = await User.findOne({
+    _id: id,
+
+    isDeleted: { $ne: true },
+  }).select("_id name instituteId");
+
+  if (!user) {
+    throw ApiError.notFound(
+      "User not found",
+      "RESOURCE_NOT_FOUND"
+    );
+  }
+
+  if (
+    req.user.role !== "super_admin" &&
+    String(user.instituteId) !==
+      String(req.user.instituteId)
+  ) {
+    throw ApiError.forbidden(
+      `${user.name || "User"} is not in your organization`,
+      "TENANT_ACCESS_DENIED"
+    );
+  }
+
+  return user;
+};
+
 const isParticipant = (conversation, userId) =>
   conversation.participants.some(
     (participant) =>
@@ -52,14 +85,18 @@ const isParticipant = (conversation, userId) =>
       participant.userId.equals(userId)
   );
 
-const participantView = (conversation) =>
+// `users` (optional) maps a participant _id to { _id, publicId, name, role }
+// so the client can show member names.
+const participantView = (conversation, users = new Map()) =>
   conversation.participants
     .filter(
       (participant) =>
         participant.status === "active"
     )
     .map((participant) => ({
-      userId: participant.userId,
+      userId:
+        users.get(String(participant.userId)) ??
+        participant.userId,
 
       role: participant.role,
 
@@ -76,10 +113,15 @@ export const getConversations = asyncHandler(
   async (req, res) => {
     const { type } = req.query;
 
+    // $elemMatch so a conversation the user has left is not listed.
     const query = scoped(req, {
-      "participants.userId": req.user._id,
+      participants: {
+        $elemMatch: {
+          userId: req.user._id,
 
-      "participants.status": "active",
+          status: "active",
+        },
+      },
 
       isDeleted: false,
     });
@@ -92,6 +134,35 @@ export const getConversations = asyncHandler(
       await Conversation.find(query)
         .sort({ lastActivityAt: -1 })
         .limit(100);
+
+    const memberIds = new Set();
+
+    for (const conversation of conversations) {
+      for (const participant of conversation.participants) {
+        if (participant.status === "active") {
+          memberIds.add(String(participant.userId));
+        }
+      }
+    }
+
+    const members = await User.find({
+      _id: { $in: [...memberIds] },
+    }).select("_id publicId name role");
+
+    const memberMap = new Map(
+      members.map((member) => [
+        String(member._id),
+        {
+          _id: member._id,
+
+          publicId: member.publicId,
+
+          name: member.name,
+
+          role: member.role,
+        },
+      ])
+    );
 
     const withUnread = conversations.map(
       (conversation) => {
@@ -110,7 +181,8 @@ export const getConversations = asyncHandler(
             mine?.unreadCount ?? 0,
 
           participantView: participantView(
-            conversation
+            conversation,
+            memberMap
           ),
         };
       }
@@ -135,22 +207,10 @@ export const createDirectConversation =
       );
     }
 
-    const otherUser = await resolveRef(
-      User,
-      userId,
-      { label: "User" }
+    const otherUser = await loadOrgUser(
+      req,
+      userId
     );
-
-    if (
-      req.user.role !== "super_admin" &&
-      String(otherUser.instituteId) !==
-        String(req.user.instituteId)
-    ) {
-      throw ApiError.forbidden(
-        "User is not in your organization",
-        "TENANT_ACCESS_DENIED"
-      );
-    }
 
     const existing =
       await Conversation.findDirectConversation(
@@ -229,29 +289,18 @@ export const createGroupConversation =
     const resolvedUsers = [];
 
     for (const id of participantIds) {
-      const user = await resolveRef(User, id, {
-        label: "User",
-      });
-
-      if (
-        req.user.role !== "super_admin" &&
-        String(user.instituteId) !==
-          String(req.user.instituteId)
-      ) {
-        throw ApiError.forbidden(
-          `${user.name || "User"} is not in your organization`,
-          "TENANT_ACCESS_DENIED"
-        );
-      }
-
-      resolvedUsers.push(user);
+      resolvedUsers.push(
+        await loadOrgUser(req, id)
+      );
     }
 
     const uniqueIds = [
       ...new Set(
-        resolvedUsers.map((user) =>
-          String(user._id)
-        )
+        resolvedUsers
+          .map((user) => String(user._id))
+          .filter(
+            (id) => id !== String(req.user._id)
+          )
       )
     ];
 
@@ -382,9 +431,7 @@ export const addConversationParticipants =
     }
 
     for (const id of userIds) {
-      const user = await resolveRef(User, id, {
-        label: "User",
-      });
+      const user = await loadOrgUser(req, id);
 
       await conversation.addParticipant({
         userId: user._id,
@@ -413,6 +460,15 @@ export const leaveConversation = asyncHandler(
       return sendNotFound(
         res,
         "Conversation not found"
+      );
+    }
+
+    if (
+      !isParticipant(conversation, req.user._id)
+    ) {
+      throw ApiError.forbidden(
+        "You are not a participant",
+        "ACCESS_DENIED"
       );
     }
 
@@ -585,6 +641,10 @@ export const sendMessage = asyncHandler(
       type: type || "text",
 
       text: String(text).trim(),
+
+      // The text index reads `language` as its language override and
+      // rejects the schema default of null, so give it a real value.
+      language: "english",
 
       status: "sent",
     });
