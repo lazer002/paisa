@@ -556,6 +556,18 @@ const env = Object.freeze({
       "DEFAULT_CURRENCY",
       "INR"
     ),
+
+  RESEND_API_KEY:
+    getEnv("RESEND_API_KEY"),
+
+  RAZORPAY_KEY_ID:
+    getEnv("RAZORPAY_KEY_ID"),
+
+  RAZORPAY_KEY_SECRET:
+    getEnv("RAZORPAY_KEY_SECRET"),
+
+  RAZORPAY_WEBHOOK_SECRET:
+    getEnv("RAZORPAY_WEBHOOK_SECRET"),
 });
 
 export {

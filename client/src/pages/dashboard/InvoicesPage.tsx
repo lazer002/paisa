@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, IndianRupee, Wallet, FileText, Clock3 } from 'lucide-react'
+import { Plus, Trash2, IndianRupee, Wallet, FileText, Clock3, Receipt } from 'lucide-react'
 
 import {
   useGetInvoicesQuery,
@@ -11,6 +11,9 @@ import {
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
+import { useGetPaymentConfigQuery } from '@/features/payments/paymentsApi'
+import PayOnlineButton from '@/components/payments/PayOnlineButton'
+import InvoicePaymentsModal from '@/components/payments/InvoicePaymentsModal'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -26,9 +29,17 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [payFor, setPayFor] = useState<Invoice | null>(null)
+  const [historyFor, setHistoryFor] = useState<Invoice | null>(null)
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
   const { data: invoices, isLoading, isError, refetch } = useGetInvoicesQuery()
+  const { data: paymentConfig } = useGetPaymentConfigQuery()
+  const canSeePayments = can('payment:read')
+  const isPayable = (i: Invoice) => ['issued', 'pending', 'partially_paid', 'overdue'].includes(i.status) && (i.amountDue ?? 0) > 0
+  const onPaymentToast = (msg: string, tone: 'success' | 'critical') => {
+    setToast({ msg, tone })
+    if (tone === 'success') refetch()
+  }
   const { data: users } = useGetUsersQuery(undefined, { skip: !canManage })
 
   const [createInvoice] = useCreateInvoiceMutation()
@@ -141,9 +152,20 @@ export default function InvoicesPage() {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (i) =>
-        canManage && (
+      render: (i) => (
           <div className="flex justify-end gap-1.5">
+            {paymentConfig?.razorpayEnabled && isPayable(i) && (
+              <PayOnlineButton invoiceId={rid(i)} onDone={onPaymentToast} />
+            )}
+            {canSeePayments && (i.amountPaid ?? 0) > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setHistoryFor(i) }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                <Receipt size={12} /> Payments
+              </button>
+            )}
+            {canManage && (<>
             {i.status === 'draft' && (
               <button
                 onClick={(e) => { e.stopPropagation(); setStatus(i, 'issued', 'Invoice sent') }}
@@ -174,6 +196,7 @@ export default function InvoicesPage() {
             >
               <Trash2 size={14} />
             </button>
+            </>)}
           </div>
         ),
     },
@@ -315,6 +338,15 @@ export default function InvoicesPage() {
           </Field>
         </div>
       </ModalShell>
+
+      {historyFor && (
+        <InvoicePaymentsModal
+          invoiceId={rid(historyFor)}
+          invoiceNumber={historyFor.invoiceNumber ?? undefined}
+          onClose={() => setHistoryFor(null)}
+          onToast={onPaymentToast}
+        />
+      )}
 
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>

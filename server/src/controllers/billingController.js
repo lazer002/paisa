@@ -4,11 +4,13 @@
 // payment recording with amount-due tracking.
 //
 // NOTE: the Invoice model lives in Payment.js
-// (`export const Invoice`); Payment records are not
-// yet modelled separately — payments are entries on
-// the invoice's payment history.
+// (`export const Invoice`); each payment is a Payment
+// document (PaymentTransaction.js) allocated to the
+// invoice via services/paymentService.js.
 
 import { Invoice } from "../models/Payment.js";
+import { PAYMENT_METHODS } from "../models/PaymentTransaction.js";
+import { recordInvoicePayment } from "../services/paymentService.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
 import { User } from "../models/User.js";
 
@@ -263,67 +265,29 @@ export const recordPayment = asyncHandler(
       );
     }
 
-    const invoice = await Invoice.findOne({
-      publicId: req.params.publicId,
-    });
+    const invoice = await Invoice.findOne(
+      scoped(req, {
+        publicId: req.params.publicId,
+      })
+    );
 
     if (!invoice) {
       return sendNotFound(res, "Invoice not found");
     }
 
-    if (
-      req.user.role !== "super_admin" &&
-      String(invoice.instituteId) !==
-        String(req.user.instituteId)
-    ) {
-      return sendForbidden(res, "Access denied");
-    }
-
-    if (
-      ["paid", "cancelled", "void"].includes(
-        invoice.status
-      )
-    ) {
-      return sendError(
-        res,
-        400,
-        "Invoice is closed"
-      );
-    }
-
-    const amountDue =
-      (invoice.amountDue ?? invoice.grandTotal) -
-      paid;
-
-    invoice.amountPaid =
-      (invoice.amountPaid || 0) + paid;
-
-    invoice.amountDue = Math.max(0, amountDue);
-
-    invoice.payments = invoice.payments || [];
-
-    invoice.payments.push({
+    const { payment } = await recordInvoicePayment({
+      invoice,
       amount: paid,
-
-      method: method || "cash",
-
+      method: PAYMENT_METHODS.includes(method)
+        ? method
+        : "cash",
       reference: reference || null,
-
+      payerId: invoice.studentId || invoice.userId || null,
       receivedBy: req.user._id,
-
-      receivedAt: new Date(),
     });
 
-    invoice.paymentStatus =
-      invoice.amountDue === 0 ? "paid" : "partial";
-
-    invoice.status =
-      invoice.amountDue === 0 ? "paid" : "partial";
-
-    await invoice.save();
-
     return sendSuccess(res, {
-      message: "Payment recorded",
+      message: `Payment recorded (receipt ${payment.receiptNumber})`,
       data: invoice,
     });
   }

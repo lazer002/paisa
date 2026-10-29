@@ -22,6 +22,7 @@ import { crmApi } from '@/features/crm/crmApi'
 import { platformApi } from '@/features/platform/platformApi'
 import { messagingApi } from '@/features/messaging/messagingApi'
 import { notificationsApi } from '@/features/notifications/notificationsApi'
+import { paymentsApi } from '@/features/payments/paymentsApi'
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -47,6 +48,7 @@ const rootReducer = combineReducers({
   [platformApi.reducerPath]: platformApi.reducer,
   [messagingApi.reducerPath]: messagingApi.reducer,
   [notificationsApi.reducerPath]: notificationsApi.reducer,
+  [paymentsApi.reducerPath]: paymentsApi.reducer,
 })
 
 export const store = configureStore({
@@ -75,6 +77,7 @@ export const store = configureStore({
       platformApi.middleware,
       messagingApi.middleware,
       notificationsApi.middleware,
+      paymentsApi.middleware,
     ),
 })
 

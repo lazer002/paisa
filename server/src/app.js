@@ -70,6 +70,12 @@ app.use(
       "application/json",
       "application/*+json",
     ],
+    // Webhook signatures are computed over the exact bytes received.
+    verify: (req, res, buf) => {
+      if (req.originalUrl?.includes("/webhook")) {
+        req.rawBody = buf.toString("utf8");
+      }
+    },
   })
 );
 
