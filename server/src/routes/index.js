@@ -2,6 +2,8 @@
 
 import express from "express";
 
+import { createAuditEntry } from "../middleware/audit.js";
+
 import authRoutes from "./authRoutes.js";
 import organizationRoutes from "./organizationRoutes.js";
 import userRoutes from "./userRoutes.js";
@@ -54,6 +56,73 @@ import liveSessionRoutes from "./liveSessionRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 
 const router = express.Router();
+
+// ─────────────────────────────────────────────
+// AUDIT TRAIL
+// Every state-changing request by a signed-in user is recorded once the
+// response is sent. The audit middleware was never mounted on any route,
+// so the audit log viewer had nothing to show.
+// ─────────────────────────────────────────────
+
+const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
+  users: "user_management",
+  organizations: "organization",
+  classes: "education",
+  assignments: "education",
+  submissions: "education",
+  tests: "education",
+  questions: "education",
+  attempts: "education",
+  enrollments: "education",
+  "study-materials": "education",
+  "live-sessions": "education",
+  attendance: "attendance",
+  geofences: "attendance",
+  "qr-sessions": "attendance",
+  hr: "hr",
+  employees: "hr",
+  leaves: "hr",
+  reviews: "hr",
+  certificates: "hr",
+  "employee-documents": "hr",
+  "salary-structures": "payroll",
+  payroll: "payroll",
+  invoices: "finance",
+  leads: "crm",
+  deals: "crm",
+  pipelines: "crm",
+  contacts: "crm",
+  customers: "crm",
+  tickets: "support",
+  announcements: "communication",
+  events: "communication",
+  notifications: "communication",
+  conversations: "communication",
+  messages: "communication",
+});
+
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+router.use((req, res, next) => {
+  if (MUTATING_METHODS.has(req.method)) {
+    res.on("finish", () => {
+      // req.user is set by the route's own authenticate step.
+      if (!req.user) return;
+
+      const resource = req.originalUrl.split("?")[0].split("/")[2] ?? "api";
+
+      createAuditEntry({
+        req,
+        category: AUDIT_CATEGORY_BY_RESOURCE[resource] ?? "system",
+        resource,
+        success: res.statusCode < 400,
+        statusCode: res.statusCode,
+      });
+    });
+  }
+
+  next();
+});
 
 // ─────────────────────────────────────────────
 // AUTHENTICATION
