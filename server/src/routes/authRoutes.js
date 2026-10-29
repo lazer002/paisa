@@ -9,6 +9,7 @@ import {
   logout,
   logoutAll,
   me,
+  updateProfile,
 } from "../controllers/authController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -107,6 +108,17 @@ router.get(
   "/me",
   authenticate,
   me
+);
+
+// ─────────────────────────────────────────────
+// UPDATE OWN PROFILE / CHANGE PASSWORD
+// ─────────────────────────────────────────────
+
+router.put(
+  "/profile",
+  authenticate,
+  authRateLimiter,
+  updateProfile
 );
 
 export default router;

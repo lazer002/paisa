@@ -194,12 +194,80 @@ are separate business profiles linked to a User. Do not assume Teacher === Emplo
 | Employee documents | ❌ | model + `employee_document:*` perms only |
 | Audit log viewer | ❌ | `AuditLog` written by audit middleware; no read API/UI |
 
-## 8b. Per-role completeness (static audit 2026-10-27, not runtime-tested)
+## 8b. Per-role completeness (re-audited 2026-10-29: static + runtime against Atlas)
 
-Method: permission matrix × server route gating (173 routes) × client nav + the
-RTK hooks each page calls + the role checks inside each page. % = (works + ½·partial) / features
-the role is meant to have. "Load-403" = page queries an endpoint on load that the server
-denies → page shows an error/empty state.
+Method: the real Express routers were loaded and every gate middleware was run for each role
+(195 routes, exact allow/deny). Then client nav (`navForRole`) → page + child components → RTK
+hooks → endpoint → server verdict, honouring `skip:` options. Then a live server was started and
+each demo user called every load query on its pages (210 GETs). Result: **0 load-403s, 0 errors
+for all 11 roles.** "~Done" = judged against the role's intended scope (the original spec plus
+the role's job). It is an estimate, not a measurement.
+
+| Role | Pages | Actions | ~Done | Left (biggest first) |
+|---|---|---|---|---|
+| super_admin | 10 | 11 | 60% | No UI to **create/delete organizations** (API exists) · no user delete UI · no subscription/plan engine (F4) · no security view (sessions, lockouts, 2FA) · Companies/Institutes read-only (F5) · no report export |
+| admin | 29 | 92 | 75% | Pipelines UI (API exists) · **submission grading UI** · edit forms for assignments/materials/questions/events/salary structures/geofences (PUT APIs, no UI) · notification broadcast UI · CRM activities/tasks/notes (models only) · no payment gateway, refunds or receipts · no export · no restore of deleted records |
+| principal | 28 | 44 | 65% | **Grading attempts returns 403 (B4)** · cannot read test attempts/results · no submission grading UI · analytics are basic stat cards |
+| teacher | 18 | 35 | 60% | **Grading attempts returns 403 though the Grading tab is shown (B4)** · **no submission grading UI** · cannot edit assignments/materials/questions · cannot delete own tests/questions · no rubrics, peer review or proctoring · live sessions are link-only |
+| student | 17 | 15 | 75% | No online fee payment · no certificate download/verify · test autosave is a browser draft only · notifications only in the bell |
+| hr | 15 | 33 | 65% | Payroll is manual entry (no attendance/leave/LOP calculation) · no payslip PDF/export · no leave balances · no attendance corrections · document "upload" is a link · no lifecycle stages (onboarding/exit) · no salary-structure edit UI |
+| accountant | 8 | 11 | 50% | Billing page cannot read the org (shows a default "free" plan) · no refunds/receipts/reconciliation · no payment gateway · no finance reports or export · no payroll-payment step |
+| counselor | 10 | 24 | 60% | **Enrollment form class dropdown is always empty (B5)** · pipelines not visible · no CRM activities/tasks/notes/follow-ups (models exist, no routes) · no lead scoring/duplicate check · cannot delete leads/deals |
+| support | 6 | 8 | 55% | No ticket assignment, SLA, internal notes, templates or merge · Customers tab read-only · no response metrics beyond stat cards |
+| employee | 11 | 11 | 70% | No payslip download · no leave balance · cannot upload own documents · cannot acknowledge reviews |
+| parent | 14 | 8 | 65% | Read-only by design · no fee payment · not covered by the spec (inferred role) |
+
+Cross-role:
+- 44 server routes have no client UI (mostly `GET /:id` detail routes, which are fine). The ones that matter: org create/delete,
+  user delete, submission grade, pipelines, `PUT` on assignments/materials/questions/events/salary-structures/geofences,
+  notification broadcast, and conversation participants/leave.
+- Demo seed is thin: most lists return empty for every role, so a UI walk-through mostly shows empty states.
+- Not built anywhere: payment gateway, email/SMS sending, file storage, scheduled jobs, realtime (sockets), AI, i18n,
+  public certificate verification.
+- Audit scripts (2026-10-29) are in the session scratchpad, not in the repo: gates.mjs (route × role matrix),
+  client-map.mjs (nav→hooks→verdict), runtime.mjs (live GETs).
+
+## 8c. Feature depth (2026-10-29)
+
+"UI routes" = server routes some client page calls / routes in that module (from the gate matrix). ~Depth is
+judged against the spec's description of the feature. It is an estimate.
+
+| Feature | UI routes | ~Depth | Missing |
+|---|---|---|---|
+| Auth & sessions | 6/6 | 75% | **B6: profile/password change call `PUT /auth/profile`, which doesn't exist** · no forgot/reset password · 2FA fields only · no lockout UI |
+| Organizations / tenancy | 2/5 | 60% | create/delete UI · limits & feature flags · Companies/Institutes read-only |
+| Users & RBAC | 3/6 | 80% | delete UI · H1 mixed gating |
+| Audit log | 1/1 | 85% | integrity hashes, export |
+| Notifications | bell + prefs | 50% | broadcast UI · no email/SMS/push delivery |
+| Classes & enrollments | 10/11 | 85% | B5 counselor class picker |
+| Assignments & submissions | 5/9 | 55% | **no submission grading UI** · no edit · no rubric/group/peer review |
+| Tests / questions / attempts | 12/13 | 70% | B4 manual grading 403 · no question edit · no sections/proctoring/rank |
+| Study materials | 3/4 | 65% | link only (no upload) · no edit |
+| Live sessions | 4/5 | 50% | link only: no video provider, chat, recording or attendance |
+| Attendance | 10/12 | 75% | device/biometric kiosk · QR image · corrections · GPS anti-spoof · AttendanceEvent model unused |
+| Certificates | 3/4 | 60% | no PDF, public verification or templates |
+| People (employees/HR/teachers/students) | 14/17 | 85% | lifecycle stages (onboarding → exit) |
+| Departments | 4/4 | 90% | — |
+| Leaves | 4/4 | 75% | balances, policies, attendance sync |
+| Payroll | 3/4 | 45% | no calculation (attendance/leave/LOP) · no payslip/export · no payment step |
+| Salary structures / reviews | 6/8 | 60% | no edit UI · no versioning · no goals/PIP/acknowledge |
+| Employee documents | 4/4 | 60% | link only (no storage) · no verification/expiry |
+| Invoices & payments | 5/6 | 60% | no gateway, refunds, receipt PDFs or reconciliation |
+| Billing / subscriptions | — | 20% | plan field only (F4) |
+| CRM leads/deals/contacts/customers | 16/17 | 75% | lead scoring, duplicate check |
+| CRM pipelines | 0/3 | 30% | API only, no UI |
+| CRM activities/tasks/notes | — | 0% | models only (CRMActivity, CRMTask, CRMNote) |
+| Messaging | 6/11 | 65% | message edit/delete · participants · no realtime |
+| Announcements / events | 7/10 | 70% | event/announcement edit UI |
+| Tickets | 5/6 | 55% | assignment, SLA, internal notes, templates |
+| Gamification | 7/9 | 55% | achievement edit · Streak & Leaderboard models unused |
+| Reports | 9/9 | 45% | stat cards only · no export (H5) |
+
+Not built anywhere: scheduled jobs, email/SMS, file storage, payment gateway, realtime, AI, i18n, public
+certificate verification. Unused/duplicate models: `models/Invoice.js` (the real one is in Payment.js),
+Device, AttendanceEvent, Streak, Leaderboard, CRMActivity/Task/Note.
+
+### Previous audit (2026-10-27, superseded)
 
 | Role | ~Done | Broken / missing (what to work on) |
 |---|---|---|
@@ -249,11 +317,19 @@ Cross-role defects (fix once, helps many roles):
   is only name/relationship/phone, with no user ref. So parent scoping in
   `assignmentController` / `classController` falls back to "all published in the institute".
   This needs a `parentUserIds` (or similar) link on the student profile before parent views are private.
+- **B4 🟠 Teachers/principals cannot grade test attempts.** `PUT /attempts/:id/grade` (testRoutes.js) requires
+  `test_attempt:update|manage`. Teachers and principals hold neither, but students do (for submit), so the gate
+  lets students through (blocked later in the controller) and rejects teachers. The controller even has a
+  teacher-owns-test branch that is unreachable. Live probe: teacher 403, principal 403, admin 404.
+- **B6 🟠 Profile update and password change are broken for every role.** SettingsPage.tsx calls
+  `PUT /auth/profile` (lines 40, 51); authRoutes.js has no such route, so both return 404.
+- **B5 🟡 Counselor enrollment form has an empty class dropdown.** EnrollmentsPage fetches `/classes` when
+  `canManage`, but counselor lacks `class:read` → 403 → enrollments can only be created without a class.
 - **G3** Two gating styles (§7) can drift. Long-term: migrate to permission-based.
 - **G4** Seed script added 2026-10-29 (`server/src/utils/seed.js`); its dry run validates, but saving against a real MongoDB is still unverified. Server has 17 pure-function tests; no DB or client tests.
 - **G5** Only `authValidator.js` exists. Most write routes have no Joi validation, so check mass-assignment on create/update controllers.
-- **G6** `client/tsconfig.tsbuildinfo` is committed (build artifact) and should be git-ignored.
-- **G7** Root `package.json` is still named `yolo-hrm`.
+- ~~**G6**~~ (resolved: `client/tsconfig.tsbuildinfo` untracked, `*.tsbuildinfo` git-ignored)
+- ~~**G7**~~ (fixed 2026-10-29: root package renamed `paisa`)
 
 ## 10. Conventions
 
@@ -289,6 +365,10 @@ Cross-role defects (fix once, helps many roles):
 
 **P1b — correctness of shipped features**
 - [x] G2. (done 2026-10-28: Student.guardianUserIds + utils/parentScope.js; scoped classes/assignments/tests/invoices/attendance; parent picker in Students edit modal) Parent↔child link on the student profile + scope parent queries to their children.
+- [x] B4. (done 2026-10-29: grade gate = test_attempt:manage|test:manage|test:update; principal gets test_attempt:read) Let teachers (own tests) and principals grade attempts: grant/gate by a grading permission, not `test_attempt:update`.
+- [x] B6. (done 2026-10-29; also fixed `GET /auth/me`, which 500ed because authService default export lacked sanitizeUser) Add `PUT /auth/profile` (name/phone + password change with currentPassword check, revoke other sessions).
+- [x] B5. (done 2026-10-29: counselor gets class:read) Counselor enrollment class picker: grant `class:read` or expose a lightweight class list.
+- [ ] U1. Missing UIs on existing APIs: submission grading, org create/delete, user delete, pipelines, edit forms (assignments/materials/questions/events/salary structures/geofences), notification broadcast.
 - [ ] F4. Billing: real subscription/payment flow (decide product scope first).
 - [ ] F5. Companies/Institutes: proper management views, or fold them into Organizations filters.
 
@@ -310,6 +390,19 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-10-29 — Full per-role re-audit (static + runtime).** Rebuilt §8b using the real route gates (195
+  routes), client nav→hook→endpoint mapping and 210 live GETs as the 11 demo users: 0 load failures. New bugs
+  B4 (teachers/principals can't grade attempts; confirmed live) and B5 (counselor class picker empty). Added
+  backlog B4, B5, U1. Per-role scope came from the original spec (`git show 60cb432:"kya vishye.md"`), which
+  only defines 6 roles; principal/accountant/counselor/support/parent scope is inferred. No code changed.
+  Follow-up: feature-depth table (§8c), and a direct-axios-call check that found B6 (no `PUT /auth/profile`).
+
+- **2026-10-29 — Status report + quick fixes.** Added a random `JWT_REFRESH_SECRET` to local `server/.env`
+  (git-ignored; `JWT_ACCESS_SECRET` was already present), renamed the root package `yolo-hrm`→`paisa`, and confirmed
+  G1b/G6 were already resolved (no tracked `server/node_modules` or tsbuildinfo). Verified: 17/17 server tests,
+  `node --check` on all server files, client lint + build, and a server boot against Atlas (`/health/ready` ok) with
+  admin login + cookie refresh succeeding. Still open: H1, H2, H3, H5, F4, F5.
 
 - **2026-10-29 — First run against a real MongoDB (Atlas `paisa` DB, demo org `demo-school`).** Seeded 11 demo
   users (`npm run seed`, `<role>@demo.paisa.test`, pw `Paisa@Demo1`), then ran `server/scripts/e2e-smoke.mjs`

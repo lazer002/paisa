@@ -38,7 +38,7 @@ export default function SettingsPage() {
     setProfileMsg('')
     try {
       const res = await api.put('/auth/profile', { name })
-      if (token) dispatch(setAuth({ user: res.data.data, token }))
+      if (token) dispatch(setAuth({ user: res.data.data.user, token }))
       setProfileMsg('Profile updated')
     } catch (e) {
       setProfileMsg((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to update profile')
@@ -48,7 +48,9 @@ export default function SettingsPage() {
   const changePassword = async () => {
     setPwMsg(''); setPwError('')
     try {
-      await api.put('/auth/profile', { currentPassword, newPassword })
+      const res = await api.put('/auth/profile', { currentPassword, newPassword })
+      const fresh = res.data?.data
+      if (fresh?.accessToken) dispatch(setAuth({ user: fresh.user, token: fresh.accessToken }))
       setPwMsg('Password changed. Other devices have been logged out.')
       setCurrentPassword(''); setNewPassword('')
     } catch (e) {

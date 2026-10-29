@@ -149,7 +149,9 @@ attemptRouter.put(
 attemptRouter.put(
   "/:publicId/grade",
   authorize({
-    anyPermissions: ["test_attempt:update", "test_attempt:manage"],
+    // Grading is staff work: test_attempt:update is the student's
+    // submit permission. The controller limits teachers to their own tests.
+    anyPermissions: ["test_attempt:manage", "test:manage", "test:update"],
   }),
   gradeAttempt
 );

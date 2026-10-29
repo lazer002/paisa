@@ -838,6 +838,8 @@ export {
 };
 
 export default {
+  sanitizeUser,
+  createSession,
   register,
   login,
   refreshSession,

@@ -3,6 +3,12 @@
 import authService from "../services/authService.js";
 import ApiError from "../utils/ApiError.js";
 import env from "../config/env.js";
+import { User } from "../models/User.js";
+import RefreshSession from "../models/RefreshSession.js";
+import {
+  hashPassword,
+  comparePassword,
+} from "../utils/password.js";
 
 import {
   sendSuccess,
@@ -457,6 +463,132 @@ const me = async (req, res, next) => {
 };
 
 /* =========================================================
+   UPDATE OWN PROFILE / CHANGE PASSWORD
+========================================================= */
+
+const updateProfile = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw ApiError.unauthorized(
+        "Authentication required",
+        "AUTHENTICATION_REQUIRED"
+      );
+    }
+
+    const {
+      name,
+      phone,
+      currentPassword,
+      newPassword,
+    } = req.body ?? {};
+
+    const user = await User.findById(
+      req.user._id
+    ).select("+passwordHash");
+
+    if (!user) {
+      throw ApiError.notFound(
+        "User not found",
+        "USER_NOT_FOUND"
+      );
+    }
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+
+      if (trimmed.length < 2 || trimmed.length > 100) {
+        throw ApiError.badRequest(
+          "Name must be 2-100 characters",
+          "INVALID_NAME"
+        );
+      }
+
+      user.name = trimmed;
+    }
+
+    if (phone !== undefined) {
+      user.set(
+        "profile.phone",
+        phone ? String(phone).trim() : undefined
+      );
+    }
+
+    let session = null;
+
+    if (newPassword !== undefined) {
+      const matches = await comparePassword(
+        String(currentPassword ?? ""),
+        user.passwordHash
+      );
+
+      if (!matches) {
+        throw ApiError.badRequest(
+          "Current password is incorrect",
+          "INVALID_CURRENT_PASSWORD"
+        );
+      }
+
+      user.passwordHash =
+        await hashPassword(String(newPassword));
+
+      // One second back so the session issued below (iat in whole
+      // seconds) is not rejected as older than the password change.
+      user.passwordChangedAt =
+        new Date(Date.now() - 1000);
+
+      user.mustChangePassword = false;
+    }
+
+    await user.save();
+
+    if (newPassword !== undefined) {
+      await RefreshSession.revokeUserSessions(
+        user._id,
+        "password_changed"
+      );
+
+      session = await authService.createSession({
+        user,
+        ipAddress: getRequestIp(req),
+        userAgent: getUserAgent(req),
+        deviceId: getDeviceId(req),
+        deviceName: getDeviceName(req),
+      });
+
+      setAccessTokenCookie(
+        res,
+        session.accessToken
+      );
+
+      setRefreshTokenCookie(
+        res,
+        session.refreshToken
+      );
+    }
+
+    return sendSuccess(res, {
+      message: session
+        ? "Password changed successfully"
+        : "Profile updated successfully",
+
+      data: {
+        user: authService.sanitizeUser(user),
+
+        ...(session && {
+          accessToken: session.accessToken,
+          expiresAt: session.expiresAt,
+          sessionId: session.sessionId,
+        }),
+      },
+
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
    EXPORTS
 ========================================================= */
 
@@ -467,6 +599,7 @@ export {
   logout,
   logoutAll,
   me,
+  updateProfile,
 };
 
 export default {
@@ -476,4 +609,5 @@ export default {
   logout,
   logoutAll,
   me,
+  updateProfile,
 };
