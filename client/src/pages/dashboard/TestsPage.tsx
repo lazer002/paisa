@@ -183,7 +183,7 @@ export default function TestsPage() {
       return id === rid(t)
     })
 
-  const myAttempt = (t: SchoolTest) => attemptsFor(t).find((a) => a.status === 'in_progress')
+  const myAttempt = (t: SchoolTest) => attemptsFor(t).find((a) => a.status === 'started')
 
   // Finished attempts use up the test's attempt limit (default 1), so the
   // server would refuse another start; show the result instead.
@@ -230,7 +230,7 @@ export default function TestsPage() {
               onClick={(e) => { e.stopPropagation(); take(t) }}
               className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
             >
-              <Play size={12} /> {myAttempt(t)?.status === 'in_progress' ? 'Resume' : 'Take test'}
+              <Play size={12} /> {myAttempt(t)?.status === 'started' ? 'Resume' : 'Take test'}
             </button>
           </div>
         ) : isStaff && (

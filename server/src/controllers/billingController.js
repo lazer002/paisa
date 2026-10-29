@@ -35,16 +35,18 @@ const scoped = (req, extra = {}) => {
   };
 };
 
+// Mirrors the Invoice model enum (models/Payment.js).
 const INVOICE_STATUSES = [
   "draft",
-  "sent",
-  "partial",
+  "pending",
+  "issued",
+  "partially_paid",
   "paid",
   "overdue",
   "cancelled",
-  "refunded",
-  "uncollectible",
   "void",
+  "refunded",
+  "written_off",
 ];
 
 export const createInvoice = asyncHandler(

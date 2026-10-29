@@ -1,5 +1,7 @@
 // src/controllers/classController.js
 
+import crypto from "node:crypto";
+
 import { Class } from "../models/Class.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
 
@@ -57,6 +59,9 @@ export const createClass = asyncHandler(async (req, res) => {
   const newClass = await Class.create({
     instituteId,
     name,
+    // Existing databases still have the old null-colliding unique index,
+    // so a class always gets a code.
+    code: req.body.code || `CLS-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
     subject,
     description,
 

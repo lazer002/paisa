@@ -46,7 +46,7 @@ const clearDraft = (key: string) => {
 }
 
 /**
- * Student test-taking flow. The attempt is already started (in_progress);
+ * Student test-taking flow. The attempt is already started;
  * this collects one answer per question and submits them for auto-grading.
  */
 export default function TakeTestModal({

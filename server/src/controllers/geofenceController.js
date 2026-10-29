@@ -103,6 +103,7 @@ export const deleteGeofence = asyncHandler(async (req, res) => {
     return sendNotFound(res, "Geofence not found");
   }
 
+  geofence.status = "archived";
   geofence.isDeleted = true;
   geofence.deletedAt = new Date();
   geofence.deletedBy = req.user._id;

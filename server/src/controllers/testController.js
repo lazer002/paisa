@@ -216,7 +216,7 @@ export const getTests = asyncHandler(async (req, res) => {
   const tests = await Test.find(query)
     .populate("classId", "name subject")
     .populate("createdBy", "name email")
-    .populate("questionIds", "text type points")
+    .populate("questionIds", "text type marks")
     .sort({ createdAt: -1 });
 
   return sendSuccess(res, {
@@ -268,7 +268,7 @@ export const getTest = asyncHandler(async (req, res) => {
     const safe = test.toObject();
 
     safe.questionIds = (safe.questionIds || []).map(
-      ({ correctAnswer, explanation, ...question }) => ({
+      ({ answer, correctAnswer, explanation, ...question }) => ({
         ...question,
         options: (question.options || []).map(
           ({ isCorrect, ...option }) => option
@@ -406,6 +406,132 @@ export const deleteTest = asyncHandler(async (req, res) => {
    QUESTIONS
 ========================================================= */
 
+// ── Question <-> API mapping ──────────────────────────────────────────────
+// The Question model stores `marks` and an `answer` object; the web client
+// (and older callers) speak `points` and a plain `correctAnswer`.
+
+const OPTION_TYPES = ["single_choice", "multiple_choice"];
+
+const buildAnswer = (type, options, correctAnswer) => {
+  if (OPTION_TYPES.includes(type)) {
+    return {
+      type: type === "single_choice" ? "option" : "options",
+      acceptedOptions: options
+        .filter((option) => option.isCorrect)
+        .map((option) => option.key),
+    };
+  }
+
+  if (correctAnswer === undefined || correctAnswer === null || correctAnswer === "") {
+    return undefined;
+  }
+
+  if (type === "numeric") {
+    const value = Number(correctAnswer);
+
+    return {
+      type: "numeric",
+      acceptedValues: [String(correctAnswer)],
+      numericRange: { min: value, max: value },
+    };
+  }
+
+  return {
+    type: type === "true_false" ? "boolean" : "text",
+    acceptedValues: [String(correctAnswer)],
+    caseSensitive: false,
+    trimWhitespace: true,
+  };
+};
+
+// The text a person would have to give to be right (for the staff view).
+const correctAnswerOf = (question) => {
+  if (OPTION_TYPES.includes(question.type)) {
+    return (
+      (question.options || [])
+        .filter((option) => option.isCorrect)
+        .map((option) => option.text)
+        .join(", ") || null
+    );
+  }
+
+  return question.answer?.acceptedValues?.[0] ?? null;
+};
+
+const questionView = (question) => {
+  const plain = question.toObject ? question.toObject() : question;
+
+  return {
+    ...plain,
+    points: plain.marks ?? 1,
+    correctAnswer: correctAnswerOf(plain),
+  };
+};
+
+const isAnswerCorrect = (question, given) => {
+  if (given === undefined || given === null || given === "") return false;
+
+  if (question.type === "single_choice") {
+    const option = (question.options || []).find(
+      (item) => item.text === given || item.key === given
+    );
+
+    return Boolean(option?.isCorrect);
+  }
+
+  if (question.type === "multiple_choice") {
+    const picked = (Array.isArray(given) ? given : [given]).map(String);
+    const correct = (question.options || [])
+      .filter((option) => option.isCorrect)
+      .map((option) => option.text);
+
+    return (
+      picked.length === correct.length &&
+      correct.every((text) => picked.includes(text))
+    );
+  }
+
+  const accepted = question.answer?.acceptedValues ?? [];
+
+  if (question.type === "numeric") {
+    const value = Number(given);
+    const { min, max, tolerance = 0 } = question.answer?.numericRange ?? {};
+
+    if (Number.isFinite(value) && Number.isFinite(min) && Number.isFinite(max)) {
+      return value >= min - tolerance && value <= max + tolerance;
+    }
+
+    return accepted.some((item) => Number(item) === value);
+  }
+
+  const normalise = (text) => String(text).trim().toLowerCase();
+
+  return accepted.some((item) => normalise(item) === normalise(given));
+};
+
+// The model stores score, maxScore, percentage and passed as flat fields;
+// the client reads one score object.
+const attemptView = (attempt) => {
+  const plain = attempt.toObject ? attempt.toObject() : attempt;
+
+  return {
+    ...plain,
+    score: {
+      earned: plain.score ?? 0,
+      total: plain.maxScore ?? 0,
+      percentage: plain.percentage ?? 0,
+      passed: plain.passed ?? null,
+    },
+  };
+};
+
+// Clients send { text, isCorrect }; the model also wants a short key per option.
+const withOptionKeys = (options) =>
+  (options || []).map((option, index) => ({
+    ...option,
+    key: option.key || String.fromCharCode(65 + index),
+  }));
+
 export const createQuestion = asyncHandler(async (req, res) => {
   const {
     text,
@@ -425,6 +551,8 @@ export const createQuestion = asyncHandler(async (req, res) => {
     return sendError(res, 400, "Text and type are required");
   }
 
+  const keyedOptions = withOptionKeys(options);
+
   const question = await Question.create({
     instituteId: req.user.instituteId,
 
@@ -434,13 +562,13 @@ export const createQuestion = asyncHandler(async (req, res) => {
     title: title || null,
     type,
     difficulty: difficulty || "medium",
-    status: status || "draft",
+    status: status === "published" ? "active" : status || "draft",
 
-    options: options || [],
-    correctAnswer: correctAnswer || null,
+    options: keyedOptions,
+    answer: buildAnswer(type, keyedOptions, correctAnswer),
     explanation: explanation || null,
 
-    points: points || 1,
+    marks: points || 1,
 
     subject: subject || null,
     topic: topic || null,
@@ -448,7 +576,7 @@ export const createQuestion = asyncHandler(async (req, res) => {
 
   return sendCreated(res, {
     message: "Question created",
-    data: question,
+    data: questionView(question),
   });
 });
 
@@ -477,7 +605,7 @@ export const getQuestions = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Questions fetched",
-    data: questions,
+    data: questions.map(questionView),
   });
 });
 
@@ -522,6 +650,33 @@ export const updateQuestion = asyncHandler(async (req, res) => {
     }
   }
 
+  // Translate the client's words into the model's.
+  if (updates.points !== undefined) {
+    updates.marks = updates.points;
+    delete updates.points;
+  }
+
+  if (updates.options !== undefined) {
+    updates.options = withOptionKeys(updates.options);
+  }
+
+  if (
+    updates.correctAnswer !== undefined ||
+    updates.options !== undefined ||
+    updates.type !== undefined
+  ) {
+    updates.answer = buildAnswer(
+      updates.type ?? question.type,
+      updates.options ?? question.options ?? [],
+      updates.correctAnswer
+    );
+    delete updates.correctAnswer;
+  }
+
+  if (updates.status === "published") {
+    updates.status = "active";
+  }
+
   updates.updatedBy = req.user._id;
 
   const updated =
@@ -533,7 +688,7 @@ export const updateQuestion = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Question updated",
-    data: updated,
+    data: questionView(updated),
   });
 });
 
@@ -591,7 +746,7 @@ export const startAttempt = asyncHandler(async (req, res) => {
   // Resume only an attempt that is still open; finished attempts count
   // against the test's attempt limit instead of being handed back.
   const open = countedAttempts.find(
-    (attempt) => attempt.status === "in_progress"
+    (attempt) => attempt.status === "started"
   );
 
   if (open) {
@@ -629,7 +784,7 @@ export const startAttempt = asyncHandler(async (req, res) => {
     attemptNumber:
       (lastAttempt?.attemptNumber || 0) + 1,
 
-    status: "in_progress",
+    status: "started",
   });
 
   return sendCreated(res, {
@@ -666,7 +821,7 @@ export const getAttempts = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Attempts fetched",
-    data: attempts,
+    data: attempts.map(attemptView),
   });
 });
 
@@ -689,7 +844,7 @@ export const submitAttempt = asyncHandler(async (req, res) => {
     throw forbidden();
   }
 
-  if (attempt.status !== "in_progress") {
+  if (attempt.status !== "started") {
     return sendError(
       res,
       400,
@@ -706,9 +861,10 @@ export const submitAttempt = asyncHandler(async (req, res) => {
   let total = 0;
 
   const gradedAnswers = [];
+  let pendingReview = false;
 
   for (const question of test.questionIds || []) {
-    total += question.points || 1;
+    total += question.marks || 1;
 
     const given = (answers || []).find(
       (a) =>
@@ -726,55 +882,59 @@ export const submitAttempt = asyncHandler(async (req, res) => {
     ].includes(question.type);
 
     const isCorrect =
-      given &&
+      Boolean(given) &&
       isObjective &&
-      String(
-        given.answer ?? ""
-      ).toLowerCase() ===
-        String(
-          question.correctAnswer ?? ""
-        ).toLowerCase();
+      isAnswerCorrect(question, given.answer);
 
     if (isCorrect) {
-      earned += question.points || 1;
+      earned += question.marks || 1;
     }
 
     gradedAnswers.push({
       questionId: question._id,
 
-      answer: given?.answer ?? null,
+      // Free text and option picks both arrive as one value.
+      type: question.type === "numeric" ? "numeric" : "text",
+      value: given?.answer ?? null,
+      textAnswer:
+        question.type === "numeric" || given?.answer == null
+          ? undefined
+          : String(given.answer),
+      numericAnswer:
+        question.type === "numeric" && given?.answer !== undefined
+          ? Number(given.answer)
+          : undefined,
 
-      isCorrect,
+      status: given ? "answered" : "unanswered",
 
-      awardedPoints: isCorrect
-        ? question.points || 1
-        : 0,
+      isCorrect: Boolean(isCorrect),
 
-      status: isObjective
-        ? "graded"
-        : "pending_review",
+      score: isCorrect ? question.marks || 1 : 0,
+      maxScore: question.marks || 1,
     });
+
+    // Written answers need a person to mark them.
+    if (!isObjective && given) {
+      pendingReview = true;
+    }
   }
 
-  const hasPendingReview = gradedAnswers.some(
-    (a) => a.status === "pending_review"
-  );
+  const hasPendingReview = pendingReview;
 
   attempt.answers = gradedAnswers;
   attempt.status = hasPendingReview
     ? "submitted"
     : "graded";
 
-  attempt.score = {
-    earned,
-    total,
-    percentage: total
-      ? Math.round((earned / total) * 100)
-      : 0,
-    passed: test.grading?.passingScore !== undefined
-      ? earned >= test.grading.passingScore
-      : null,
-  };
+  attempt.score = earned;
+  attempt.maxScore = total;
+  attempt.percentage = total
+    ? Math.round((earned / total) * 100)
+    : 0;
+  attempt.passed =
+    test.grading?.passingScore !== undefined
+      ? attempt.percentage >= test.grading.passingScore
+      : null;
 
   attempt.submittedAt = new Date();
 
@@ -782,7 +942,7 @@ export const submitAttempt = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Attempt submitted",
-    data: attempt,
+    data: attemptView(attempt),
   });
 });
 
@@ -819,15 +979,10 @@ export const gradeAttempt = asyncHandler(async (req, res) => {
   }
 
   if (score !== undefined) {
-    attempt.score = {
-      ...attempt.score,
-      earned: score,
-      percentage: attempt.score?.total
-        ? Math.round(
-            (score / attempt.score.total) * 100
-          )
-        : attempt.score?.percentage ?? 0,
-    };
+    attempt.score = score;
+    attempt.percentage = attempt.maxScore
+      ? Math.round((score / attempt.maxScore) * 100)
+      : attempt.percentage ?? 0;
   }
 
   if (feedback !== undefined) {
@@ -836,14 +991,14 @@ export const gradeAttempt = asyncHandler(async (req, res) => {
 
   attempt.status = "graded";
 
-  attempt.gradedBy = req.user._id;
+  attempt.reviewedBy = req.user._id;
 
-  attempt.gradedAt = new Date();
+  attempt.reviewedAt = new Date();
 
   await attempt.save();
 
   return sendSuccess(res, {
     message: "Attempt graded",
-    data: attempt,
+    data: attemptView(attempt),
   });
 });

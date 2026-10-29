@@ -146,13 +146,13 @@ export default function InvoicesPage() {
           <div className="flex justify-end gap-1.5">
             {i.status === 'draft' && (
               <button
-                onClick={(e) => { e.stopPropagation(); setStatus(i, 'sent', 'Invoice sent') }}
+                onClick={(e) => { e.stopPropagation(); setStatus(i, 'issued', 'Invoice sent') }}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
               >
                 Send
               </button>
             )}
-            {['draft', 'sent', 'overdue'].includes(i.status) && (
+            {['draft', 'pending', 'issued', 'overdue'].includes(i.status) && (
               <button
                 onClick={(e) => { e.stopPropagation(); setStatus(i, 'cancelled', 'Invoice cancelled') }}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"

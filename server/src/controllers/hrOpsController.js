@@ -206,7 +206,7 @@ export const createReview = asyncHandler(async (req, res) => {
   }
 
   // Reviews reference the Employee profile model.
-  const { Employee } = await import(
+  const { default: Employee } = await import(
     "../models/Employee.js"
   );
 
@@ -231,8 +231,11 @@ export const createReview = asyncHandler(async (req, res) => {
 
     type: type || "annual",
 
-    periodStart: periodStart || null,
-    periodEnd: periodEnd || null,
+    // The model requires a review period; default to the current year.
+    period: {
+      startDate: periodStart || new Date(new Date().getFullYear(), 0, 1),
+      endDate: periodEnd || new Date(new Date().getFullYear(), 11, 31),
+    },
     dueDate: dueDate || null,
 
     status: "draft",
@@ -268,7 +271,7 @@ export const getReviews = asyncHandler(async (req, res) => {
 
   const query = scoped(req);
 
-  const { Employee } = await import("../models/Employee.js");
+  const { default: Employee } = await import("../models/Employee.js");
 
   if (employeeId) {
     query.employeeId = await resolveEmployeeProfile(
@@ -291,13 +294,27 @@ export const getReviews = asyncHandler(async (req, res) => {
 
   if (status) query.status = status;
 
+  // lean(): the Employee virtuals need fields this partial populate skips.
   const reviews = await PerformanceReview.find(query)
-    .populate("employeeId", "name email userCode")
-    .sort({ createdAt: -1 });
+    .populate("employeeId", "displayName workEmail employeeCode publicId")
+    .sort({ createdAt: -1 })
+    .lean();
 
+  // The UI reads name/email/userCode, so present the profile that way.
   return sendSuccess(res, {
     message: "Reviews fetched",
-    data: reviews,
+    data: reviews.map((review) => ({
+      ...review,
+      employeeId: review.employeeId?.displayName
+        ? {
+            _id: review.employeeId._id,
+            publicId: review.employeeId.publicId,
+            name: review.employeeId.displayName,
+            email: review.employeeId.workEmail,
+            userCode: review.employeeId.employeeCode,
+          }
+        : review.employeeId,
+    })),
   });
 });
 
