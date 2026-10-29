@@ -1008,6 +1008,13 @@ userSchema.pre("save", async function (next) {
         [Roles.HR]: "HR",
         [Roles.ADMIN]: "ADM",
         [Roles.SUPER_ADMIN]: "SA",
+        // Every role needs its own prefix: counters are per role, so roles
+        // sharing "USR" produced duplicate codes (USR-0001 twice).
+        [Roles.PRINCIPAL]: "PRN",
+        [Roles.ACCOUNTANT]: "ACC",
+        [Roles.COUNSELOR]: "CNS",
+        [Roles.SUPPORT]: "SUP",
+        [Roles.PARENT]: "PAR",
       };
 
       const prefix =

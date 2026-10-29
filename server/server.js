@@ -2,6 +2,9 @@
 
 import "dotenv/config";
 
+// Must load before any model so the plugin applies to every schema.
+import "./src/config/mongoosePlugins.js";
+
 import http from "http";
 
 import app from "./src/app.js";

@@ -1326,7 +1326,11 @@ employeeSchema.index(
   },
   {
     unique: true,
-    sparse: true,
+    // sparse alone is not enough on a compound index: instituteId is always
+    // set, so every employee without an externalId collided on null.
+    partialFilterExpression: {
+      externalId: { $type: "string" },
+    },
     name: "tenant_employee_external_id",
   }
 );
@@ -1771,11 +1775,11 @@ employeeSchema.virtual(
   "primaryAddress"
 ).get(function () {
   return (
-    this.addresses.find(
+    this.addresses?.find(
       (address) =>
         address.isPrimary
     ) ||
-    this.addresses[0] ||
+    this.addresses?.[0] ||
     null
   );
 });

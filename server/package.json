@@ -10,6 +10,9 @@
     "start": "node server.js",
     "build": "echo \"Backend build completed\"",
     "seed": "node src/utils/seed.js",
+    "db:fix-indexes": "node src/utils/fixIndexes.js",
+    "e2e:smoke": "node scripts/e2e-smoke.mjs",
+    "e2e:flows": "node scripts/e2e-flows.mjs",
     "test": "node --test",
     "test:watch": "node --test --watch",
     "check": "node --check server.js"

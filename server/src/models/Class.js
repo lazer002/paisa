@@ -864,7 +864,10 @@ classSchema.index(
   },
   {
     unique: true,
-    sparse: true,
+    // Only classes that have a code take part (sparse alone still indexes null).
+    partialFilterExpression: {
+      code: { $type: "string" },
+    },
     name: "class_institute_code_unique",
   }
 );
