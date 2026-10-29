@@ -8,6 +8,7 @@ import {
   useUpdateTicketMutation,
   useAddTicketMessageMutation,
   useDeleteTicketMutation,
+  useGetTicketAssigneesQuery,
   type SupportTicket,
 } from '@/features/platform/platformApi'
 import { rid } from '@/features/users/usersApi'
@@ -29,6 +30,7 @@ export default function TicketsPage() {
   const isStaff = STAFF_ROLES.includes(user?.role ?? '')
   const { can } = usePermission()
   const canDelete = can('ticket:delete') && DELETE_ROLES.includes(user?.role ?? '')
+  const canAssign = isStaff && can('ticket:update')
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -39,6 +41,7 @@ export default function TicketsPage() {
 
   const { data: tickets, isLoading, isError, refetch } = useGetTicketsQuery()
   const { data: ticketDetail } = useGetTicketQuery(openTicketId!, { skip: !openTicketId })
+  const { data: assignees } = useGetTicketAssigneesQuery(openTicketId!, { skip: !openTicketId || !canAssign })
 
   const [createTicket] = useCreateTicketMutation()
   const [updateTicket] = useUpdateTicketMutation()
@@ -86,6 +89,15 @@ export default function TicketsPage() {
     }
   }
 
+  const assign = async (ticketId: string, assigneeId: string) => {
+    try {
+      await updateTicket({ id: ticketId, assigneeId: assigneeId || null }).unwrap()
+      setToast({ msg: assigneeId ? 'Ticket assigned' : 'Ticket unassigned', tone: 'success' })
+    } catch (e: unknown) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Assignment failed', tone: 'critical' })
+    }
+  }
+
   const removeTicket = async (t: SupportTicket) => {
     if (!window.confirm(`Delete ticket "${t.subject}" and its whole conversation? This cannot be undone.`)) return
     try {
@@ -115,6 +127,15 @@ export default function TicketsPage() {
         <span className="text-gray-500">{typeof t.requesterId === 'object' ? t.requesterId?.name ?? '—' : '—'}</span>
       ),
     },
+    ...(isStaff
+      ? [{
+          key: 'assignee',
+          header: 'Assigned to',
+          render: (t: SupportTicket) => (
+            <span className="text-gray-500">{typeof t.assigneeId === 'object' ? t.assigneeId?.name ?? '—' : '—'}</span>
+          ),
+        }]
+      : []),
     { key: 'priority', header: 'Priority', render: (t) => <StatusBadge status={t.priority} /> },
     { key: 'status', header: 'Status', render: (t) => <StatusBadge status={t.status} /> },
     {
@@ -207,6 +228,25 @@ export default function TicketsPage() {
             <div className="flex items-center gap-2">
               <StatusBadge status={ticketDetail.ticket.status} />
               <StatusBadge status={ticketDetail.ticket.priority} />
+              {canAssign && (
+                <select
+                  aria-label="Assign ticket"
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs outline-none focus:border-gray-900"
+                  value={
+                    typeof ticketDetail.ticket.assigneeId === 'object'
+                      ? ticketDetail.ticket.assigneeId?.publicId ?? ticketDetail.ticket.assigneeId?._id ?? ''
+                      : ticketDetail.ticket.assigneeId ?? ''
+                  }
+                  onChange={(e) => openTicketId && assign(openTicketId, e.target.value)}
+                >
+                  <option value="">Unassigned</option>
+                  {(assignees ?? []).map((a) => (
+                    <option key={a._id} value={a.publicId ?? a._id}>
+                      {a.name} ({a.role})
+                    </option>
+                  ))}
+                </select>
+              )}
               <span className="ml-auto text-xs text-gray-400">
                 {typeof ticketDetail.ticket.requesterId === 'object'
                   ? ticketDetail.ticket.requesterId?.name

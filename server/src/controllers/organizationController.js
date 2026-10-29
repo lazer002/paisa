@@ -235,6 +235,18 @@ export const getOrganizations = async (req, res) => {
 
     const query = scopeQueryForUser(req.user);
 
+    // countDocuments skips the model's soft-delete find hook, so the
+    // filter is explicit. super_admin can list deleted orgs to restore them.
+    if (
+      req.query.deleted === "true" &&
+      req.user.role === ROLES.SUPER_ADMIN
+    ) {
+      query.isDeleted = true;
+      query.includeDeleted = true;
+    } else {
+      query.isDeleted = false;
+    }
+
     if (type) {
       query.type = type;
     }
@@ -262,6 +274,10 @@ export const getOrganizations = async (req, res) => {
     const skip =
       (pageNumber - 1) * limitNumber;
 
+    // includeDeleted is a flag for the find hook, not a field.
+    const countQuery = { ...query };
+    delete countQuery.includeDeleted;
+
     const [orgs, total] = await Promise.all([
       Organization.find(query)
         .sort({ createdAt: -1 })
@@ -269,7 +285,7 @@ export const getOrganizations = async (req, res) => {
         .limit(limitNumber)
         .lean(),
 
-      Organization.countDocuments(query),
+      Organization.countDocuments(countQuery),
     ]);
 
     const organizationIds = orgs.map(
@@ -666,7 +682,7 @@ export const deleteOrganization = async (
       });
     }
 
-    await org.softDelete();
+    await org.softDelete(null, req.user._id);
 
     return res.json({
       success: true,
@@ -683,6 +699,48 @@ export const deleteOrganization = async (
       success: false,
       message:
         "Failed to delete organization",
+    });
+  }
+};
+
+//
+// RESTORE ORGANIZATION (super_admin)
+// Members regain access at once: authenticate only checks the org.
+export const restoreOrganization = async (
+  req,
+  res
+) => {
+  try {
+    const org = await Organization.findOne({
+      publicId: req.params.publicId,
+      isDeleted: true,
+      includeDeleted: true,
+    });
+
+    if (!org) {
+      return res.status(404).json({
+        success: false,
+        message: "Deleted organization not found",
+      });
+    }
+
+    await org.restore(req.user._id);
+
+    return res.json({
+      success: true,
+      message: "Organization restored",
+      data: org,
+    });
+  } catch (err) {
+    console.error(
+      "Restore Org Error:",
+      err
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to restore organization",
     });
   }
 };

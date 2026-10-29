@@ -46,7 +46,13 @@ const STAFF_ROLES = [
 ];
 
 const forbidden = () =>
-  ApiError.forbidden("Access denied", "ACCESS_DENIED");
+  ApiError.forbidden("Access denied", { code: "ACCESS_DENIED" });
+
+// Staff of the ticket's own organization who can take it.
+// super_admin has no instituteId, so it is never an assignee.
+const ASSIGNABLE_ROLES = STAFF_ROLES.filter(
+  (role) => role !== "super_admin"
+);
 
 /* =========================================================
    TICKETS
@@ -109,7 +115,7 @@ export const getTickets = asyncHandler(async (req, res) => {
 
   const tickets = await Ticket.find(query)
     .populate("requesterId", "name email userCode")
-    .populate("assignment.assignedTo", "name email")
+    .populate("assignment.assignedTo", "publicId name email")
     .sort({ createdAt: -1 });
 
   return sendSuccess(res, {
@@ -124,7 +130,7 @@ export const getTicket = asyncHandler(async (req, res) => {
     ...scoped(req),
   })
     .populate("requesterId", "name email userCode")
-    .populate("assignment.assignedTo", "name email");
+    .populate("assignment.assignedTo", "publicId name email");
 
   if (!ticket) {
     return sendNotFound(res, "Ticket not found");
@@ -212,6 +218,20 @@ export const updateTicket = asyncHandler(async (req, res) => {
         })
       : null;
 
+    if (
+      assignedTo &&
+      !(await User.exists({
+        _id: assignedTo,
+        role: { $in: ASSIGNABLE_ROLES },
+      }))
+    ) {
+      return sendError(
+        res,
+        400,
+        "Tickets can only be assigned to support staff"
+      );
+    }
+
     ticket.assignment = {
       ...(ticket.assignment?.toObject?.() ?? {}),
       assignedTo,
@@ -227,6 +247,36 @@ export const updateTicket = asyncHandler(async (req, res) => {
     data: withAssignee(ticket),
   });
 });
+
+export const getTicketAssignees = asyncHandler(
+  async (req, res) => {
+    if (!STAFF_ROLES.includes(req.user.role)) {
+      throw forbidden();
+    }
+
+    const ticket = await Ticket.findOne(
+      scoped(req, { publicId: req.params.publicId })
+    ).select("instituteId");
+
+    if (!ticket) {
+      return sendNotFound(res, "Ticket not found");
+    }
+
+    const staff = await User.find({
+      instituteId: ticket.instituteId,
+      role: { $in: ASSIGNABLE_ROLES },
+      status: "active",
+    })
+      .select("publicId name email role")
+      .sort({ name: 1 })
+      .lean();
+
+    return sendSuccess(res, {
+      message: "Assignees fetched",
+      data: staff,
+    });
+  }
+);
 
 export const deleteTicket = asyncHandler(
   async (req, res) => {

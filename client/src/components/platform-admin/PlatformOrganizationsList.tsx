@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Building2, ChevronLeft, ChevronRight, Plus, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react'
 
-import { useGetOrganizationsQuery } from '@/features/organizations/organizationsApi'
+import { useGetOrganizationsQuery, useRestoreOrganizationMutation } from '@/features/organizations/organizationsApi'
+import { apiErrorMessage } from './apiError'
 import type { Organization } from '@/features/organizations/types'
 import CreateOrganizationModal from './CreateOrganizationModal'
 import DeleteOrganizationDialog from './DeleteOrganizationDialog'
@@ -32,13 +33,26 @@ export default function PlatformOrganizationsList() {
   const [page, setPage] = useState(1)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<Organization | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [restoreError, setRestoreError] = useState('')
+  const [restoreOrganization, { isLoading: restoring }] = useRestoreOrganizationMutation()
 
   const { data, isLoading, isFetching, isError, refetch } = useGetOrganizationsQuery({
     page,
     limit: PAGE_SIZE,
     search: search.trim() || undefined,
     type: type || undefined,
+    deleted: showDeleted || undefined,
   })
+
+  const restore = async (org: Organization) => {
+    setRestoreError('')
+    try {
+      await restoreOrganization(org.publicId ?? org._id).unwrap()
+    } catch (err) {
+      setRestoreError(apiErrorMessage(err, `Could not restore ${org.name}`))
+    }
+  }
 
   const orgs = data?.data ?? []
   const total = data?.total ?? orgs.length
@@ -91,6 +105,17 @@ export default function PlatformOrganizationsList() {
               <option key={t} value={t}>{titleCase(t)}</option>
             ))}
           </select>
+          {canManage && (
+            <select
+              value={showDeleted ? 'deleted' : 'live'}
+              onChange={(e) => resetPage(setShowDeleted)(e.target.value === 'deleted')}
+              className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
+              aria-label="Show live or deleted organizations"
+            >
+              <option value="live">Live</option>
+              <option value="deleted">Deleted</option>
+            </select>
+          )}
           <button
             type="button"
             onClick={() => refetch()}
@@ -99,6 +124,10 @@ export default function PlatformOrganizationsList() {
             <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
+
+        {restoreError && (
+          <p className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">{restoreError}</p>
+        )}
 
         {isLoading ? (
           <div className="space-y-3 p-5">
@@ -116,9 +145,15 @@ export default function PlatformOrganizationsList() {
         ) : orgs.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <Building2 size={32} className="mx-auto text-gray-300" />
-            <p className="mt-3 font-semibold text-gray-900">No organizations found</p>
+            <p className="mt-3 font-semibold text-gray-900">
+              {showDeleted ? 'No deleted organizations' : 'No organizations found'}
+            </p>
             <p className="mt-1 text-sm text-gray-500">
-              {search || type ? 'Try changing your filters.' : 'Create the first tenant to get started.'}
+              {search || type
+                ? 'Try changing your filters.'
+                : showDeleted
+                  ? 'Deleted tenants show up here and can be restored.'
+                  : 'Create the first tenant to get started.'}
             </p>
           </div>
         ) : (
@@ -140,8 +175,8 @@ export default function PlatformOrganizationsList() {
                   return (
                     <tr
                       key={id}
-                      onClick={() => navigate(`/dashboard/organizations/${id}`)}
-                      className="cursor-pointer border-b border-gray-50 transition hover:bg-gray-50"
+                      onClick={showDeleted ? undefined : () => navigate(`/dashboard/organizations/${id}`)}
+                      className={`border-b border-gray-50 transition ${showDeleted ? '' : 'cursor-pointer hover:bg-gray-50'}`}
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -172,7 +207,17 @@ export default function PlatformOrganizationsList() {
                         {org.membersCount ?? 0}
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        {canManage && (
+                        {canManage && showDeleted && (
+                          <button
+                            type="button"
+                            disabled={restoring}
+                            onClick={() => restore(org)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <RotateCcw size={14} /> Restore
+                          </button>
+                        )}
+                        {canManage && !showDeleted && (
                           <button
                             type="button"
                             title={`Delete ${org.name}`}

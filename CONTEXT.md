@@ -118,11 +118,12 @@ cd client && npm run build   # tsc -b + vite build = the client typecheck
 - Vite proxies `/api` → `VITE_API_PROXY_TARGET` (default `http://127.0.0.1:5000`).
   Leave `VITE_API_URL` unset in dev so refresh cookies stay same-origin.
 - `server/.env` exists locally (git-ignored). No `client/.env` needed in dev.
-- **Environment trap (this machine):** the default `node` on PATH is
-  **v12.18.3**, which can't parse `?.`, so every server file "fails" and the
-  client build crashes. nvm has v20.11.1, v22.14.0 and v24.21.0 installed. Run
-  `nvm use 22.14.0` (or, in the agent shell, prefix
-  `export PATH="$HOME/AppData/Local/nvm/v22.14.0:$PATH"`).
+- **Environment (this machine):** the default `node` is now **v24.21.0** (nvm current), so plain `node`/`npm`
+  work. It used to be v12 (can't parse `?.`); if `node -v` shows v12 again, run `nvm use 22.14.0`.
+- **Agents: avoid permission prompts.** Do NOT prefix commands with `PATH=…`/`export PATH=…`, do NOT edit files via
+  `python - <<EOF`/`sed -i`, and avoid `cd … && … | …; …` chains: Claude Code asks for approval on these even in
+  bypass mode. Edit with the Edit/Write tools, search with Grep, and run single commands with absolute paths
+  (e.g. `npm --prefix D:/paisa/client run lint`, `node --check D:/paisa/server/src/x.js`).
 - To syntax-check every server file: `for f in $(git ls-files server/src | grep .js$); do node --check $f; done`
 
 ## 4. Repository layout
@@ -446,9 +447,9 @@ Cross-role defects (fix once, helps many roles):
 - [x] B5. (done 2026-10-29: counselor gets class:read) Counselor enrollment class picker: grant `class:read` or expose a lightweight class list.
 - [x] U1. (done 2026-10-29, Wave 2) Missing UIs on existing APIs: submission grading, org create/delete, user delete, pipelines, edit forms (assignments/materials/questions/events/salary structures/geofences), notification broadcast.
 - [x] B8. (done 2026-10-29) Study material create/update/filter with class publicIds (see §9).
-- [ ] B10. Students see every study material: the list doesn't filter by visibility/enrollment (`studyMaterialController` list).
-- [ ] O1. Org follow-ups: list total counts deleted orgs; OrganizationDetailPage loads ≤100 orgs to find one (org 101+ = "not found"); no restore UI (`restore()` exists on the model); deleting an org doesn't deactivate its users (sign-in blocks them).
-- [ ] T1. Ticket assignment UI (server now stores `assignment.assignedTo` and returns `assigneeId`; no picker in TicketsPage).
+- [x] B10. (done 2026-10-29) Students/parents see institute/public materials + class-only materials of their (children's) classes only.
+- [x] O1. (done 2026-10-29) Org list total excludes deleted; super_admin "Deleted" view + `POST /organizations/:id/restore`; detail page fetches `GET /organizations/:id`. Users are intentionally NOT deactivated on org delete: `authenticate` rejects members of a deleted org on every request, so restore brings them straight back.
+- [x] T1. (done 2026-10-29) Ticket assignee picker in the ticket drawer + "Assigned to" column; `GET /tickets/:id/assignees` (admin/hr/support of the ticket's org); assigning a non-staff user → 400.
 - [~] P1. (payments module done 2026-10-29, uncommitted) Razorpay payments, receipts, refunds. Needs live keys to test checkout.
 - [ ] F4. Billing: real subscription/payment flow (decided: Razorpay, see §0).
 - [ ] F5. Companies/Institutes: proper management views, or fold them into Organizations filters.
@@ -471,6 +472,14 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-10-29 (PM 2) — B10, O1, T1.** Study materials scoped for students/parents (`visibleClassIdsFor`); org
+  list count/deleted view/restore endpoint + UI, detail page by id; ticket assignees endpoint + picker (populate now
+  includes `publicId`). Verified: node --check, 17/17 tests, client lint + tsc, `e2e:smoke` 171/171, and a live
+  script 16/16 (student sees institute + own-class material but not another class's; admin sees all; total excludes
+  deleted; admin `?deleted=true` leaks nothing; admin restore 403, super_admin restore 200; support lists
+  admin/hr/support assignees, student 403; assigning a student 400; assign round-trips). Also documented in §3 how
+  agents avoid permission prompts (the owner was being asked on every PATH-prefixed / heredoc command).
 
 - **2026-10-29 (PM) — Status report + Wave 2 finished.** Re-checked the uncommitted tree (lint, tsc, build,
   17/17 tests green), found Wave 2 ~60% landed, finished the rest with 3 parallel agents (no file overlap).

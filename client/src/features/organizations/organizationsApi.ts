@@ -8,6 +8,8 @@ export interface OrgListParams {
   type?: string
   status?: string
   search?: string
+  /** Super admin only: list soft-deleted organizations instead. */
+  deleted?: boolean
 }
 
 export interface OrgListResult {
@@ -64,6 +66,7 @@ export const organizationsApi = createApi({
               type: params.type || undefined,
               status: params.status || undefined,
               search: params.search || undefined,
+              deleted: params.deleted ? 'true' : undefined,
             }
           : undefined,
       }),
@@ -75,6 +78,12 @@ export const organizationsApi = createApi({
               { type: 'Organization' as const, id: 'LIST' },
             ]
           : [{ type: 'Organization' as const, id: 'LIST' }],
+    }),
+
+    getOrganization: builder.query<Organization, string>({
+      query: (id) => ({ url: `/organizations/${id}` }),
+      transformResponse: (r: { data?: Organization }) => (r?.data ?? r) as Organization,
+      providesTags: (r, e, id) => [{ type: 'Organization', id }],
     }),
 
     // Super admin only. Also creates the org's first admin user from
@@ -102,12 +111,23 @@ export const organizationsApi = createApi({
         { type: 'Organization', id: 'LIST' },
       ],
     }),
+
+    // Super admin only. Members regain access immediately.
+    restoreOrganization: builder.mutation<Organization, string>({
+      query: (id) => ({ url: `/organizations/${id}/restore`, method: 'POST' }),
+      invalidatesTags: (r, e, id) => [
+        { type: 'Organization', id },
+        { type: 'Organization', id: 'LIST' },
+      ],
+    }),
   }),
 })
 
 export const {
   useGetOrganizationsQuery,
+  useGetOrganizationQuery,
   useAddOrganizationMutation,
   useUpdateOrganizationMutation,
   useDeleteOrganizationMutation,
+  useRestoreOrganizationMutation,
 } = organizationsApi

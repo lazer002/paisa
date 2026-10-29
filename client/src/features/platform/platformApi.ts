@@ -98,6 +98,14 @@ export interface SupportTicket {
   createdAt: string
 }
 
+export interface TicketAssignee {
+  _id: string
+  publicId?: string
+  name: string
+  email?: string
+  role: string
+}
+
 export interface TicketMessageT {
   _id: string
   publicId?: string
@@ -349,6 +357,11 @@ export const platformApi = createApi({
       query: (id) => ({ url: `/tickets/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Ticket', id: 'LIST' }],
     }),
+    // Staff of the ticket's organization who can be assigned (staff only).
+    getTicketAssignees: builder.query<TicketAssignee[], string>({
+      query: (id) => `/tickets/${id}/assignees`,
+      transformResponse: list,
+    }),
 
     // ── HR Ops: Salary structures ──
     getSalaryStructures: builder.query<SalaryStructure[], { status?: string } | void>({
@@ -477,6 +490,7 @@ export const {
   useGetDealsQuery, useCreateDealMutation, useUpdateDealStageMutation, useDeleteDealMutation,
   useGetPipelinesQuery, useCreatePipelineMutation, useDeletePipelineMutation,
   useGetTicketsQuery, useGetTicketQuery, useCreateTicketMutation, useUpdateTicketMutation, useAddTicketMessageMutation, useDeleteTicketMutation,
+  useGetTicketAssigneesQuery,
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,

@@ -6,9 +6,7 @@ import {
 } from 'lucide-react'
 import DeleteOrganizationDialog from '@/components/platform-admin/DeleteOrganizationDialog'
 import { useCanManageOrganizations } from '@/components/platform-admin/useCanManageOrganizations'
-import {
-  useGetOrganizationsQuery,
-} from '@/features/organizations/organizationsApi'
+import { useGetOrganizationQuery } from '@/features/organizations/organizationsApi'
 import { useGetUsersQuery, rid, type OrgUser } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
 import { useAppSelector } from '@/app/store'
@@ -198,14 +196,13 @@ export default function OrganizationDetailPage() {
   const canDeleteOrg = useCanManageOrganizations()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const { data, isLoading, isError, refetch } = useGetOrganizationsQuery({ limit: 100 })
+  const { data: org, isLoading, isError, error, refetch } = useGetOrganizationQuery(id ?? '', { skip: !id })
   const { data: members } = useGetUsersQuery()
   const { data: departments } = useGetDepartmentsQuery()
+  const notFound = (error as { status?: number } | undefined)?.status === 404
 
-  // URL carries the org's publicId (or legacy _id) — resolve the org first,
-  // then match members/departments against its real Mongo _id (instituteId
-  // on users/departments stores the _id, never the publicId).
-  const org = (data?.data ?? []).find((o) => rid(o) === id)
+  // URL carries the org's publicId. Members/departments are matched against
+  // its real Mongo _id (instituteId on users/departments stores the _id).
   const orgMongoId = org?._id ? String(org._id) : null
 
   const matchesOrg = (value: unknown) => {
@@ -223,7 +220,7 @@ export default function OrganizationDetailPage() {
   const [tab, setTab] = useState<'overview' | 'members' | 'departments' | 'chart'>('overview')
 
   if (isLoading) return <LoadingList rows={6} />
-  if (isError) return <ErrorState onRetry={() => refetch()} />
+  if (isError && !notFound) return <ErrorState onRetry={() => refetch()} />
   if (!org) {
     return (
       <div className="rounded-2xl bg-white p-16 text-center shadow-sm">

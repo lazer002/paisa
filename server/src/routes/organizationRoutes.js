@@ -7,6 +7,7 @@ import {
   deleteOrganization,
   getOrganization,
   getOrganizations,
+  restoreOrganization,
   updateOrganization,
 } from "../controllers/organizationController.js";
 
@@ -81,6 +82,17 @@ router.delete(
   "/:publicId",
   superAdminOnly,
   deleteOrganization
+);
+
+// ─────────────────────────────────────────────
+// RESTORE ORGANIZATION
+// Super admin only
+// ─────────────────────────────────────────────
+
+router.post(
+  "/:publicId/restore",
+  superAdminOnly,
+  restoreOrganization
 );
 
 export default router;

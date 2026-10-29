@@ -6,6 +6,7 @@ import {
   createTicket,
   getTickets,
   getTicket,
+  getTicketAssignees,
   updateTicket,
   deleteTicket,
   addTicketMessage,
@@ -29,6 +30,12 @@ router.get(
   "/:publicId",
   authorize({ anyPermissions: ["ticket:read"] }),
   getTicket
+);
+
+router.get(
+  "/:publicId/assignees",
+  authorize({ anyPermissions: ["ticket:update"] }),
+  getTicketAssignees
 );
 
 router.post(

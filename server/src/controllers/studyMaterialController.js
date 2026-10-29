@@ -5,6 +5,7 @@ import { Class } from "../models/Class.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { visibleClassIdsFor } from "../utils/parentScope.js";
 
 import {
   sendSuccess,
@@ -156,6 +157,18 @@ export const getStudyMaterials = asyncHandler(
     ) {
       query.uploadedBy =
         req.user._id;
+    }
+
+    // Students and parents see institute-wide/public materials plus
+    // class-only materials of the classes they (or their children) are in.
+    const visibleClasses =
+      await visibleClassIdsFor(req.user);
+
+    if (visibleClasses) {
+      query.$or = [
+        { visibility: { $in: ["institute", "public"] } },
+        { visibility: "class_only", classId: { $in: visibleClasses } },
+      ];
     }
 
     if (req.query.classId) {
