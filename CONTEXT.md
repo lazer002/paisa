@@ -8,7 +8,7 @@
 > and client/README.md (2026-10-27). They are still in git history if needed
 > (`git show 60cb432:"kya vishye.md"` = the 5,270-line aspirational product spec).
 
-Last updated: 2026-10-27 (verified against live code)
+Last updated: 2026-10-29
 
 ---
 
@@ -182,7 +182,7 @@ are separate business profiles linked to a User. Do not assume Teacher === Emplo
 | HR Ops (salary structures, reviews, certificates) | ✅ | |
 | Classes, Assignments + submissions | ✅ | parent now allowed (B1 fixed). See gap G2 |
 | Enrollments, Tests/Questions/Attempts, Materials, Live sessions | ✅ | |
-| Attendance | ✅ basic | ❌ geofence / QR / device: models + perms exist, no routes/UI |
+| Attendance | ✅ | geofence check-in + class codes done (2026-10-29); ❌ device/biometric kiosk (Device model + perms, no routes/UI); class code is typed, no QR image/scan |
 | Leaves, Payroll | ✅ | |
 | Messages, Announcements, Events, Notifications | ✅ | |
 | Invoices + payments | ✅ | |
@@ -277,29 +277,29 @@ Cross-role defects (fix once, helps many roles):
 - [x] G1. (done 2026-10-27) Clean install under Node 22, untrack `server/node_modules`, fix button/badge casing, fix BillingPage lint, then get `npm run lint` + `npm run build` green.
 
 **P1 — role blockers (see §8b)**
-- [ ] R1. Principal: allow on classes/assignments/teachers/payroll GET (+ salary read) — fixes 5 load-403 pages.
-- [ ] R2. Accountant: allow payroll GET; billing/invoice-status UI for accountant.
-- [ ] R3. X1 notification-preference perms for all roles (Settings page).
-- [ ] R4. X2 ticket replies for requesters; align hr staff status.
-- [ ] R5. Student test-taking UI (start → answer → submit) using existing endpoints.
-- [ ] R6. HR: teachers read + certificates read; events delete alignment.
-- [ ] R7. X3 replace hard-coded role arrays in pages with `<Can>`/`usePermission`.
-- [ ] R8. X5 dedupe nav; counselor Enrollments nav; Gamification nav for admin/employee.
+- [x] R1. (done 2026-10-28, uncommitted) Principal: allow on classes/assignments/teachers/payroll GET (+ salary read) — fixes 5 load-403 pages.
+- [x] R2. (done 2026-10-28) Accountant: payroll GET + invoice Send/Cancel actions.
+- [x] R3. (done 2026-10-28: self-service perms granted to every role) X1 notification-preference perms for all roles (Settings page).
+- [x] R4. (done 2026-10-28) X2 ticket replies for requesters; align hr staff status.
+- [x] R5. (done 2026-10-28: TakeTestModal + My Results tab; answer key stripped server-side) Student test-taking UI (start → answer → submit) using existing endpoints.
+- [x] R6. (done 2026-10-28) HR: teachers read + certificates read; events delete alignment.
+- [x] R7. (done 2026-10-29 except Messages, Tickets staff list, UserDetail and Enrollments super_admin-only delete, which mirror server constants; all other pages use usePermission) X3 replace hard-coded role arrays in pages with `<Can>`/`usePermission`.
+- [x] R8. (done 2026-10-28) X5 dedupe nav; counselor Enrollments nav; Gamification nav for admin/employee.
 
 **P1b — correctness of shipped features**
-- [ ] G2. Parent↔child link on the student profile + scope parent queries to their children.
+- [x] G2. (done 2026-10-28: Student.guardianUserIds + utils/parentScope.js; scoped classes/assignments/tests/invoices/attendance; parent picker in Students edit modal) Parent↔child link on the student profile + scope parent queries to their children.
 - [ ] F4. Billing: real subscription/payment flow (decide product scope first).
 - [ ] F5. Companies/Institutes: proper management views, or fold them into Organizations filters.
 
 **P2 — models + permissions with zero implementation**
-- [ ] M1. Employee documents (routes + UI under HR Ops).
-- [ ] M2. Geofence / QR session / device attendance.
-- [ ] M3. Audit log viewer (`audit:read`, super_admin/admin).
-- [ ] M4. CRM Contacts & Customers.
+- [x] M1. (done 2026-10-28: /api/employee-documents + Documents tab in HR Ops; metadata + optional file link, no binary upload) Employee documents.
+- [x] M2. (done 2026-10-29: geofence CRUD, geofence-checked staff check-in/out, 8-char class codes for students; device/biometric kiosk NOT built) Geofence / QR session / device attendance.
+- [x] M3. (done 2026-10-28: GET /api/audit-logs + AuditLogPage) Audit log viewer (`audit:read`, super_admin/admin).
+- [x] M4. (done 2026-10-28: /api/contacts, /api/customers + CRM tabs; create/list/delete only, no edit form) CRM Contacts & Customers.
 
 **P3 — hardening**
-- [ ] H1. Migrate `requireRole` routes to permission-based gating.
-- [ ] H2. Tests: server `node --test` for auth/tenant isolation first, then client.
+- [~] H1. (partly done 2026-10-29: assignment, study-material, submission-grade, department, class routes are permission-based; still `requireRole`: student, teacher, employee, hr, payroll, leave, stats, user, attendance mark routes) Migrate `requireRole` routes to permission-based gating.
+- [~] H2. (partly done 2026-10-29: `server/test/` has 17 pure-function tests: geo, crudHelpers, qr hashCode, permission-matrix invariants; no DB/integration tests, no client tests) Tests: server `node --test` for auth/tenant isolation first, then client.
 - [ ] H3. Joi validators for write routes (G5).
 - [ ] H4. Working seed script.
 - [ ] H5. Verify `report:export` flow.
@@ -309,6 +309,49 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-10-29 — Parity round (uncommitted).** Routes for assignments/materials/grading/departments/classes
+  now use `authorize({anyPermissions})` and pages use `usePermission` (principal gained class/enrollment delete,
+  assignment/material create). HR Ops page doubles as "My Records" for employee/teacher/student/parent with tabs
+  gated by read perms; certificates `?userId=` can no longer widen a student/employee scope, parents see only their
+  children's certificates, employees see only their own reviews, and review creation accepts a user id (the UI sent
+  one while the server expected an Employee profile id). Parent attendance gets child chips and per-child
+  summaries; support sees the Customers tab (`PATH_PERMISSION` now takes an any-of list); CRM contacts/customers
+  can be edited; `/attendance/qr-scan` is rate limited (15 per 10 min per student); Tests page gates grading by
+  `test_attempt:read`. Added 17 server tests. Verified: node --test, node --check, routes load, client lint + build.
+  Estimated per-role completeness is ~88-92% (static estimate, NOT runtime-tested) — 95% is unproven until the
+  app is exercised against MongoDB per role.
+
+- **2026-10-29 — Review fixes.** By-id fetches now match the list scoping: `getInvoice`, `getAssignment`,
+  `getTest`, `startAttempt` use `visibleClassIdsFor` / `childUserIdsFor` (`utils/parentScope.js`).
+  `startAttempt` resumes only `in_progress` attempts and enforces `attemptPolicy.maxAttempts`; Tests page
+  shows "View result" for finished tests. TakeTestModal keeps a localStorage draft. Employee document
+  `fileUrl` must be http(s). QR scan claim is atomic. Attendance day key uses the client's IANA timezone
+  (`timezone` body field, UTC fallback). Unknown parent ids return 400. Open: no rate limit on `/attendance/qr-scan`.
+
+- **2026-10-29 — M2 attendance.** Server: `/api/geofences` (admin CRUD, circles), `/api/qr-sessions`
+  (teacher/admin open a class code, stored hashed, 1-60 min), `POST /api/attendance/check-in`
+  (haversine check against active geofences; no geofences = accepted anywhere, markedVia self_checkin)
+  and `POST /api/attendance/qr-scan` (students, must be enrolled). Perms: teacher gets `qr_session:*`
+  (read/create/update), hr gets `attendance:create`. Client: AttendanceTools panels on AttendancePage.
+  Verified: node --check, routes load, client lint + build. Not runtime-tested; GPS spoofing is not
+  prevented (browser location is client-supplied).
+
+- **2026-10-28 (2) — M1 + M4.** Added controllers/routes for employee documents, contacts and customers
+  (whitelisted fields via `utils/crudHelpers.js`, tenant-scoped, soft delete) and a `crmApi` client slice
+  with `PartiesPanel` (CRM tabs) and `EmployeeDocumentsPanel` (HR Ops tab). Employees can read their own
+  documents server-side but HR Ops is not in their nav yet. File upload is a link only (no storage backend).
+  Server routes module loads; client lint/build result recorded in the final report of this session.
+
+- **2026-10-28 — Role completeness push (uncommitted on feature/roles-polaris).** Reviewed the
+  in-flight R1-R6 work, finished and verified it. Added: student test-taking (`getTest` hook,
+  TakeTestModal wired into TestsPage, My Results tab; attempts populate now returns `publicId`);
+  nav dedupe + counselor Enrollments + Gamification for admin/principal/employee; permission-based
+  gating on 7 pages; invoice Send/Cancel for accountant; parent-child link (G2); audit log viewer (M3).
+  Checks: `node --check` on all changed server files, routes module loads, client `npm run lint`
+  and `npm run build` pass. NOT runtime-tested (no MongoDB here). Still open: M1 employee documents,
+  M2 geofence/QR attendance, M4 CRM contacts/customers, R7 remainder, F4/F5, H1-H5. Gamification
+  nav/path now keys off `achievement:read` (what the server checks), not `gamification:read`.
 
 - **2026-10-27 — Per-role completeness audit.** Wrote a static audit cross-checking the permission
   matrix, 173 server routes, nav and page hooks for all 11 roles, then manually verified the
