@@ -13,7 +13,8 @@ import {
   type Lead,
   type Deal,
 } from '@/features/platform/platformApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
+import PartiesPanel from '@/components/crm/PartiesPanel'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -21,7 +22,7 @@ import {
   type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'leads' | 'deals'
+type TabId = 'leads' | 'deals' | 'contacts' | 'customers'
 
 const STAGES = ['qualification', 'proposal', 'negotiation', 'won', 'lost']
 
@@ -34,16 +35,22 @@ const STAGE_LABEL: Record<string, string> = {
 }
 
 export default function CRMPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canManage = ['super_admin', 'admin'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canManage = can('lead:create')
 
-  const [tab, setTab] = useState<TabId>('leads')
+  const canLeads = can('lead:read')
+  const canDeals = can('deal:read')
+
+  // Support only holds customer:read, so the page opens on what the role may see.
+  const [tab, setTab] = useState<TabId>(() =>
+    canLeads ? 'leads' : can('contact:read') ? 'contacts' : 'customers',
+  )
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
-  const { data: leads, isLoading, isError, refetch } = useGetLeadsQuery()
-  const { data: deals } = useGetDealsQuery()
+  const { data: leads, isLoading, isError, refetch } = useGetLeadsQuery(undefined, { skip: !canLeads })
+  const { data: deals } = useGetDealsQuery(undefined, { skip: !canDeals })
 
   const [createLead] = useCreateLeadMutation()
   const [updateLead] = useUpdateLeadMutation()
@@ -189,8 +196,10 @@ export default function CRMPage() {
 
       <Tabs<TabId>
         tabs={[
-          { id: 'leads', label: 'Leads', count: leads?.length },
-          { id: 'deals', label: 'Deal Pipeline', count: deals?.length },
+          ...(canLeads ? [{ id: 'leads' as TabId, label: 'Leads', count: leads?.length }] : []),
+          ...(canDeals ? [{ id: 'deals' as TabId, label: 'Deal Pipeline', count: deals?.length }] : []),
+          ...(can('contact:read') ? [{ id: 'contacts' as TabId, label: 'Contacts' }] : []),
+          ...(can('customer:read') ? [{ id: 'customers' as TabId, label: 'Customers' }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -230,6 +239,9 @@ export default function CRMPage() {
           />
         </>
       )}
+
+      {tab === 'contacts' && <PartiesPanel kind="contacts" />}
+      {tab === 'customers' && <PartiesPanel kind="customers" />}
 
       {tab === 'deals' && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">

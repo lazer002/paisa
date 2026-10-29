@@ -36,6 +36,7 @@ import TicketsPage from '@/pages/dashboard/TicketsPage'
 import HROpsPage from '@/pages/dashboard/HROpsPage'
 import GamificationPage from '@/pages/dashboard/GamificationPage'
 import EventsPage from '@/pages/dashboard/EventsPage'
+import AuditLogPage from '@/pages/dashboard/AuditLogPage'
 import MessagesPage from '@/pages/dashboard/MessagesPage'
 import LiveSessionsPage from '@/pages/dashboard/LiveSessionsPage'
 
@@ -79,6 +80,7 @@ export function AppRouter() {
               <Route path="/dashboard/hr-ops" element={<HROpsPage />} />
               <Route path="/dashboard/gamification" element={<GamificationPage />} />
               <Route path="/dashboard/events" element={<EventsPage />} />
+              <Route path="/dashboard/audit-log" element={<AuditLogPage />} />
               <Route path="/dashboard/messages" element={<MessagesPage />} />
               <Route path="/dashboard/live-sessions" element={<LiveSessionsPage />} />
             </Route>

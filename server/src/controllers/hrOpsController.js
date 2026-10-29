@@ -7,6 +7,9 @@ import { SalaryStructure } from "../models/SalaryStructure.js";
 import { PerformanceReview } from "../models/PerformanceReview.js";
 import { Certificate } from "../models/Certificate.js";
 import { User } from "../models/User.js";
+import ApiError from "../utils/ApiError.js";
+import { hasPermission } from "../utils/permissions.js";
+import { childUserIdsFor } from "../utils/parentScope.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -43,7 +46,6 @@ const assertTenant = (req, row) => {
   return null;
 };
 
-import ApiError from "../utils/ApiError.js";
 
 const ApiErrorFor = () =>
   ApiError.forbidden("Access denied", "ACCESS_DENIED");
@@ -208,10 +210,12 @@ export const createReview = asyncHandler(async (req, res) => {
     "../models/Employee.js"
   );
 
-  const resolvedEmployeeId = await resolveRef(
+  // The UI picks people from the user list, so accept either an Employee
+  // profile id or the person's user id.
+  const resolvedEmployeeId = await resolveEmployeeProfile(
     Employee,
     employeeId,
-    { label: "Employee" }
+    req.user.instituteId
   );
 
   const review = await PerformanceReview.create({
@@ -240,21 +244,49 @@ export const createReview = asyncHandler(async (req, res) => {
   });
 });
 
+const resolveEmployeeProfile = async (Employee, ref, instituteId) => {
+  try {
+    return await resolveRef(Employee, ref, { label: "Employee" });
+  } catch {
+    const userId = await resolveRef(User, ref, { label: "Employee" });
+
+    const profile = await Employee.findOne({
+      userId,
+      instituteId,
+    }).select("_id");
+
+    if (!profile) {
+      throw ApiError.notFound("That person has no employee profile yet");
+    }
+
+    return profile._id;
+  }
+};
+
 export const getReviews = asyncHandler(async (req, res) => {
   const { status, employeeId } = req.query;
 
   const query = scoped(req);
 
-  if (employeeId) {
-    const { Employee } = await import(
-      "../models/Employee.js"
-    );
+  const { Employee } = await import("../models/Employee.js");
 
-    query.employeeId = await resolveRef(
+  if (employeeId) {
+    query.employeeId = await resolveEmployeeProfile(
       Employee,
       employeeId,
-      { label: "Employee" }
+      req.user.instituteId
     );
+  }
+
+  // People who can read reviews but not write them (employees) only see
+  // reviews about themselves.
+  if (!hasPermission(req.user, "performance:create")) {
+    const own = await Employee.findOne({
+      userId: req.user._id,
+      instituteId: req.user.instituteId,
+    }).select("_id");
+
+    query.employeeId = own ? own._id : { $in: [] };
   }
 
   if (status) query.status = status;
@@ -390,14 +422,19 @@ export const getCertificates = asyncHandler(
 
     const query = scoped(req);
 
-    if (req.user.role === "student" || req.user.role === "employee") {
-      query.userId = req.user._id;
-    }
-
     if (userId) {
       query.userId = await resolveRef(User, userId, {
         label: "User",
       });
+    }
+
+    // Applied after the optional filter so ?userId= cannot widen it.
+    if (req.user.role === "student" || req.user.role === "employee") {
+      query.userId = req.user._id;
+    }
+
+    if (req.user.role === "parent") {
+      query.userId = { $in: await childUserIdsFor(req.user) };
     }
 
     if (status) query.status = status;

@@ -16,25 +16,38 @@ import {
   type Certificate,
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
+import EmployeeDocumentsPanel from '@/components/hr/EmployeeDocumentsPanel'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
   DataTable, Tabs, StatusBadge, ModalShell, Field, inputCls, Toast, type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'structures' | 'reviews' | 'certificates'
+type TabId = 'structures' | 'reviews' | 'certificates' | 'documents'
 
 export default function HROpsPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canManage = ['super_admin', 'admin', 'hr'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canStructure = can('salary_structure:create')
+  const canReview = can('performance:create')
+  const canCertificate = can('certificate:create')
+  const canManage = canStructure || canReview || canCertificate
 
-  const [tab, setTab] = useState<TabId>('structures')
+  const canReadStructures = can('salary_structure:read')
+  const canReadReviews = can('performance:read')
+  const canReadCertificates = can('certificate:read')
+  const canReadDocuments = can('employee_document:read')
+
+  // Employees, students and parents reach this page as "My Records" and
+  // only get the tabs their role may read.
+  const [tab, setTab] = useState<TabId>(() =>
+    canReadStructures ? 'structures' : canReadReviews ? 'reviews' : canReadCertificates ? 'certificates' : 'documents',
+  )
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
-  const { data: structures } = useGetSalaryStructuresQuery()
-  const { data: reviews } = useGetReviewsQuery()
-  const { data: certificates } = useGetCertificatesQuery()
+  const { data: structures } = useGetSalaryStructuresQuery(undefined, { skip: !canReadStructures })
+  const { data: reviews } = useGetReviewsQuery(undefined, { skip: !canReadReviews })
+  const { data: certificates } = useGetCertificatesQuery(undefined, { skip: !canReadCertificates })
   const { data: users } = useGetUsersQuery(undefined, { skip: !canManage })
   const { data: employees } = useGetUsersQuery({ role: 'employee' }, { skip: !canManage })
 
@@ -110,7 +123,7 @@ export default function HROpsPage() {
       header: '',
       className: 'text-right',
       render: (r) =>
-        canManage && r.status === 'draft' ? (
+        canReview && r.status === 'draft' ? (
           <button
             onClick={async () => {
               await updateReview({ id: r.publicId ?? r._id, payload: { status: 'in_progress' } })
@@ -152,7 +165,7 @@ export default function HROpsPage() {
       header: '',
       className: 'text-right',
       render: (c) =>
-        canManage && c.status === 'issued' ? (
+        canCertificate && c.status === 'issued' ? (
           <button
             onClick={async () => {
               await revokeCertificate(rid(c))
@@ -180,7 +193,7 @@ export default function HROpsPage() {
       header: '',
       className: 'text-right',
       render: (s) =>
-        canManage && (
+        canStructure && (
           <button
             onClick={() => deleteStructure(rid(s))}
             className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
@@ -194,22 +207,23 @@ export default function HROpsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="HR Operations"
-        subtitle="Salary structures, performance reviews, and certificates"
+        title={can('hr:read') ? 'HR Operations' : 'My Records'}
+        subtitle={can('hr:read') ? 'Salary structures, performance reviews, and certificates' : 'Your documents, reviews and certificates'}
         actions={canManage ? (
           <div className="flex gap-2">
-            {tab === 'structures' && <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button>}
-            {tab === 'reviews' && <Button onClick={() => setShowReview(true)}><Plus size={15} /> Review</Button>}
-            {tab === 'certificates' && <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button>}
+            {tab === 'structures' && canStructure && <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button>}
+            {tab === 'reviews' && canReview && <Button onClick={() => setShowReview(true)}><Plus size={15} /> Review</Button>}
+            {tab === 'certificates' && canCertificate && <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button>}
           </div>
         ) : undefined}
       />
 
       <Tabs<TabId>
         tabs={[
-          { id: 'structures', label: 'Salary Structures', count: structures?.length },
-          { id: 'reviews', label: 'Reviews', count: reviews?.length },
-          { id: 'certificates', label: 'Certificates', count: certificates?.length },
+          ...(canReadStructures ? [{ id: 'structures' as TabId, label: 'Salary Structures', count: structures?.length }] : []),
+          ...(canReadReviews ? [{ id: 'reviews' as TabId, label: 'Reviews', count: reviews?.length }] : []),
+          ...(canReadCertificates ? [{ id: 'certificates' as TabId, label: 'Certificates', count: certificates?.length }] : []),
+          ...(canReadDocuments ? [{ id: 'documents' as TabId, label: 'Documents' }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -222,7 +236,7 @@ export default function HROpsPage() {
           keyOf={(s) => s.publicId ?? s._id}
           emptyTitle="No salary structures"
           emptyHint="Define pay templates to standardize compensation"
-          emptyAction={canManage ? <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button> : undefined}
+          emptyAction={canStructure ? <Button onClick={() => setShowStructure(true)}><Plus size={15} /> Structure</Button> : undefined}
         />
       )}
 
@@ -233,9 +247,11 @@ export default function HROpsPage() {
           keyOf={(r) => r.publicId ?? r._id}
           emptyTitle="No reviews"
           emptyHint="Schedule performance reviews for your team"
-          emptyAction={canManage ? <Button onClick={() => setShowReview(true)}><Plus size={15} /> Review</Button> : undefined}
+          emptyAction={canReview ? <Button onClick={() => setShowReview(true)}><Plus size={15} /> Review</Button> : undefined}
         />
       )}
+
+      {tab === 'documents' && <EmployeeDocumentsPanel />}
 
       {tab === 'certificates' && (
         <DataTable
@@ -244,7 +260,7 @@ export default function HROpsPage() {
           keyOf={(c) => c.publicId ?? c._id}
           emptyTitle="No certificates"
           emptyHint="Issue certificates for completions and achievements"
-          emptyAction={canManage ? <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button> : undefined}
+          emptyAction={canCertificate ? <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button> : undefined}
         />
       )}
 

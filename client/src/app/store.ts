@@ -17,6 +17,8 @@ import { employeesApi, hrsApi } from '@/features/people/peopleApi'
 import { departmentsApi } from '@/features/departments/departmentsApi'
 import { assignmentsApi, materialsApi, submissionsApi } from '@/features/assignments/assignmentsApi'
 import { assessmentApi } from '@/features/assessment/assessmentApi'
+import { auditApi } from '@/features/audit/auditApi'
+import { crmApi } from '@/features/crm/crmApi'
 import { platformApi } from '@/features/platform/platformApi'
 import { messagingApi } from '@/features/messaging/messagingApi'
 import { notificationsApi } from '@/features/notifications/notificationsApi'
@@ -40,6 +42,8 @@ const rootReducer = combineReducers({
   [materialsApi.reducerPath]: materialsApi.reducer,
   [submissionsApi.reducerPath]: submissionsApi.reducer,
   [assessmentApi.reducerPath]: assessmentApi.reducer,
+  [auditApi.reducerPath]: auditApi.reducer,
+  [crmApi.reducerPath]: crmApi.reducer,
   [platformApi.reducerPath]: platformApi.reducer,
   [messagingApi.reducerPath]: messagingApi.reducer,
   [notificationsApi.reducerPath]: notificationsApi.reducer,
@@ -66,6 +70,8 @@ export const store = configureStore({
       materialsApi.middleware,
       submissionsApi.middleware,
       assessmentApi.middleware,
+      auditApi.middleware,
+      crmApi.middleware,
       platformApi.middleware,
       messagingApi.middleware,
       notificationsApi.middleware,

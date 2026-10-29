@@ -28,6 +28,12 @@ import testRoutes, {
 } from "./testRoutes.js";
 import enrollmentRoutes from "./enrollmentRoutes.js";
 import billingRoutes from "./billingRoutes.js";
+import auditRoutes from "./auditRoutes.js";
+import geofenceRoutes from "./geofenceRoutes.js";
+import qrSessionRoutes from "./qrSessionRoutes.js";
+import contactRoutes from "./contactRoutes.js";
+import customerRoutes from "./customerRoutes.js";
+import employeeDocumentRoutes from "./employeeDocumentRoutes.js";
 import crmRoutes, {
   leadRouter,
   dealRouter,
@@ -208,6 +214,36 @@ router.use(
 router.use(
   "/pipelines",
   pipelineRouter
+);
+
+router.use(
+  "/audit-logs",
+  auditRoutes
+);
+
+router.use(
+  "/geofences",
+  geofenceRoutes
+);
+
+router.use(
+  "/qr-sessions",
+  qrSessionRoutes
+);
+
+router.use(
+  "/contacts",
+  contactRoutes
+);
+
+router.use(
+  "/customers",
+  customerRoutes
+);
+
+router.use(
+  "/employee-documents",
+  employeeDocumentRoutes
 );
 
 // ─────────────────────────────────────────────

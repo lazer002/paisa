@@ -5,10 +5,18 @@ import {
   useGetMyAttendanceQuery,
   useMarkAttendanceMutation,
   type AttendanceStatus,
+  type AttendanceRecord,
 } from '@/features/attendance/attendanceApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
+import {
+  SelfCheckPanel,
+  ClassCodePanel,
+  OpenSessionPanel,
+  GeofencePanel,
+} from '@/components/attendance/AttendanceTools'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -99,17 +107,48 @@ function MarkPanel() {
   )
 }
 
-function MyAttendancePanel() {
+function MyAttendancePanel({ isParent }: { isParent: boolean }) {
   const { data, isLoading, isError, refetch } = useGetMyAttendanceQuery()
+  const [child, setChild] = useState('')
 
   if (isLoading) return <LoadingList rows={4} />
   if (isError) return <ErrorState onRetry={() => refetch()} />
 
-  const s = data?.summary
-  const records = data?.records ?? []
+  const childName = (r: AttendanceRecord) => (typeof r.userId === 'object' ? r.userId.name : '')
+  const allRecords = data?.records ?? []
+  const children = isParent ? [...new Set(allRecords.map(childName).filter(Boolean))] : []
+
+  // A parent can have several children, so the summary is recomputed for
+  // whichever child is selected (the server total mixes them together).
+  const records = child ? allRecords.filter((r) => childName(r) === child) : allRecords
+  const count = (status: string) => records.filter((r) => r.status === status).length
+  const s = isParent
+    ? {
+        total: records.length,
+        present: count('present'),
+        late: count('late'),
+        absent: count('absent'),
+        percentage: records.length ? Math.round((count('present') / records.length) * 100) : 0,
+      }
+    : data?.summary
 
   return (
     <div className="space-y-4">
+      {children.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {['', ...children].map((name) => (
+            <button
+              key={name || 'all'}
+              onClick={() => setChild(name)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                child === name ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {name || 'All children'}
+            </button>
+          ))}
+        </div>
+      )}
       {s && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
@@ -145,6 +184,7 @@ function MyAttendancePanel() {
                   {new Date(r.date).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
                 <p className="text-xs text-gray-400">
+                  {isParent && childName(r) ? `${childName(r)} · ` : ''}
                   {typeof r.classId === 'object' && r.classId ? `${r.classId.name}` : 'General'}
                 </p>
               </div>
@@ -164,12 +204,22 @@ export default function AttendancePage() {
   const canMark = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'teacher'
   const { data: classes } = useGetClassesQuery(undefined, { skip: !canMark })
 
+  const { can } = usePermission()
+  const canOpenSession = can('qr_session:create')
+  const canSelfCheck = can('attendance:create') && user?.role !== 'super_admin'
+  const isStudent = user?.role === 'student'
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Attendance"
         subtitle={canMark ? 'Mark and review attendance' : 'Your attendance history'}
       />
+
+      {canSelfCheck && <SelfCheckPanel />}
+      {isStudent && <ClassCodePanel />}
+      {canOpenSession && <OpenSessionPanel />}
+      {can('geofence:create') && <GeofencePanel />}
 
       {canMark ? (
         <>
@@ -181,7 +231,7 @@ export default function AttendancePage() {
           )}
         </>
       ) : (
-        <MyAttendancePanel />
+        <MyAttendancePanel isParent={user?.role === 'parent'} />
       )}
     </div>
   )
