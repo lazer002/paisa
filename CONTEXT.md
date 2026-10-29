@@ -311,6 +311,23 @@ teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employee
 
 ## 12. Session log (newest first)
 
+- **2026-10-29 — First run against a real MongoDB (Atlas `paisa` DB, demo org `demo-school`).** Seeded 11 demo
+  users (`npm run seed`, `<role>@demo.paisa.test`, pw `Paisa@Demo1`), then ran `server/scripts/e2e-smoke.mjs`
+  (172 role-page calls) and `e2e-flows.mjs` (42 end-to-end checks): all pass. Running for real exposed bugs no
+  unit test could see, now fixed: (1) 44 tenant-unique `sparse` compound indexes collided on null, so the 2nd
+  class/test/invoice/contact/geofence/document in a tenant failed — fixed globally by `config/mongoosePlugins.js`
+  (partial indexes) plus `npm run db:fix-indexes` (already applied to `paisa`: 39 indexes); (2) attempts used a
+  non-existent `in_progress` status (now `started`), stored `score` as an object (model keeps flat
+  score/maxScore/percentage/passed), and wrote answers the schema rejects; (3) questions: `points`/`correctAnswer`
+  were silently dropped (model has `marks` + `answer`), `published` is not a status (`active`), options need
+  keys — grading never worked, now mapped in testController (`questionView`, `isAnswerCorrect`); (4) invoice
+  statuses in the controller did not match the model enum (`sent`→`issued`); (5) reviews: required `period`,
+  wrong populate fields (500 for employees); (6) geofence soft delete left it active; (7) User codes collided for
+  roles sharing the `USR` prefix; (8) the audit trail was never mounted — now every successful/failed mutation by
+  a signed-in user is recorded (routes/index.js); (9) Employee externalId index. `server/.env` has NO
+  `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` — add them before `npm run dev` (the test API got temporary ones).
+  Still not covered: browser UI walk-through, files outside the two e2e scripts, super_admin cross-tenant flows.
+
 - **2026-10-29 — Parity round (uncommitted).** Routes for assignments/materials/grading/departments/classes
   now use `authorize({anyPermissions})` and pages use `usePermission` (principal gained class/enrollment delete,
   assignment/material create). HR Ops page doubles as "My Records" for employee/teacher/student/parent with tabs

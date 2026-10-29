@@ -12,6 +12,7 @@
 // <role>@demo.paisa.test and SEED_PASSWORD (default below).
 
 import "dotenv/config";
+import "../config/mongoosePlugins.js";
 
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
@@ -74,6 +75,9 @@ const buildDocuments = async () => {
       email: emailFor(role),
       passwordHash,
       role,
+      // Explicit code: the shared per-role counters may already be behind
+      // the users in a real database, which made generated codes collide.
+      userCode: `DEMO-${role.toUpperCase().replace(/_/g, "")}`,
       // Platform owner belongs to no organization.
       instituteId: role === ROLES.SUPER_ADMIN ? undefined : orgId,
       status: "active",
@@ -137,6 +141,7 @@ const buildDocuments = async () => {
   const classroom = new Class({
     instituteId: orgId,
     name: "Demo Class 10A",
+    code: "DEMO-10A",
     subject: "Mathematics",
     teacherId: users[ROLES.TEACHER]._id,
     studentIds: [users[ROLES.STUDENT]._id],
