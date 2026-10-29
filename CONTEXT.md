@@ -44,7 +44,8 @@ NOT Next.js, NOT Zustand, NOT React Query (older docs said otherwise and have be
 npm install              # root: installs both workspaces (use Node ≥20!)
 npm run dev              # API (nodemon, :5000) + UI (vite, :5173) together
 npm run build            # server build is a no-op echo; client = tsc -b && vite build
-npm run seed             # ⚠️ BROKEN: server/src/utils/seed.js does not exist
+npm run seed             # demo org + one user per role (<role>@demo.paisa.test, pw Paisa@Demo1 or SEED_PASSWORD)
+                         #   -- --dry-run validates only (no DB), -- --reset recreates; refuses in production
 
 cd server && npm run check   # node --check server.js (entry file only)
 cd server && npm test        # node --test → finds 0 test files today
@@ -249,7 +250,7 @@ Cross-role defects (fix once, helps many roles):
   `assignmentController` / `classController` falls back to "all published in the institute".
   This needs a `parentUserIds` (or similar) link on the student profile before parent views are private.
 - **G3** Two gating styles (§7) can drift. Long-term: migrate to permission-based.
-- **G4** `npm run seed` is broken (no seed.js). There are no tests at all (server `node --test` finds 0 files, client has no test runner).
+- **G4** Seed script added 2026-10-29 (`server/src/utils/seed.js`); its dry run validates, but saving against a real MongoDB is still unverified. Server has 17 pure-function tests; no DB or client tests.
 - **G5** Only `authValidator.js` exists. Most write routes have no Joi validation, so check mass-assignment on create/update controllers.
 - **G6** `client/tsconfig.tsbuildinfo` is committed (build artifact) and should be git-ignored.
 - **G7** Root `package.json` is still named `yolo-hrm`.
@@ -301,7 +302,7 @@ Cross-role defects (fix once, helps many roles):
 - [~] H1. (partly done 2026-10-29: assignment, study-material, submission-grade, department, class routes are permission-based; still `requireRole`: student, teacher, employee, hr, payroll, leave, stats, user, attendance mark routes) Migrate `requireRole` routes to permission-based gating.
 - [~] H2. (partly done 2026-10-29: `server/test/` has 17 pure-function tests: geo, crudHelpers, qr hashCode, permission-matrix invariants; no DB/integration tests, no client tests) Tests: server `node --test` for auth/tenant isolation first, then client.
 - [ ] H3. Joi validators for write routes (G5).
-- [ ] H4. Working seed script.
+- [x] H4. (done 2026-10-29, dry-run verified only) Working seed script.
 - [ ] H5. Verify `report:export` flow.
 
 Done (from the 2026-10-25 backlog, in commit 60cb432): B1 parent access to classes/
