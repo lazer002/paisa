@@ -11,6 +11,7 @@ import {
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -22,7 +23,8 @@ const STATUSES = ['active', 'completed', 'suspended', 'withdrawn']
 
 export default function EnrollmentsPage() {
   const user = useAppSelector((s) => s.auth.user)
-  const canManage = ['super_admin', 'admin'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canManage = can('enrollment:create')
   const isStudent = user?.role === 'student'
 
   const [statusFilter, setStatusFilter] = useState('')

@@ -58,17 +58,18 @@ export interface NavItem {
  * page the API would reject. Paths absent from this map are self-service and
  * open to every authenticated role (e.g. /dashboard, /dashboard/settings).
  */
-export const PATH_PERMISSION: Record<string, Permission> = {
+export const PATH_PERMISSION: Record<string, Permission | Permission[]> = {
   // Platform
   '/dashboard/organizations': 'organization:read',
   '/dashboard/companies': 'organization:read',
   '/dashboard/institutes': 'organization:read',
   '/dashboard/users': 'user:manage',
   '/dashboard/reports': 'report:read',
+  '/dashboard/audit-log': 'audit:read',
 
   // Organization
   '/dashboard/departments': 'department:read',
-  '/dashboard/hr-ops': 'hr:read',
+  '/dashboard/hr-ops': ['hr:read', 'employee_document:read', 'certificate:read', 'performance:read'],
 
   // People
   '/dashboard/students': 'student:read',
@@ -99,9 +100,9 @@ export const PATH_PERMISSION: Record<string, Permission> = {
   '/dashboard/invoices': 'invoice:read',
 
   // Services
-  '/dashboard/crm': 'crm:read',
+  '/dashboard/crm': ['crm:read', 'customer:read', 'contact:read'],
   '/dashboard/tickets': 'ticket:read',
-  '/dashboard/gamification': 'gamification:read',
+  '/dashboard/gamification': 'achievement:read',
 }
 
 /**
@@ -114,8 +115,11 @@ function itemAllowed(role: string, item: NavItem): boolean {
   }
 
   const required = PATH_PERMISSION[item.path]
-  if (required && !roleCan(role, required)) {
-    return false
+  if (required) {
+    const options = Array.isArray(required) ? required : [required]
+    if (!options.some((permission) => roleCan(role, permission))) {
+      return false
+    }
   }
 
   return true
@@ -173,6 +177,12 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['super_admin'],
       },
       {
+        label: 'Audit Log',
+        icon: ShieldCheck,
+        path: '/dashboard/audit-log',
+        roles: ['super_admin', 'admin'],
+      },
+      {
         label: 'Reports',
         icon: BarChart3,
         path: '/dashboard/reports',
@@ -220,6 +230,12 @@ export const NAV_SECTIONS: NavSection[] = [
       icon: ShieldCheck,
       path: '/dashboard/hr-ops',
       roles: ['admin', 'principal', 'hr'],
+    },
+    {
+      label: 'My Records',
+      icon: FileText,
+      path: '/dashboard/hr-ops',
+      roles: ['employee', 'teacher', 'student', 'parent'],
     },
   ],
 },
@@ -273,46 +289,25 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Classes',
         icon: ClipboardList,
         path: '/dashboard/classes',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-          'parent',
-        ],
+        roles: ['admin', 'principal', 'teacher'],
       },
       {
         label: 'Enrollments',
         icon: UserPlus,
         path: '/dashboard/enrollments',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-        ],
+        roles: ['admin', 'principal', 'teacher', 'counselor', 'student'],
       },
       {
         label: 'Assignments',
         icon: BookOpen,
         path: '/dashboard/assignments',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-        ],
+        roles: ['admin', 'principal', 'teacher'],
       },
       {
         label: 'Tests',
         icon: FileQuestion,
         path: '/dashboard/tests',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-        ],
+        roles: ['admin', 'principal', 'teacher'],
       },
       {
         label: 'Study Materials',
@@ -329,27 +324,13 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Live Sessions',
         icon: Video,
         path: '/dashboard/live-sessions',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-          'parent',
-        ],
+        roles: ['admin', 'principal', 'teacher'],
       },
       {
         label: 'Attendance',
         icon: CalendarCheck,
         path: '/dashboard/attendance',
-        roles: [
-          'admin',
-          'principal',
-          'teacher',
-          'student',
-          'hr',
-          'employee',
-          'parent',
-        ],
+        roles: ['admin', 'principal', 'teacher', 'hr', 'employee'],
       },
     ],
   },
@@ -364,26 +345,6 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'HR Panel',
         icon: UserCog,
         path: '/dashboard/hr',
-        roles: [
-          'admin',
-          'principal',
-          'hr',
-        ],
-      },
-      {
-        label: 'Employees',
-        icon: Briefcase,
-        path: '/dashboard/employees',
-        roles: [
-          'admin',
-          'principal',
-          'hr',
-        ],
-      },
-      {
-        label: 'Departments',
-        icon: Network,
-        path: '/dashboard/departments',
         roles: [
           'admin',
           'principal',
@@ -502,18 +463,6 @@ export const NAV_SECTIONS: NavSection[] = [
           'parent',
         ],
       },
-      {
-        label: 'Payroll',
-        icon: Wallet,
-        path: '/dashboard/payroll',
-        roles: [
-          'admin',
-          'principal',
-          'hr',
-          'accountant',
-          'employee',
-        ],
-      },
     ],
   },
 
@@ -591,6 +540,7 @@ export const NAV_SECTIONS: NavSection[] = [
           'admin',
           'principal',
           'counselor',
+          'support',
         ],
       },
       {
@@ -615,11 +565,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Gamification',
         icon: Trophy,
         path: '/dashboard/gamification',
-        roles: [
-          'student',
-          'teacher',
-          'parent',
-        ],
+        roles: ['admin', 'principal', 'teacher', 'student', 'employee', 'parent'],
       },
     ],
   },

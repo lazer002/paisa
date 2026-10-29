@@ -10,6 +10,7 @@ import {
   type LeaveType,
 } from '@/features/leaves/leavesApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import { rid } from '@/features/users/usersApi'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -87,7 +88,8 @@ function ApplyLeaveModal({ open, onClose }: { open: boolean; onClose: () => void
 
 export default function LeavesPage() {
   const user = useAppSelector((s) => s.auth.user)
-  const isApprover = ['super_admin', 'admin', 'principal', 'hr'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const isApprover = can('leave:approve')
 
   const { data: leaves, isLoading, isError, refetch } = useGetLeavesQuery()
   const [updateStatus] = useUpdateLeaveStatusMutation()

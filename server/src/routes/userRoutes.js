@@ -30,7 +30,8 @@ router.post(
   "/",
   requireRole(
     "super_admin",
-    "admin"
+    "admin",
+    "principal"
   ),
   createUser
 );

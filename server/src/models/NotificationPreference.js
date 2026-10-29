@@ -292,10 +292,11 @@ const notificationPreferenceSchema =
       /* TENANCY                                                             */
       /* ==================================================================== */
 
+      // null for platform users (super_admin) who belong to no organization
       instituteId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Organization",
-        required: true,
+        default: null,
         index: true,
       },
 publicId: {

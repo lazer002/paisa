@@ -12,16 +12,16 @@ import {
   sendError,
 } from "../utils/response.js";
 
-const CREATOR_ROLES = ["super_admin", "admin"];
+// Who may post is decided by the route (notification:create).
+// Moderators may edit/delete any announcement in their organization;
+// every other author may only manage their own.
+const MODERATOR_ROLES = ["super_admin", "admin", "principal"];
+
+const canManageAnnouncement = (user, announcement) =>
+  MODERATOR_ROLES.includes(user.role) ||
+  String(announcement.createdBy) === String(user._id);
 
 export const createAnnouncement = asyncHandler(async (req, res) => {
-  if (!CREATOR_ROLES.includes(req.user.role)) {
-    return sendForbidden(
-      res,
-      "Only admins can create announcements"
-    );
-  }
-
   const {
     title,
     content,
@@ -159,13 +159,6 @@ export const getAnnouncementById = asyncHandler(
 
 export const updateAnnouncement = asyncHandler(
   async (req, res) => {
-    if (!CREATOR_ROLES.includes(req.user.role)) {
-      return sendForbidden(
-        res,
-        "Only admins can edit announcements"
-      );
-    }
-
     const announcement =
       await Announcement.findOne({
         publicId: req.params.publicId,
@@ -186,6 +179,13 @@ export const updateAnnouncement = asyncHandler(
       return sendForbidden(
         res,
         "Access denied"
+      );
+    }
+
+    if (!canManageAnnouncement(req.user, announcement)) {
+      return sendForbidden(
+        res,
+        "You can only manage announcements you created"
       );
     }
 
@@ -228,13 +228,6 @@ export const updateAnnouncement = asyncHandler(
 
 export const deleteAnnouncement = asyncHandler(
   async (req, res) => {
-    if (!CREATOR_ROLES.includes(req.user.role)) {
-      return sendForbidden(
-        res,
-        "Only admins can delete announcements"
-      );
-    }
-
     const announcement =
       await Announcement.findOne({
         publicId: req.params.publicId,
@@ -255,6 +248,13 @@ export const deleteAnnouncement = asyncHandler(
       return sendForbidden(
         res,
         "Access denied"
+      );
+    }
+
+    if (!canManageAnnouncement(req.user, announcement)) {
+      return sendForbidden(
+        res,
+        "You can only manage announcements you created"
       );
     }
 

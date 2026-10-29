@@ -6,10 +6,11 @@ import {
   useCreateInvoiceMutation,
   useRecordPaymentMutation,
   useDeleteInvoiceMutation,
+  useUpdateInvoiceStatusMutation,
   type Invoice,
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -18,8 +19,8 @@ import {
 } from '@/components/ui/kit'
 
 export default function InvoicesPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canManage = ['super_admin', 'admin', 'accountant'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canManage = can('invoice:create')
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -33,6 +34,16 @@ export default function InvoicesPage() {
   const [createInvoice] = useCreateInvoiceMutation()
   const [recordPayment] = useRecordPaymentMutation()
   const [deleteInvoice] = useDeleteInvoiceMutation()
+  const [updateStatus] = useUpdateInvoiceStatusMutation()
+
+  const setStatus = async (i: Invoice, status: string, msg: string) => {
+    try {
+      await updateStatus({ id: rid(i), status }).unwrap()
+      setToast({ msg, tone: 'success' })
+    } catch (e: unknown) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Could not update invoice', tone: 'critical' })
+    }
+  }
 
   const [studentId, setStudentId] = useState('')
   const [itemDesc, setItemDesc] = useState('')
@@ -133,6 +144,22 @@ export default function InvoicesPage() {
       render: (i) =>
         canManage && (
           <div className="flex justify-end gap-1.5">
+            {i.status === 'draft' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setStatus(i, 'sent', 'Invoice sent') }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Send
+              </button>
+            )}
+            {['draft', 'sent', 'overdue'].includes(i.status) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setStatus(i, 'cancelled', 'Invoice cancelled') }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+              >
+                Cancel
+              </button>
+            )}
             {!['paid', 'cancelled', 'void'].includes(i.status) && (
               <button
                 onClick={(e) => { e.stopPropagation(); setPayFor(i) }}

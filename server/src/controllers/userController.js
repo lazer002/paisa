@@ -26,6 +26,7 @@ import {
   CREATABLE_ROLES,
   ROLE_MODELS,
   ROLE_DATA_KEYS,
+  STAFF_CODE_PREFIX,
   ORGANIZATION_ROLE_ARRAYS,
 } from "../config/userRoleConfig.js";
 
@@ -160,7 +161,8 @@ export const createUser = async (req, res) => {
     const RoleModel =
       ROLE_MODELS[normalizedRole];
 
-    if (!RoleModel) {
+    // Parents are identity-only (no profile collection).
+    if (!RoleModel && normalizedRole !== ROLES.PARENT) {
       return sendError(
         res,
         400,
@@ -265,18 +267,20 @@ export const createUser = async (req, res) => {
     /* EMPLOYEE                                                                */
     /* ====================================================================== */
 
-    if (normalizedRole === ROLES.EMPLOYEE) {
+    // employee, principal, accountant, counselor and support all use the
+    // Employee profile; only the code prefix differs (EMP-, PRN-, ACC-...).
+    if (STAFF_CODE_PREFIX[normalizedRole]) {
       /*
        * Employee code is backend generated.
        */
 
       const sequence =
         await getNextSequence(
-          `employee_${instituteId}`
+          `${normalizedRole}_${instituteId}`
         );
 
       const employeeCode =
-        `EMP-${String(sequence).padStart(5, "0")}`;
+        `${STAFF_CODE_PREFIX[normalizedRole]}-${String(sequence).padStart(5, "0")}`;
 
       /*
        * Remove any frontend supplied generated values.
@@ -365,83 +369,6 @@ export const createUser = async (req, res) => {
 
 
     /* ====================================================================== */
-    /* ACCOUNTANT                                                             */
-    /* ====================================================================== */
-
-    if (normalizedRole === ROLES.ACCOUNTANT) {
-      const sequence =
-        await getNextSequence(
-          `accountant_${instituteId}`
-        );
-
-      roleData.employeeCode =
-        `ACC-${String(sequence).padStart(5, "0")}`;
-
-      roleData.displayName =
-        roleData.displayName ||
-        normalizedName;
-
-      roleData.workEmail =
-        roleData.workEmail ||
-        normalizedEmail;
-
-      roleData.employmentStatus =
-        roleData.employmentStatus ||
-        "active";
-
-      delete roleData.employeeId;
-    }
-
-
-    /* ====================================================================== */
-    /* COUNSELOR                                                              */
-    /* ====================================================================== */
-
-    if (normalizedRole === ROLES.COUNSELOR) {
-      const sequence =
-        await getNextSequence(
-          `counselor_${instituteId}`
-        );
-
-      roleData.employeeCode =
-        `CNS-${String(sequence).padStart(5, "0")}`;
-
-      roleData.displayName =
-        roleData.displayName ||
-        normalizedName;
-
-      roleData.workEmail =
-        roleData.workEmail ||
-        normalizedEmail;
-
-      roleData.employmentStatus =
-        roleData.employmentStatus ||
-        "active";
-
-      delete roleData.employeeId;
-    }
-
-
-    /* ====================================================================== */
-    /* PRINCIPAL                                                              */
-    /* ====================================================================== */
-
-    if (normalizedRole === ROLES.PRINCIPAL) {
-      roleData.displayName =
-        roleData.displayName ||
-        normalizedName;
-
-      roleData.workEmail =
-        roleData.workEmail ||
-        normalizedEmail;
-
-      roleData.employmentStatus =
-        roleData.employmentStatus ||
-        "active";
-    }
-
-
-    /* ====================================================================== */
     /* PARENT                                                                 */
     /* ====================================================================== */
 
@@ -453,35 +380,6 @@ export const createUser = async (req, res) => {
       roleData.email =
         roleData.email ||
         normalizedEmail;
-    }
-
-
-    /* ====================================================================== */
-    /* SUPPORT                                                                */
-    /* ====================================================================== */
-
-    if (normalizedRole === ROLES.SUPPORT) {
-      const sequence =
-        await getNextSequence(
-          `support_${instituteId}`
-        );
-
-      roleData.employeeCode =
-        `SUP-${String(sequence).padStart(5, "0")}`;
-
-      roleData.displayName =
-        roleData.displayName ||
-        normalizedName;
-
-      roleData.workEmail =
-        roleData.workEmail ||
-        normalizedEmail;
-
-      roleData.employmentStatus =
-        roleData.employmentStatus ||
-        "active";
-
-      delete roleData.employeeId;
     }
 
 
@@ -529,27 +427,29 @@ export const createUser = async (req, res) => {
     /* CREATE ROLE RECORD                                                     */
     /* ---------------------------------------------------------------------- */
 
-    let roleRecord;
+    let roleRecord = null;
 
-    try {
-      roleRecord =
-        await RoleModel.create({
-          ...roleData,
+    if (RoleModel) {
+      try {
+        roleRecord =
+          await RoleModel.create({
+            ...roleData,
 
-          userId:
-            user._id,
+            userId:
+              user._id,
 
-          instituteId,
+            instituteId,
 
-          createdBy:
-            req.user._id,
+            createdBy:
+              req.user._id,
+          });
+      } catch (roleError) {
+        await User.deleteOne({
+          _id: user._id,
         });
-    } catch (roleError) {
-      await User.deleteOne({
-        _id: user._id,
-      });
 
-      throw roleError;
+        throw roleError;
+      }
     }
 
 
@@ -563,9 +463,11 @@ export const createUser = async (req, res) => {
       );
 
     if (!organization) {
-      await RoleModel.deleteOne({
-        _id: roleRecord._id,
-      });
+      if (roleRecord) {
+        await RoleModel.deleteOne({
+          _id: roleRecord._id,
+        });
+      }
 
       await User.deleteOne({
         _id: user._id,

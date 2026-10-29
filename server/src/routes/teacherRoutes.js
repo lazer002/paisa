@@ -19,7 +19,8 @@ router.post(
   "/",
   requireRole(
     "super_admin",
-    "admin"
+    "admin",
+    "principal"
   ),
   createTeacher
 );
@@ -30,7 +31,9 @@ router.get(
   requireRole(
     "super_admin",
     "admin",
-    "teacher"
+    "teacher",
+    "principal",
+    "hr"
   ),
   getTeachers
 );

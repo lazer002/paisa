@@ -122,8 +122,20 @@ export const getTicket = asyncHandler(async (req, res) => {
     return sendNotFound(res, "Ticket not found");
   }
 
+  const isStaff = STAFF_ROLES.includes(req.user.role);
+
+  // Requesters only see their own tickets, and never staff notes.
+  if (
+    !isStaff &&
+    String(ticket.requesterId?._id ?? ticket.requesterId) !==
+      String(req.user._id)
+  ) {
+    return sendNotFound(res, "Ticket not found");
+  }
+
   const messages = await TicketMessage.find({
     ticketId: ticket._id,
+    ...(isStaff ? {} : { type: { $ne: "internal_note" } }),
   })
     .populate("authorId", "name role")
     .sort({ createdAt: 1 });
@@ -269,8 +281,12 @@ export const addTicketMessage = asyncHandler(
 
       body,
 
-      isInternalNote:
-        isInternal === true && isStaff,
+      // Staff-only notes use the schema's "internal_note" type
+      // (the old isInternalNote key was not a schema field).
+      type:
+        isInternal === true && isStaff
+          ? "internal_note"
+          : "text",
 
       source: "web",
     });

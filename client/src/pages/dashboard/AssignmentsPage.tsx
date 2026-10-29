@@ -14,6 +14,7 @@ import {
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -23,7 +24,8 @@ import Modal from '@/components/ui/Modal'
 export default function AssignmentsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role
-  const canCreate = ['super_admin', 'admin', 'teacher'].includes(role ?? '')
+  const { can } = usePermission()
+  const canCreate = can('assignment:create')
   const isStudent = role === 'student'
 
   const { data: assignments, isLoading, isError, refetch } = useGetAssignmentsQuery()

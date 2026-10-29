@@ -9,7 +9,7 @@ import {
 } from "../controllers/announcementController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -30,21 +30,33 @@ router.get(
 // Create announcement
 router.post(
   "/",
-  requireRole("super_admin", "admin"),
+  authorize({
+    anyPermissions: ["notification:create"],
+  }),
   createAnnouncement
 );
 
 // Update announcement
 router.put(
   "/:publicId",
-  requireRole("super_admin", "admin"),
+  authorize({
+    anyPermissions: [
+      "notification:create",
+      "notification:update",
+    ],
+  }),
   updateAnnouncement
 );
 
 // Delete announcement
 router.delete(
   "/:publicId",
-  requireRole("super_admin", "admin"),
+  authorize({
+    anyPermissions: [
+      "notification:create",
+      "notification:delete",
+    ],
+  }),
   deleteAnnouncement
 );
 

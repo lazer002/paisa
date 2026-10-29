@@ -10,10 +10,14 @@ import {
   updateOrganization,
 } from "../controllers/organizationController.js";
 
+import authenticate from "../middleware/authenticate.js";
 import { superAdminOnly } from "../middleware/policies.js";
 import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
+
+// authorize() needs req.user; without this every read/update was a 401.
+router.use(authenticate);
 
 // Non-super-admins are scoped to their own organization
 // by scopeQueryForUser in the controller.

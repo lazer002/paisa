@@ -8,7 +8,7 @@ import {
 } from '@/features/assignments/assignmentsApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -20,8 +20,8 @@ const TYPE_ICON: Record<string, LucideIcon> = {
 }
 
 export default function MaterialsPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canUpload = ['super_admin', 'admin', 'teacher'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canUpload = can('study_material:create')
 
   const { data: materials, isLoading, isError, refetch } = useGetMaterialsQuery()
   const { data: classes } = useGetClassesQuery(undefined, { skip: !canUpload })

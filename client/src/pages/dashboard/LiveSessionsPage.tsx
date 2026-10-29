@@ -11,13 +11,13 @@ import {
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
   Tabs, StatusBadge, ModalShell, Field, inputCls, Toast,
 } from '@/components/ui/kit'
 
-const HOST_ROLES = ['super_admin', 'admin', 'principal', 'teacher']
 
 function fmtWhen(iso?: string | null): string {
   if (!iso) return '—'
@@ -36,13 +36,14 @@ export default function LiveSessionsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role ?? ''
 
-  const canHost = HOST_ROLES.includes(role)
+  const { can } = usePermission()
+  const canHost = can('live_session:create')
 
   const [tab, setTab] = useState<Bucket>('upcoming')
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
   const { data: sessions, isLoading, isError, refetch } = useGetLiveSessionsQuery()
-  const canPickClass = ['super_admin', 'admin', 'principal', 'teacher'].includes(role)
+  const canPickClass = canHost
   const { data: classes } = useGetClassesQuery(undefined, { skip: !canPickClass })
 
   const [createSession] = useCreateLiveSessionMutation()
@@ -108,7 +109,7 @@ export default function LiveSessionsPage() {
     typeof s.hostUserId === 'object' && s.hostUserId?._id === user?._id
 
   const canModerate = (s: LiveSession) =>
-    ['super_admin', 'admin', 'principal'].includes(role) || (canHost && isHost(s))
+    ['super_admin', 'admin', 'principal'].includes(role) || (can('live_session:delete') && isHost(s))
 
   const renderList = (items: LiveSession[], emptyText: string) => {
     if (items.length === 0) {

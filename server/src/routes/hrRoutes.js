@@ -25,7 +25,8 @@ router.post(
   "/",
   requireRole(
     "admin",
-    "super_admin"
+    "super_admin",
+    "hr"
   ),
   createHR
 );
@@ -51,7 +52,7 @@ router.get(
 // Update HR (hr:update — admin)
 router.put(
   "/:publicId",
-  requireRole("admin", "super_admin"),
+  requireRole("admin", "super_admin", "hr"),
   updateHR
 );
 

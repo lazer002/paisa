@@ -13,7 +13,7 @@ import {
   type UserAchievement,
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -32,8 +32,8 @@ const RARITY_RING: Record<string, string> = {
 }
 
 export default function GamificationPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canManage = ['super_admin', 'admin', 'hr', 'teacher'].includes(user?.role ?? '')
+  const { canAny } = usePermission()
+  const canManage = canAny('achievement:create', 'point_ledger:create')
 
   const [tab, setTab] = useState<TabId>('leaderboard')
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)

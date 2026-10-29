@@ -21,7 +21,7 @@ import {
 } from '@/features/departments/departmentsApi'
 
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -38,11 +38,9 @@ type DepartmentForm = {
 }
 
 export default function DepartmentsPage() {
-  const user = useAppSelector((s) => s.auth.user)
 
-  const canManage = ['super_admin', 'admin', 'hr'].includes(
-    user?.role ?? '',
-  )
+  const { can } = usePermission()
+  const canManage = can('department:create')
 
   const {
     data: departments = [],

@@ -23,7 +23,9 @@ router.get(
     "super_admin",
     "admin",
     "hr",
-    "employee"
+    "employee",
+    "principal",
+    "accountant"
   ),
   getPayrolls
 );

@@ -21,7 +21,7 @@ router.use(authenticate);
 // Create employee
 router.post(
   "/",
-  requireRole("super_admin", "admin"),
+  requireRole("super_admin", "admin", "hr"),
   createEmployee
 );
 

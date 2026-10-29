@@ -13,7 +13,7 @@ import {
 } from "../controllers/classController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -21,72 +21,43 @@ router.use(authenticate);
 
 router.get(
   "/",
-  requireRole(
-    "super_admin",
-    "admin",
-    "teacher",
-    "student",
-    "parent"
-  ),
+  authorize({ anyPermissions: ["class:read"] }),
   getClasses
 );
 
 router.get(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin",
-    "teacher",
-    "student",
-    "parent"
-  ),
+  authorize({ anyPermissions: ["class:read"] }),
   getClass
 );
 
 router.post(
   "/",
-  requireRole(
-    "super_admin",
-    "admin",
-    "teacher"
-  ),
+  authorize({ anyPermissions: ["class:create"] }),
   createClass
 );
 
 router.put(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin",
-    "teacher"
-  ),
+  authorize({ anyPermissions: ["class:update"] }),
   updateClass
 );
 
 router.delete(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({ anyPermissions: ["class:delete"] }),
   deleteClass
 );
 
 router.post(
   "/:publicId/enroll",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({ anyPermissions: ["enrollment:create"] }),
   enrollStudent
 );
 
 router.delete(
   "/:publicId/students/:studentId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({ anyPermissions: ["enrollment:delete"] }),
   removeStudent
 );
 

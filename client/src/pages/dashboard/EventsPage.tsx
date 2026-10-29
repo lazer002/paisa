@@ -8,14 +8,15 @@ import {
   type CalendarEvent,
 } from '@/features/platform/platformApi'
 import { rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import { SectionCard, ModalShell, Field, inputCls, Toast, StatusBadge } from '@/components/ui/kit'
 
 export default function EventsPage() {
-  const user = useAppSelector((s) => s.auth.user)
-  const canCreate = ['super_admin', 'admin', 'hr'].includes(user?.role ?? '')
+  const { can } = usePermission()
+  const canCreate = can('notification:create')
+  const canDelete = can('notification:delete')
 
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -96,7 +97,7 @@ export default function EventsPage() {
         </div>
       </div>
       <StatusBadge status={e.status} />
-      {canCreate && (
+      {canDelete && (
         <button
           onClick={() => remove(e)}
           className="rounded-lg p-1.5 text-gray-300 transition hover:bg-rose-50 hover:text-rose-500"

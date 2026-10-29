@@ -10,7 +10,7 @@ import {
 } from "../controllers/departmentController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -25,32 +25,21 @@ router.get(
 // Create department
 router.post(
   "/",
-  requireRole(
-    "super_admin",
-    "admin",
-    "hr"
-  ),
+  authorize({ anyPermissions: ["department:create"] }),
   createDepartment
 );
 
 // Update department
 router.put(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin",
-    "hr"
-  ),
+  authorize({ anyPermissions: ["department:update"] }),
   updateDepartment
 );
 
 // Delete department
 router.delete(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({ anyPermissions: ["department:delete"] }),
   deleteDepartment
 );
 

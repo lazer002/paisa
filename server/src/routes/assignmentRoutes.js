@@ -11,7 +11,7 @@ import {
 } from "../controllers/assignmentController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -19,31 +19,31 @@ router.use(authenticate);
 
 router.get(
   "/",
-  requireRole("super_admin", "admin", "teacher", "student", "parent"),
+  authorize({ anyPermissions: ["assignment:read"] }),
   getAssignments
 );
 
 router.get(
   "/:publicId",
-  requireRole("super_admin", "admin", "teacher", "student", "parent"),
+  authorize({ anyPermissions: ["assignment:read"] }),
   getAssignment
 );
 
 router.post(
   "/",
-  requireRole("super_admin", "admin", "teacher"),
+  authorize({ anyPermissions: ["assignment:create"] }),
   createAssignment
 );
 
 router.put(
   "/:publicId",
-  requireRole("super_admin", "admin", "teacher"),
+  authorize({ anyPermissions: ["assignment:update"] }),
   updateAssignment
 );
 
 router.delete(
   "/:publicId",
-  requireRole("super_admin", "admin", "teacher"),
+  authorize({ anyPermissions: ["assignment:delete"] }),
   deleteAssignment
 );
 

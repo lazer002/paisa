@@ -10,7 +10,7 @@ import {
 } from "../controllers/submissionController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { requireRole, authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
@@ -38,11 +38,7 @@ router.get(
 // Grade submission
 router.put(
   "/:publicId/grade",
-  requireRole(
-    "super_admin",
-    "admin",
-    "teacher"
-  ),
+  authorize({ anyPermissions: ["submission:update"] }),
   gradeSubmission
 );
 
