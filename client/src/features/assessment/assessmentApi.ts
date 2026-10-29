@@ -65,6 +65,11 @@ export const assessmentApi = createApi({
       transformResponse: list,
       providesTags: [{ type: 'Test', id: 'LIST' }],
     }),
+    getTest: builder.query<SchoolTest, string>({
+      query: (id) => ({ url: `/tests/${id}` }),
+      transformResponse: (res: { data?: unknown }) => (res?.data ?? res) as SchoolTest,
+      providesTags: (_r, _e, id) => [{ type: 'Test', id }],
+    }),
     createTest: builder.mutation<SchoolTest, Record<string, unknown>>({
       query: (body) => ({ url: '/tests', method: 'POST', body }),
       invalidatesTags: [{ type: 'Test', id: 'LIST' }],
@@ -133,6 +138,7 @@ export const assessmentApi = createApi({
 
 export const {
   useGetTestsQuery,
+  useGetTestQuery,
   useCreateTestMutation,
   useUpdateTestMutation,
   useDeleteTestMutation,

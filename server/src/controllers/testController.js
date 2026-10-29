@@ -7,6 +7,7 @@
 // Every query is tenant-scoped; super_admin sees across organizations.
 
 import { Test } from "../models/Test.js";
+import { visibleClassIdsFor } from "../utils/parentScope.js";
 import { Question } from "../models/Question.js";
 import { TestAttempt } from "../models/TestAttempt.js";
 import { Class } from "../models/Class.js";
@@ -183,6 +184,16 @@ export const getTests = asyncHandler(async (req, res) => {
     };
   }
 
+  // Parents only ever see tests that were released to students.
+  if (req.user.role === "parent") {
+    query.classId = {
+      $in: await visibleClassIdsFor(req.user),
+    };
+    query.status = {
+      $in: ["published", "live", "completed"],
+    };
+  }
+
   if (status) {
     query.status = status;
   }
@@ -214,6 +225,19 @@ export const getTests = asyncHandler(async (req, res) => {
   });
 });
 
+// Students and parents only see tests of classes they (or their
+// children) are enrolled in. Everyone else is limited by tenant only.
+const canSeeTestClass = async (user, test) => {
+  const visibleClasses = await visibleClassIdsFor(user);
+
+  if (!visibleClasses) return true;
+
+  return visibleClasses.some(
+    (id) =>
+      String(id) === String(test.classId?._id ?? test.classId)
+  );
+};
+
 export const getTest = asyncHandler(async (req, res) => {
   const test = await Test.findOne({
     publicId: req.params.publicId,
@@ -225,6 +249,37 @@ export const getTest = asyncHandler(async (req, res) => {
 
   if (!test) {
     return sendNotFound(res, "Test not found");
+  }
+
+  if (!(await canSeeTestClass(req.user, test))) {
+    return sendNotFound(res, "Test not found");
+  }
+
+  // Never ship the answer key to people who take (or watch) the test.
+  if (["student", "parent"].includes(req.user.role)) {
+    if (
+      !["published", "live", "completed"].includes(
+        test.status
+      )
+    ) {
+      return sendNotFound(res, "Test not found");
+    }
+
+    const safe = test.toObject();
+
+    safe.questionIds = (safe.questionIds || []).map(
+      ({ correctAnswer, explanation, ...question }) => ({
+        ...question,
+        options: (question.options || []).map(
+          ({ isCorrect, ...option }) => option
+        ),
+      })
+    );
+
+    return sendSuccess(res, {
+      message: "Test fetched",
+      data: safe,
+    });
   }
 
   return sendSuccess(res, {
@@ -513,7 +568,7 @@ export const startAttempt = asyncHandler(async (req, res) => {
     ...scoped(req),
   });
 
-  if (!test) {
+  if (!test || !(await canSeeTestClass(req.user, test))) {
     return sendNotFound(res, "Test not found");
   }
 
@@ -527,17 +582,34 @@ export const startAttempt = asyncHandler(async (req, res) => {
     );
   }
 
-  const existing = await TestAttempt.findOne({
+  const countedAttempts = await TestAttempt.find({
     testId: test._id,
     studentId: req.user._id,
     status: { $nin: ["abandoned", "expired"] },
   });
 
-  if (existing) {
+  // Resume only an attempt that is still open; finished attempts count
+  // against the test's attempt limit instead of being handed back.
+  const open = countedAttempts.find(
+    (attempt) => attempt.status === "in_progress"
+  );
+
+  if (open) {
     return sendSuccess(res, {
       message: "Attempt already in progress",
-      data: existing,
+      data: open,
     });
+  }
+
+  if (
+    countedAttempts.length >=
+    (test.attemptPolicy?.maxAttempts ?? 1)
+  ) {
+    return sendError(
+      res,
+      400,
+      "You have used all attempts for this test"
+    );
   }
 
   const lastAttempt = await TestAttempt.findOne({
@@ -588,7 +660,7 @@ export const getAttempts = asyncHandler(async (req, res) => {
   }
 
   const attempts = await TestAttempt.find(query)
-    .populate("testId", "title grading.status")
+    .populate("testId", "title publicId grading.status grading.totalPoints")
     .populate("studentId", "name email userCode")
     .sort({ createdAt: -1 });
 
@@ -727,12 +799,23 @@ export const gradeAttempt = asyncHandler(async (req, res) => {
 
   assertTenantRow(req, attempt);
 
-  if (
-    req.user.role === "teacher" &&
-    String(attempt.createdBy) !==
-      String(req.user._id)
-  ) {
+  // Students and parents hold test_attempt:update to submit their
+  // own answers; they must never be able to award marks.
+  if (["student", "parent"].includes(req.user.role)) {
     throw forbidden();
+  }
+
+  if (req.user.role === "teacher") {
+    const gradedTest = await Test.findById(
+      attempt.testId
+    ).select("createdBy");
+
+    if (
+      String(gradedTest?.createdBy) !==
+      String(req.user._id)
+    ) {
+      throw forbidden();
+    }
   }
 
   if (score !== undefined) {

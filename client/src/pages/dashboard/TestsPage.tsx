@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, Send, Check } from 'lucide-react'
+import { Plus, Trash2, Send, Check, Play } from 'lucide-react'
 
 import {
   useGetTestsQuery,
@@ -11,12 +11,15 @@ import {
   useDeleteQuestionMutation,
   useGetAttemptsQuery,
   useGradeAttemptMutation,
+  useStartAttemptMutation,
   type SchoolTest,
   type TestAttempt,
 } from '@/features/assessment/assessmentApi'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
+import TakeTestModal from '@/components/tests/TakeTestModal'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -24,14 +27,17 @@ import {
   type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'tests' | 'questions' | 'grading'
+type TabId = 'tests' | 'questions' | 'grading' | 'results'
 
 const QUESTION_TYPES = ['single_choice', 'true_false', 'short_answer', 'numeric']
 
 export default function TestsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role
-  const isStaff = ['super_admin', 'admin', 'teacher'].includes(role ?? '')
+  const { can } = usePermission()
+  const isStaff = can('test:create')
+  // Principals can build tests but hold no attempt permissions, so grading stays hidden for them.
+  const canGrade = can('test_attempt:read')
   const isStudent = role === 'student'
 
   const [tab, setTab] = useState<TabId>('tests')
@@ -41,7 +47,7 @@ export default function TestsPage() {
 
   const { data: tests, isLoading, isError, refetch } = useGetTestsQuery()
   const { data: questions } = useGetQuestionsQuery(undefined, { skip: !isStaff })
-  const { data: attempts } = useGetAttemptsQuery(undefined, { skip: !isStaff })
+  const { data: attempts } = useGetAttemptsQuery(undefined, { skip: !canGrade && !isStudent })
   const { data: classes } = useGetClassesQuery(undefined, { skip: !isStaff })
 
   const [createTest] = useCreateTestMutation()
@@ -50,6 +56,9 @@ export default function TestsPage() {
   const [createQuestion] = useCreateQuestionMutation()
   const [deleteQuestion] = useDeleteQuestionMutation()
   const [gradeAttempt] = useGradeAttemptMutation()
+  const [startAttempt] = useStartAttemptMutation()
+
+  const [taking, setTaking] = useState<{ test: SchoolTest; attempt: TestAttempt } | null>(null)
 
   const [showCreate, setShowCreate] = useState(false)
   const [showQuestion, setShowQuestion] = useState(false)
@@ -140,6 +149,15 @@ export default function TestsPage() {
     }
   }
 
+  const take = async (t: SchoolTest) => {
+    try {
+      const attempt = await startAttempt(rid(t)).unwrap()
+      setTaking({ test: t, attempt })
+    } catch (e: unknown) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Could not start the test', tone: 'critical' })
+    }
+  }
+
   const grade = async (a: TestAttempt, score: number) => {
     try {
       await gradeAttempt({ id: a.publicId ?? a._id, score }).unwrap()
@@ -158,6 +176,19 @@ export default function TestsPage() {
       ),
     [tests, search, statusFilter],
   )
+
+  const attemptsFor = (t: SchoolTest) =>
+    (attempts ?? []).filter((a) => {
+      const id = typeof a.testId === 'object' ? (a.testId.publicId ?? a.testId._id) : a.testId
+      return id === rid(t)
+    })
+
+  const myAttempt = (t: SchoolTest) => attemptsFor(t).find((a) => a.status === 'in_progress')
+
+  // Finished attempts use up the test's attempt limit (default 1), so the
+  // server would refuse another start; show the result instead.
+  const hasFinished = (t: SchoolTest) =>
+    !myAttempt(t) && attemptsFor(t).some((a) => !['abandoned', 'expired'].includes(a.status))
 
   const pendingGrading = (attempts ?? []).filter((a) => a.status === 'submitted')
 
@@ -184,7 +215,25 @@ export default function TestsPage() {
       header: '',
       className: 'text-right',
       render: (t) =>
-        isStaff && (
+        isStudent && hasFinished(t) ? (
+          <div className="flex justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); setTab('results') }}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              View result
+            </button>
+          </div>
+        ) : isStudent && ['published', 'live'].includes(t.status) ? (
+          <div className="flex justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); take(t) }}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              <Play size={12} /> {myAttempt(t)?.status === 'in_progress' ? 'Resume' : 'Take test'}
+            </button>
+          </div>
+        ) : isStaff && (
           <div className="flex justify-end gap-1.5">
             {t.status === 'draft' && (
               <button
@@ -195,7 +244,7 @@ export default function TestsPage() {
                 <Send size={12} /> Publish
               </button>
             )}
-            {['super_admin', 'admin'].includes(role ?? '') && (
+            {can('test:delete') && (
               <button
                 onClick={(e) => { e.stopPropagation(); remove(t) }}
                 className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
@@ -287,7 +336,8 @@ export default function TestsPage() {
         tabs={[
           { id: 'tests', label: 'Tests', count: tests?.length },
           ...(isStaff ? [{ id: 'questions' as TabId, label: 'Question Bank', count: questions?.length }] : []),
-          ...(isStaff ? [{ id: 'grading' as TabId, label: 'Grading', count: pendingGrading.length }] : []),
+          ...(canGrade && isStaff ? [{ id: 'grading' as TabId, label: 'Grading', count: pendingGrading.length }] : []),
+          ...(isStudent ? [{ id: 'results' as TabId, label: 'My Results', count: attempts?.length }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -338,7 +388,7 @@ export default function TestsPage() {
         />
       )}
 
-      {tab === 'grading' && isStaff && (
+      {tab === 'grading' && canGrade && isStaff && (
         <DataTable
           columns={attemptColumns}
           rows={attempts}
@@ -347,6 +397,28 @@ export default function TestsPage() {
           emptyHint="Student attempts will appear here for grading"
         />
       )}
+
+      {tab === 'results' && isStudent && (
+        <DataTable
+          columns={attemptColumns.filter((c) => c.key !== 'student' && c.key !== 'actions')}
+          rows={attempts}
+          keyOf={(a) => a.publicId ?? a._id}
+          emptyTitle="No attempts yet"
+          emptyHint="Tests you take will show their results here"
+        />
+      )}
+
+      <TakeTestModal
+        key={taking?.attempt.publicId ?? taking?.attempt._id ?? 'none'}
+        test={taking?.test ?? null}
+        attempt={taking?.attempt ?? null}
+        onClose={() => setTaking(null)}
+        onSubmitted={(a) => {
+          setTaking(null)
+          setTab('results')
+          setToast({ msg: a.score ? `Submitted — scored ${a.score.percentage}%` : 'Test submitted', tone: 'success' })
+        }}
+      />
 
       {/* Create test */}
       <ModalShell
