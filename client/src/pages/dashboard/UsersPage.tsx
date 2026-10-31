@@ -37,6 +37,8 @@ import {
   useUpdateUserMutation,
 } from '@/features/users/usersApi'
 import { useNavigate } from 'react-router-dom'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { fmtDate, humanize, type ExportColumn } from '@/lib/export'
 
 type Role =
   | 'super_admin'
@@ -3169,6 +3171,41 @@ const Navigate = useNavigate()
     statusFilter,
   ])
 
+  const exportColumns = useMemo<ExportColumn<UserRecord>[]>(() => {
+    const orgNames = new Map<string, string>()
+    for (const u of data ?? []) {
+      if (u.instituteId && typeof u.instituteId === 'object' && u.instituteId.name) {
+        orgNames.set(String(u.instituteId._id), u.instituteId.name)
+      }
+    }
+    return [
+      { header: 'Name', value: (u) => u.name },
+      { header: 'Email', value: (u) => u.email },
+      { header: 'Code', value: (u) => u.userCode ?? '' },
+      { header: 'Role', value: (u) => ROLE_META[u.role]?.label ?? humanize(u.role) },
+      { header: 'Status', value: (u) => humanize(u.status) },
+      { header: 'Phone', value: (u) => u.profile?.phone ?? '' },
+      ...(isSuperAdmin
+        ? [
+            {
+              header: 'Organization',
+              value: (u: UserRecord) =>
+                u.instituteId ? orgNames.get(u.instituteId) ?? '' : 'Platform',
+            },
+          ]
+        : []),
+      { header: 'Created', value: (u) => fmtDate(u.createdAt) },
+    ]
+  }, [data, isSuperAdmin])
+
+  const exportSubtitle = [
+    roleFilter ? `Role: ${ROLE_META[roleFilter as Role]?.label ?? roleFilter}` : '',
+    statusFilter ? `Status: ${humanize(statusFilter)}` : '',
+    search.trim() ? `Search: "${search.trim()}"` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   const stats = useMemo(() => {
     const active =
       users.filter(
@@ -3257,6 +3294,13 @@ const Navigate = useNavigate()
           </p>
         </div>
 
+        <div className="flex items-center gap-2">
+        <ExportMenu
+          title="Users"
+          subtitle={exportSubtitle || undefined}
+          columns={exportColumns}
+          rows={visibleUsers}
+        />
         {canManageUsers && (
           <button
             onClick={() =>
@@ -3276,6 +3320,7 @@ const Navigate = useNavigate()
             Add user
           </button>
         )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

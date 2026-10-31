@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Wallet, Plus, DollarSign, Trash2, AlertTriangle } from 'lucide-react'
+import { Wallet, Plus, DollarSign, Trash2, AlertTriangle, Printer } from 'lucide-react'
 
 import {
   useGetPayrollsQuery,
   useCreatePayrollMutation,
   useUpdatePayrollStatusMutation,
   useDeletePayrollMutation,
+  useLazyGetPayslipQuery,
   type Payroll,
 } from '@/features/payroll/payrollApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
@@ -13,12 +14,15 @@ import { useAppSelector } from '@/app/store'
 import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
+import { Tabs } from '@/components/ui/kit'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
+import PayrollRunPanel from '@/components/hr-payroll/PayrollRunPanel'
+import { printPayslip } from '@/components/hr-payroll/printPayslip'
 
-const STATUS_COLOR: Record<string, 'green' | 'blue' | 'gray'> = {
-  paid: 'green', processed: 'blue', draft: 'gray',
+const STATUS_COLOR: Record<string, 'green' | 'blue' | 'gray' | 'red'> = {
+  paid: 'green', processed: 'blue', approved: 'blue', draft: 'gray', cancelled: 'red',
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -128,13 +132,27 @@ function ProcessPayrollModal({
 export default function PayrollPage() {
   const user = useAppSelector((s) => s.auth.user)
   const canManage = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'hr'
-  const isOwnOnly = user?.role === 'employee'
+  const isOwnOnly = !['super_admin', 'admin', 'hr', 'accountant', 'principal'].includes(user?.role ?? '')
   const { can } = usePermission()
   // DELETE /payroll/:id is limited to super_admin/admin/hr — the payroll:delete holders.
   const canDelete = can('payroll:delete')
+  // Generate / preview / salary assignments need payroll:create (admin, hr).
+  const canRun = can('payroll:create')
+  const [tab, setTab] = useState<'records' | 'run'>('records')
 
   const { data: payrolls, isLoading, isError, refetch } = useGetPayrollsQuery()
   const [updateStatus] = useUpdatePayrollStatusMutation()
+  const [loadPayslip] = useLazyGetPayslipQuery()
+  const [rowError, setRowError] = useState('')
+
+  const openPayslip = async (p: Payroll) => {
+    setRowError('')
+    try {
+      printPayslip(await loadPayslip(rid(p)).unwrap())
+    } catch {
+      setRowError('Could not load the payslip')
+    }
+  }
   const [deletePayroll, { isLoading: deletePending }] = useDeletePayrollMutation()
   const [showProcess, setShowProcess] = useState(false)
   const [deleteItem, setDeleteItem] = useState<Payroll | null>(null)
@@ -162,11 +180,23 @@ export default function PayrollPage() {
         title={isOwnOnly ? 'My Payslips' : 'Payroll'}
         subtitle={isOwnOnly ? 'Your salary slips' : 'Process salaries and track payments'}
         actions={canManage ? (
-          <Button onClick={() => setShowProcess(true)}><Plus size={16} /> Process Payroll</Button>
+          <Button variant="secondary" onClick={() => setShowProcess(true)}><Plus size={16} /> Manual entry</Button>
         ) : undefined}
       />
 
-      {canManage && (
+      {canRun && (
+        <Tabs
+          tabs={[{ id: 'records' as const, label: 'Payroll records' }, { id: 'run' as const, label: 'Run payroll' }]}
+          active={tab}
+          onChange={setTab}
+        />
+      )}
+
+      {tab === 'run' && canRun && <PayrollRunPanel />}
+
+      {tab === 'records' && rowError && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{rowError}</div>}
+
+      {tab === 'records' && canManage && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex items-center gap-3 rounded-2xl bg-white p-5 shadow-sm">
             <div className="rounded-xl bg-green-50 p-3 text-green-600"><DollarSign size={20} /></div>
@@ -192,7 +222,7 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {tab !== 'records' ? null : isLoading ? (
         <LoadingList rows={5} />
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
@@ -200,8 +230,8 @@ export default function PayrollPage() {
         <EmptyState
           icon={<Wallet size={48} />}
           title={isOwnOnly ? 'No payslips yet' : 'No payroll records'}
-          hint={canManage ? 'Process the first payroll' : 'Your payslips will appear here'}
-          action={canManage ? <Button onClick={() => setShowProcess(true)}><Plus size={16} /> Process Payroll</Button> : undefined}
+          hint={canRun ? 'Use "Run payroll" to generate a month' : 'Your payslips will appear here'}
+          action={canRun ? <Button onClick={() => setTab('run')}><Plus size={16} /> Run payroll</Button> : undefined}
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
@@ -210,10 +240,11 @@ export default function PayrollPage() {
               <tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400">
                 <th className="px-4 py-3 font-medium">Employee</th>
                 <th className="px-4 py-3 font-medium">Period</th>
-                <th className="px-4 py-3 font-medium">Basic</th>
+                <th className="px-4 py-3 font-medium">Gross</th>
+                <th className="px-4 py-3 font-medium">LOP days</th>
                 <th className="px-4 py-3 font-medium">Net</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                {canManage && <th className="px-4 py-3" />}
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -221,13 +252,25 @@ export default function PayrollPage() {
                 <tr key={rid(p)} className="border-b border-gray-50 transition hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-gray-800">{empName(p)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{MONTHS[p.month - 1]} {p.year}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">₹{p.basicSalary?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">₹{(p.grossSalary ?? p.basicSalary)?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{p.deductions?.lopDays ?? 0}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900">₹{p.netSalary?.toLocaleString()}</td>
-                  <td className="px-4 py-3"><Badge color={STATUS_COLOR[p.status]}>{p.status}</Badge></td>
-                  {canManage && (
-                    <td className="px-4 py-3 text-right">
-                      {p.status !== 'paid' && (
-                        <div className="flex items-center justify-end gap-1">
+                  <td className="px-4 py-3">
+                    <Badge color={STATUS_COLOR[p.status]}>{p.status}</Badge>
+                    {p.source === 'generated' && <span className="ml-1 text-[11px] text-gray-400">auto</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openPayslip(p)}>
+                        <Printer size={14} /> Payslip
+                      </Button>
+                      {canManage && p.status !== 'paid' && (
+                        <>
+                          {p.status === 'draft' && (
+                            <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'processed' })}>
+                              Process
+                            </Button>
+                          )}
                           <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'paid' })}>
                             Mark Paid
                           </Button>
@@ -240,10 +283,10 @@ export default function PayrollPage() {
                               <Trash2 size={15} />
                             </button>
                           )}
-                        </div>
+                        </>
                       )}
-                    </td>
-                  )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

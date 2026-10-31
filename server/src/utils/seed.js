@@ -22,7 +22,7 @@ import { ROLES } from "../config/constants.js";
 import { ORGANIZATION_ROLE_ARRAYS, STAFF_CODE_PREFIX } from "../config/userRoleConfig.js";
 
 import { User } from "../models/User.js";
-import { Organization } from "../models/Organization.js";
+import Organization from "../models/organization.js";
 import { Class } from "../models/Class.js";
 import Student from "../models/student.js";
 import Teacher from "../models/teacher.js";

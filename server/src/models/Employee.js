@@ -13,7 +13,147 @@ const EMPLOYEE_STATUSES = [
   "retired",
   "probation",
   "notice_period",
+  "onboarding",
 ];
+
+// Lifecycle stages shown in the UI. "exited" is not a stored status: it
+// groups the terminal statuses (resigned / terminated / retired) so the
+// existing ex-employee queries keep working.
+const EXIT_STATUSES = [
+  "resigned",
+  "terminated",
+  "retired",
+];
+
+const LIFECYCLE_STAGES = [
+  "onboarding",
+  "probation",
+  "active",
+  "on_leave",
+  "suspended",
+  "notice_period",
+  "exited",
+];
+
+// Allowed stage moves. "inactive" is a legacy status kept for old records;
+// "none" means the person has no Employee profile yet.
+const STAGE_TRANSITIONS = Object.freeze({
+  none: ["onboarding", "probation", "active"],
+  inactive: ["onboarding", "active", "exited"],
+  onboarding: ["probation", "active", "exited"],
+  probation: ["active", "on_leave", "suspended", "notice_period", "exited"],
+  active: ["on_leave", "suspended", "notice_period", "exited"],
+  on_leave: ["active", "probation", "notice_period", "exited"],
+  suspended: ["active", "notice_period", "exited"],
+  notice_period: ["active", "exited"],
+  // Rehire starts a fresh onboarding.
+  exited: ["onboarding"],
+});
+
+const stageOfStatus = (status) => {
+  if (!status) return "none";
+  if (EXIT_STATUSES.includes(status)) return "exited";
+  return status;
+};
+
+const stageHistorySchema =
+  new mongoose.Schema(
+    {
+      from: {
+        type: String,
+        trim: true,
+        maxlength: 50,
+        default: null,
+      },
+
+      to: {
+        type: String,
+        trim: true,
+        maxlength: 50,
+        required: true,
+      },
+
+      // Stored status (differs from `to` only for exits).
+      status: {
+        type: String,
+        trim: true,
+        maxlength: 50,
+        default: null,
+      },
+
+      at: {
+        type: Date,
+        default: Date.now,
+      },
+
+      by: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+
+      byName: {
+        type: String,
+        trim: true,
+        maxlength: 300,
+        default: null,
+      },
+
+      note: {
+        type: String,
+        trim: true,
+        maxlength: 2000,
+        default: null,
+      },
+    },
+    {
+      _id: true,
+    }
+  );
+
+const lifecycleChecklistItemSchema =
+  new mongoose.Schema(
+    {
+      key: {
+        type: String,
+        trim: true,
+        maxlength: 100,
+        required: true,
+      },
+
+      label: {
+        type: String,
+        trim: true,
+        maxlength: 300,
+        required: true,
+      },
+
+      phase: {
+        type: String,
+        enum: ["onboarding", "exit"],
+        required: true,
+      },
+
+      done: {
+        type: Boolean,
+        default: false,
+      },
+
+      doneAt: {
+        type: Date,
+        default: null,
+      },
+
+      doneBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+    },
+    {
+      _id: false,
+    }
+  );
 
 const EMPLOYEE_TYPES = [
   "full_time",
@@ -1257,6 +1397,18 @@ publicId: {
       lastStatusChangeAt: {
         type: Date,
         default: null,
+      },
+
+      // One entry per stage change (who, when, note).
+      stageHistory: {
+        type: [stageHistorySchema],
+        default: [],
+      },
+
+      // Onboarding / exit checklist with done flags.
+      lifecycleChecklist: {
+        type: [lifecycleChecklistItemSchema],
+        default: [],
       },
 
       legalHold: {
@@ -2935,6 +3087,10 @@ export default Employee;
 
 export {
   EMPLOYEE_STATUSES,
+  EXIT_STATUSES,
+  LIFECYCLE_STAGES,
+  STAGE_TRANSITIONS,
+  stageOfStatus,
   EMPLOYEE_TYPES,
   EMPLOYMENT_CATEGORIES,
   GENDERS,

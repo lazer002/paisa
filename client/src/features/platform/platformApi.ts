@@ -95,7 +95,29 @@ export interface SupportTicket {
   priority: string
   requesterId?: Ref | string
   assigneeId?: Ref | string | null
+  firstResponseAt?: string | null
+  /** Computed by the server from priority (see TICKET_SLA_HOURS in ticketController). */
+  slaState?: TicketSlaState
   createdAt: string
+}
+
+export interface TicketSlaState {
+  hours: number
+  dueAt: string
+  responseDueAt: string
+  firstResponseAt?: string | null
+  overdue: boolean
+  responseOverdue: boolean
+  stopped: boolean
+}
+
+export interface TicketTemplate {
+  _id: string
+  publicId?: string
+  name: string
+  body: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface TicketAssignee {
@@ -110,7 +132,9 @@ export interface TicketMessageT {
   _id: string
   publicId?: string
   body: string
-  isInternalNote?: boolean
+  /** "internal_note" = staff-only; the server never sends these to requesters. */
+  type?: string
+  isInternal?: boolean
   authorId?: Ref | string
   createdAt: string
 }
@@ -144,11 +168,32 @@ export interface Certificate {
   publicId?: string
   userId?: Ref | string | null
   title: string
+  description?: string | null
   type?: string
   status: string
-  issuedAt?: string | null
-  expiresAt?: string | null
+  certificateNumber?: string | null
+  issueDate?: string | null
+  validUntil?: string | null
+  revokedAt?: string | null
+  recipientSnapshot?: { name?: string | null }
+  issuer?: { name?: string | null; organizationName?: string | null }
+  verification?: { status?: string; verificationCode?: string | null; verificationUrl?: string | null }
   createdAt: string
+}
+
+/** GET /public/certificates/:code — minimal, unauthenticated. */
+export interface CertificateVerification {
+  code: string
+  status: 'valid' | 'revoked' | 'expired' | 'invalid'
+  valid: boolean
+  holderName: string | null
+  title: string
+  type: string | null
+  organizationName: string | null
+  certificateNumber: string | null
+  issueDate: string | null
+  validUntil: string | null
+  revokedAt: string | null
 }
 
 export interface Achievement {
@@ -217,7 +262,7 @@ export const platformApi = createApi({
   baseQuery: axiosBaseQuery,
   tagTypes: [
     'Enrollment', 'Invoice', 'Lead', 'Deal', 'Pipeline', 'Ticket',
-    'SalaryStructure', 'Review', 'Certificate', 'Achievement', 'Points', 'Event',
+    'SalaryStructure', 'Review', 'Certificate', 'Achievement', 'Points', 'Event', 'TicketTemplate',
   ],
   endpoints: (builder) => ({
     // ── Enrollments ──
@@ -328,10 +373,12 @@ export const platformApi = createApi({
     }),
 
     // ── Tickets ──
-    getTickets: builder.query<SupportTicket[], { status?: string; search?: string } | void>({
+    getTickets: builder.query<SupportTicket[], { status?: string; search?: string; overdue?: boolean } | void>({
       query: (params) => ({
         url: '/tickets',
-        params: params ? { status: params.status || undefined, search: params.search || undefined } : undefined,
+        params: params
+          ? { status: params.status || undefined, search: params.search || undefined, overdue: params.overdue ? 'true' : undefined }
+          : undefined,
       }),
       transformResponse: list,
       providesTags: [{ type: 'Ticket', id: 'LIST' }],
@@ -361,6 +408,24 @@ export const platformApi = createApi({
     getTicketAssignees: builder.query<TicketAssignee[], string>({
       query: (id) => `/tickets/${id}/assignees`,
       transformResponse: list,
+    }),
+    // Reply templates (canned responses): staff read, admin/support manage.
+    getTicketTemplates: builder.query<TicketTemplate[], void>({
+      query: () => '/tickets/templates',
+      transformResponse: list,
+      providesTags: [{ type: 'TicketTemplate', id: 'LIST' }],
+    }),
+    createTicketTemplate: builder.mutation<TicketTemplate, { name: string; body: string }>({
+      query: (body) => ({ url: '/tickets/templates', method: 'POST', body }),
+      invalidatesTags: [{ type: 'TicketTemplate', id: 'LIST' }],
+    }),
+    updateTicketTemplate: builder.mutation<TicketTemplate, { id: string; name?: string; body?: string }>({
+      query: ({ id, ...body }) => ({ url: `/tickets/templates/${id}`, method: 'PUT', body }),
+      invalidatesTags: [{ type: 'TicketTemplate', id: 'LIST' }],
+    }),
+    deleteTicketTemplate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/tickets/templates/${id}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'TicketTemplate', id: 'LIST' }],
     }),
 
     // ── HR Ops: Salary structures ──
@@ -407,9 +472,17 @@ export const platformApi = createApi({
       transformResponse: list,
       providesTags: [{ type: 'Certificate', id: 'LIST' }],
     }),
-    createCertificate: builder.mutation<Certificate, { userId: string; title: string; type?: string }>({
+    createCertificate: builder.mutation<
+      Certificate,
+      { userId: string; title: string; type?: string; description?: string; issueDate?: string; validUntil?: string }
+    >({
       query: (body) => ({ url: '/certificates', method: 'POST', body }),
       invalidatesTags: [{ type: 'Certificate', id: 'LIST' }],
+    }),
+    // Unauthenticated public lookup (also used by the /verify page while signed out).
+    verifyCertificate: builder.query<CertificateVerification, string>({
+      query: (code) => `/public/certificates/${encodeURIComponent(code)}`,
+      transformResponse: unwrap<CertificateVerification>,
     }),
     revokeCertificate: builder.mutation<Certificate, string>({
       query: (id) => ({ url: `/certificates/${id}/revoke`, method: 'PUT', body: {} }),
@@ -491,9 +564,11 @@ export const {
   useGetPipelinesQuery, useCreatePipelineMutation, useDeletePipelineMutation,
   useGetTicketsQuery, useGetTicketQuery, useCreateTicketMutation, useUpdateTicketMutation, useAddTicketMessageMutation, useDeleteTicketMutation,
   useGetTicketAssigneesQuery,
+  useGetTicketTemplatesQuery, useCreateTicketTemplateMutation, useUpdateTicketTemplateMutation, useDeleteTicketTemplateMutation,
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,
+  useVerifyCertificateQuery, useLazyVerifyCertificateQuery,
   useGetAchievementsQuery, useCreateAchievementMutation, useUpdateAchievementMutation, useDeleteAchievementMutation,
   useAwardAchievementMutation, useGetUserAchievementsQuery,
   useAwardPointsMutation, useGetPointsLedgerQuery, useGetLeaderboardQuery,

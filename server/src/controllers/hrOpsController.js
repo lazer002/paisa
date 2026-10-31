@@ -5,8 +5,15 @@
 
 import { SalaryStructure } from "../models/SalaryStructure.js";
 import { PerformanceReview } from "../models/PerformanceReview.js";
-import { Certificate } from "../models/Certificate.js";
+import crypto from "node:crypto";
+
+import {
+  Certificate,
+  CERTIFICATE_TYPES,
+} from "../models/Certificate.js";
 import { User } from "../models/User.js";
+import Organization from "../models/organization.js";
+import env from "../config/env.js";
 import ApiError from "../utils/ApiError.js";
 import { hasPermission } from "../utils/permissions.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
@@ -400,17 +407,45 @@ export const deleteReview = asyncHandler(async (req, res) => {
    CERTIFICATES
 ========================================================= */
 
+// Unguessable public verification code, e.g. "7F3A-91C2-0B5D-E8A4".
+const newVerificationCode = () =>
+  crypto
+    .randomBytes(8)
+    .toString("hex")
+    .toUpperCase()
+    .match(/.{4}/g)
+    .join("-");
+
+// Human-facing number printed on the certificate, e.g. "CRT-2026-5A1F9C0B".
+const newCertificateNumber = (issueDate) =>
+  `CRT-${new Date(issueDate).getFullYear()}-${crypto
+    .randomBytes(4)
+    .toString("hex")
+    .toUpperCase()}`;
+
+const certificateTypeFrom = (type) => {
+  if (!type) return "course_completion";
+  if (type === "completion") return "course_completion";
+  return CERTIFICATE_TYPES.includes(type) ? type : "other";
+};
+
+const verificationUrlFor = (code) =>
+  `${String(env.FRONTEND_URL || "").replace(/\/+$/, "")}/verify/${code}`;
+
 export const createCertificate = asyncHandler(
   async (req, res) => {
     const {
       userId,
       title,
       type,
+      description,
       issuedAt,
+      issueDate,
       expiresAt,
+      validUntil,
     } = req.body;
 
-    if (!userId || !title) {
+    if (!userId || !title || !String(title).trim()) {
       return sendError(
         res,
         400,
@@ -418,26 +453,100 @@ export const createCertificate = asyncHandler(
       );
     }
 
+    // Recipients must belong to the issuer's organization.
     const resolvedUserId = await resolveRef(
       User,
       userId,
-      { label: "User" }
+      {
+        label: "User",
+        ...(req.user.role === "super_admin"
+          ? {}
+          : { scope: { instituteId: req.user.instituteId } }),
+      }
     );
 
+    const recipient = await User.findById(resolvedUserId)
+      .select("name email instituteId")
+      .lean();
+
+    if (!recipient?.instituteId) {
+      return sendError(
+        res,
+        400,
+        "Certificates can only be issued to organization members"
+      );
+    }
+
+    const organization = await Organization.findById(
+      recipient.instituteId
+    )
+      .select("name")
+      .lean();
+
+    const issuedOn = new Date(issueDate || issuedAt || Date.now());
+
+    if (Number.isNaN(issuedOn.getTime())) {
+      return sendError(res, 400, "Invalid issue date");
+    }
+
+    const expiry = validUntil || expiresAt || null;
+
+    const certificateNumber = newCertificateNumber(issuedOn);
+    const verificationCode = newVerificationCode();
+
     const certificate = await Certificate.create({
-      instituteId: req.user.instituteId,
+      instituteId: recipient.instituteId,
 
       userId: resolvedUserId,
 
-      title,
+      title: String(title).trim(),
 
-      type: type || "completion",
+      description: description || null,
 
-      issuedAt: issuedAt || new Date(),
-
-      expiresAt: expiresAt || null,
+      type: certificateTypeFrom(type),
 
       status: "issued",
+
+      issueDate: issuedOn,
+
+      validUntil: expiry ? new Date(expiry) : null,
+
+      // The tenant unique indexes on these are sparse compound
+      // indexes, so a missing value would collide as null.
+      certificateNumber,
+      certificateCode: verificationCode,
+      externalId: certificateNumber,
+
+      recipientSnapshot: {
+        name: recipient.name || "Recipient",
+        email: recipient.email || null,
+      },
+
+      issuer: {
+        userId: req.user._id,
+        name: req.user.name || null,
+        organizationName: organization?.name || null,
+      },
+
+      verification: {
+        status: "unverified",
+        verificationCode,
+        verificationUrl: verificationUrlFor(verificationCode),
+      },
+
+      history: [
+        {
+          action: "issued",
+          fromStatus: null,
+          toStatus: "issued",
+          performedBy: req.user._id,
+          performedAt: new Date(),
+        },
+      ],
+
+      source: "manual",
+
+      createdBy: req.user._id,
     });
 
     return sendCreated(res, {
@@ -496,9 +605,23 @@ export const revokeCertificate = asyncHandler(
 
     assertTenant(req, certificate);
 
+    // The model's revoke() throws a plain Error (→ 500) otherwise.
+    if (certificate.status !== "issued") {
+      return sendError(
+        res,
+        400,
+        "Only issued certificates can be revoked"
+      );
+    }
+
+    const reason =
+      typeof req.body?.reason === "string" && req.body.reason.trim()
+        ? req.body.reason.trim().slice(0, 3000)
+        : "admin_revoked";
+
     await certificate.revoke({
       revokedBy: req.user._id,
-      reason: "admin_revoked",
+      reason,
     });
 
     return sendSuccess(res, {

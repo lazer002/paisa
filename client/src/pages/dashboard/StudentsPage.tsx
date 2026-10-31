@@ -16,6 +16,27 @@ import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Badge from '@/components/ui/badge'
 import Button from '@/components/ui/button'
 import Modal from '@/components/ui/Modal'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { humanize, type ExportColumn } from '@/lib/export'
+
+const studentUser = (s: StudentProfile) => (typeof s.userId === 'object' ? s.userId : null)
+
+const EXPORT_COLUMNS: ExportColumn<StudentProfile>[] = [
+  { header: 'Name', value: (s) => studentUser(s)?.name ?? '' },
+  { header: 'Email', value: (s) => studentUser(s)?.email ?? '' },
+  { header: 'Enrollment No.', value: (s) => s.enrollmentNumber },
+  { header: 'Course', value: (s) => s.course ?? '' },
+  { header: 'Branch', value: (s) => s.branch ?? '' },
+  { header: 'Year', value: (s) => s.year ?? '' },
+  { header: 'Semester', value: (s) => s.semester ?? '' },
+  { header: 'Section', value: (s) => s.section ?? '' },
+  { header: 'Roll No.', value: (s) => s.rollNumber ?? '' },
+  { header: 'Status', value: (s) => humanize(s.academicStatus ?? 'active') },
+  {
+    header: 'Organization',
+    value: (s) => (typeof s.instituteId === 'object' ? s.instituteId?.name ?? '' : ''),
+  },
+]
 
 const STATUS_COLOR: Record<string, 'green' | 'yellow' | 'red' | 'gray' | 'blue'> = {
   active: 'green',
@@ -372,11 +393,19 @@ export default function StudentsPage() {
         title="Students"
         subtitle="Student profiles, enrollment numbers and academic details"
         actions={
-          canCreate ? (
-            <Button onClick={() => setShowCreate(true)}>
-              <Plus size={16} /> Add student profile
-            </Button>
-          ) : undefined
+          <div className="flex gap-2">
+            <ExportMenu
+              title="Students"
+              subtitle={search.trim() ? `Search: "${search.trim()}"` : undefined}
+              columns={EXPORT_COLUMNS}
+              rows={list}
+            />
+            {canCreate && (
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus size={16} /> Add student profile
+              </Button>
+            )}
+          </div>
         }
       />
 

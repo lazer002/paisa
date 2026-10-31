@@ -20,6 +20,26 @@ import {
   DataTable, Toolbar, SelectFilter, StatusBadge, ModalShell, Field, inputCls, Toast,
   type Column,
 } from '@/components/ui/kit'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { fmtAmount, fmtDate, humanize, refName, type ExportColumn } from '@/lib/export'
+
+const INVOICE_EXPORT_COLUMNS: ExportColumn<Invoice>[] = [
+  { header: 'Invoice #', value: (i) => i.invoiceNumber ?? '' },
+  { header: 'Billed to', value: (i) => refName(i.studentId) || refName(i.employeeId) },
+  { header: 'Email', value: (i) => refName(i.studentId, 'email') || refName(i.employeeId, 'email') },
+  {
+    header: 'Items',
+    value: (i) => (i.lineItems ?? []).map((l) => l.description).filter(Boolean).join('; '),
+  },
+  { header: 'Subtotal (INR)', value: (i) => fmtAmount(i.subTotal) },
+  { header: 'Tax (INR)', value: (i) => fmtAmount(i.taxTotal) },
+  { header: 'Total (INR)', value: (i) => fmtAmount(i.grandTotal) },
+  { header: 'Paid (INR)', value: (i) => fmtAmount(i.amountPaid) },
+  { header: 'Due (INR)', value: (i) => fmtAmount(i.amountDue) },
+  { header: 'Status', value: (i) => humanize(i.status) },
+  { header: 'Due date', value: (i) => fmtDate(i.dueDate) },
+  { header: 'Created', value: (i) => fmtDate(i.createdAt) },
+]
 
 export default function InvoicesPage() {
   const { can } = usePermission()
@@ -207,7 +227,28 @@ export default function InvoicesPage() {
       <PageHeader
         title={canManage ? 'Billing' : 'My Invoices'}
         subtitle={canManage ? 'Create invoices and record payments' : 'Your invoices and payment history'}
-        actions={canManage ? <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Invoice</Button> : undefined}
+        actions={
+          <div className="flex gap-2">
+            <ExportMenu
+              title={canManage ? 'Invoices' : 'My invoices'}
+              subtitle={
+                [
+                  statusFilter ? `Status: ${humanize(statusFilter)}` : '',
+                  search ? `Search: "${search}"` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || undefined
+              }
+              columns={INVOICE_EXPORT_COLUMNS}
+              rows={filtered}
+            />
+            {canManage && (
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus size={15} /> New Invoice
+              </Button>
+            )}
+          </div>
+        }
       />
 
       {canManage && (

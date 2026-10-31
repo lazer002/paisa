@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, Target, ArrowRightCircle } from 'lucide-react'
+import { Plus, Trash2, Target, ArrowRightCircle, History } from 'lucide-react'
 
 import {
   useGetLeadsQuery,
@@ -15,6 +15,8 @@ import {
 } from '@/features/platform/platformApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import PartiesPanel from '@/components/crm/PartiesPanel'
+import TasksPanel from '@/components/crm/TasksPanel'
+import ActivityTimeline from '@/components/crm/ActivityTimeline'
 import PipelinesPanel from '@/components/platform-ui/PipelinesPanel'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
@@ -23,7 +25,7 @@ import {
   type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'leads' | 'deals' | 'pipelines' | 'contacts' | 'customers'
+type TabId = 'leads' | 'deals' | 'tasks' | 'pipelines' | 'contacts' | 'customers'
 
 // Keys must match the Deal model's `stage` enum (server/src/models/Deal.js).
 const STAGES = ['qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost']
@@ -38,8 +40,11 @@ const STAGE_LABEL: Record<string, string> = {
 }
 
 export default function CRMPage() {
-  const { can } = usePermission()
+  const { can, canAny } = usePermission()
   const canManage = can('lead:create')
+  const canTasks = can('crm_task:read')
+  const canTimeline = canAny('crm_activity:read', 'crm_note:read', 'crm_task:read')
+  const [timelineFor, setTimelineFor] = useState<{ kind: 'leadId' | 'dealId'; id: string; name: string } | null>(null)
 
   const canLeads = can('lead:read')
   const canDeals = can('deal:read')
@@ -74,7 +79,7 @@ export default function CRMPage() {
   const [company, setCompany] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [source, setSource] = useState('manual')
+  const [source, setSource] = useState('other')
   const [estimatedValue, setEstimatedValue] = useState('')
 
   const filteredLeads = useMemo(
@@ -170,9 +175,24 @@ export default function CRMPage() {
       header: '',
       className: 'text-right',
       render: (l) =>
-        canManage && (
+        (canManage || canTimeline) && (
           <div className="flex justify-end gap-1.5">
-            {l.status !== 'qualified' && (
+            {canTimeline && (
+              <button
+                onClick={() =>
+                  setTimelineFor({
+                    kind: 'leadId',
+                    id: l.publicId ?? l._id,
+                    name: [l.firstName, l.lastName].filter(Boolean).join(' ') || l.company || 'Lead',
+                  })
+                }
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                title="Activities, notes and tasks"
+              >
+                <History size={12} /> Activity
+              </button>
+            )}
+            {canManage && l.status !== 'qualified' && (
               <button
                 onClick={() => setConvertLead(l)}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
@@ -181,12 +201,14 @@ export default function CRMPage() {
                 <ArrowRightCircle size={12} /> Convert
               </button>
             )}
-            <button
-              onClick={() => deleteLead(l.publicId ?? l._id)}
-              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-            >
-              <Trash2 size={14} />
-            </button>
+            {canManage && (
+              <button
+                onClick={() => deleteLead(l.publicId ?? l._id)}
+                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         ),
     },
@@ -204,6 +226,7 @@ export default function CRMPage() {
         tabs={[
           ...(canLeads ? [{ id: 'leads' as TabId, label: 'Leads', count: leads?.length }] : []),
           ...(canDeals ? [{ id: 'deals' as TabId, label: 'Deal Pipeline', count: deals?.length }] : []),
+          ...(canTasks ? [{ id: 'tasks' as TabId, label: 'Tasks' }] : []),
           ...(canPipelines ? [{ id: 'pipelines' as TabId, label: 'Pipelines' }] : []),
           ...(can('contact:read') ? [{ id: 'contacts' as TabId, label: 'Contacts' }] : []),
           ...(can('customer:read') ? [{ id: 'customers' as TabId, label: 'Customers' }] : []),
@@ -247,6 +270,7 @@ export default function CRMPage() {
         </>
       )}
 
+      {tab === 'tasks' && <TasksPanel />}
       {tab === 'pipelines' && <PipelinesPanel />}
       {tab === 'contacts' && <PartiesPanel kind="contacts" />}
       {tab === 'customers' && <PartiesPanel kind="customers" />}
@@ -268,7 +292,18 @@ export default function CRMPage() {
                 <div className="space-y-2">
                   {stageDeals.map((d) => (
                     <div key={d.publicId ?? d._id} className="group rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm">
-                      <p className="text-sm font-medium text-gray-800">{d.title}</p>
+                      <div className="flex items-start justify-between gap-1">
+                        <p className="text-sm font-medium text-gray-800">{d.title}</p>
+                        {canTimeline && (
+                          <button
+                            onClick={() => setTimelineFor({ kind: 'dealId', id: d.publicId ?? d._id, name: d.title })}
+                            className="rounded p-0.5 text-gray-300 transition hover:text-gray-600"
+                            title="Activities, notes and tasks"
+                          >
+                            <History size={12} />
+                          </button>
+                        )}
+                      </div>
                       <p className="mt-0.5 text-xs text-gray-400">₹{(d.value ?? 0).toLocaleString()}</p>
                       {(canUpdateDeal || canDeleteDeal) && !CLOSED_STAGES.includes(stage) && (
                         <div className="mt-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
@@ -354,7 +389,7 @@ export default function CRMPage() {
             </Field>
             <Field label="Source">
               <select className={inputCls} value={source} onChange={(e) => setSource(e.target.value)}>
-                {['manual', 'website', 'referral', 'walk_in', 'campaign', 'other'].map((s) => (
+                {['other', 'website', 'referral', 'walk_in', 'phone', 'campaign', 'event'].map((s) => (
                   <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                 ))}
               </select>
@@ -388,6 +423,18 @@ export default function CRMPage() {
             placeholder={String(convertLead?.estimatedValue ?? 0)}
           />
         </Field>
+      </ModalShell>
+
+      {/* Activities / notes / tasks for one lead or deal */}
+      <ModalShell
+        open={!!timelineFor}
+        onClose={() => setTimelineFor(null)}
+        title={timelineFor ? `Activity: ${timelineFor.name}` : 'Activity'}
+        size="lg"
+      >
+        {timelineFor && (
+          <ActivityTimeline key={timelineFor.id} parent={{ [timelineFor.kind]: timelineFor.id }} />
+        )}
       </ModalShell>
 
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}

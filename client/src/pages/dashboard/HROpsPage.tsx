@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Trash2, Pencil, BadgeCheck, Award as AwardIcon } from 'lucide-react'
+import { Plus, Trash2, Pencil, BadgeCheck, Award as AwardIcon, Printer, Link2 } from 'lucide-react'
+import { printCertificate, verificationLink } from '@/components/certificates/printCertificate'
 
 import {
   useGetSalaryStructuresQuery,
@@ -85,6 +86,19 @@ export default function HROpsPage() {
 
   const [certUserId, setCertUserId] = useState('')
   const [certTitle, setCertTitle] = useState('')
+  const [certDescription, setCertDescription] = useState('')
+  const [certValidUntil, setCertValidUntil] = useState('')
+
+  const copyVerifyLink = async (c: Certificate) => {
+    const code = c.verification?.verificationCode
+    if (!code) return
+    try {
+      await navigator.clipboard.writeText(verificationLink(code))
+      setToast({ msg: 'Verification link copied', tone: 'success' })
+    } catch {
+      setToast({ msg: verificationLink(code), tone: 'success' })
+    }
+  }
 
   const errMsg = (e: unknown, fallback: string) =>
     (e as { data?: { message?: string } })?.data?.message ?? fallback
@@ -170,9 +184,14 @@ export default function HROpsPage() {
   const submitCertificate = async () => {
     if (!certUserId || !certTitle) return
     try {
-      await createCertificate({ userId: certUserId, title: certTitle }).unwrap()
+      await createCertificate({
+        userId: certUserId,
+        title: certTitle,
+        description: certDescription.trim() || undefined,
+        validUntil: certValidUntil || undefined,
+      }).unwrap()
       setShowCertificate(false)
-      setCertUserId(''); setCertTitle('')
+      setCertUserId(''); setCertTitle(''); setCertDescription(''); setCertValidUntil('')
       setToast({ msg: 'Certificate issued', tone: 'success' })
     } catch (e) {
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to issue', tone: 'critical' })
@@ -224,23 +243,28 @@ export default function HROpsPage() {
     {
       key: 'user',
       header: 'Issued to',
-      render: (c) => (typeof c.userId === 'object' ? c.userId?.name ?? '—' : '—'),
+      render: (c) =>
+        (typeof c.userId === 'object' ? c.userId?.name : undefined) ?? c.recipientSnapshot?.name ?? '—',
     },
     {
       key: 'title',
       header: 'Certificate',
       render: (c) => (
-        <span className="flex items-center gap-2 font-medium text-gray-800">
-          <BadgeCheck size={15} className="text-sky-500" /> {c.title}
-        </span>
+        <div>
+          <span className="flex items-center gap-2 font-medium text-gray-800">
+            <BadgeCheck size={15} className="text-sky-500" /> {c.title}
+          </span>
+          {c.certificateNumber && <p className="pl-6 text-xs text-gray-400">{c.certificateNumber}</p>}
+        </div>
       ),
     },
     {
       key: 'issued',
       header: 'Issued',
-      render: (c) => (
-        <span className="text-gray-500">{c.issuedAt ? new Date(c.issuedAt).toLocaleDateString() : '—'}</span>
-      ),
+      render: (c) => {
+        const d = c.issueDate ?? c.createdAt
+        return <span className="text-gray-500">{d ? new Date(d).toLocaleDateString() : '—'}</span>
+      },
     },
     { key: 'status', header: 'Status', render: (c) => <StatusBadge status={c.status} /> },
     {
@@ -249,11 +273,36 @@ export default function HROpsPage() {
       className: 'text-right',
       render: (c) => (
         <div className="flex justify-end gap-1.5">
+          <button
+            onClick={() => {
+              if (!printCertificate(c)) setToast({ msg: 'Allow pop-ups to print the certificate', tone: 'critical' })
+            }}
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Print certificate"
+            title="Print / save as PDF"
+          >
+            <Printer size={14} />
+          </button>
+          {c.verification?.verificationCode && (
+            <button
+              onClick={() => copyVerifyLink(c)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Copy verification link"
+              title={`Copy verification link (code ${c.verification.verificationCode})`}
+            >
+              <Link2 size={14} />
+            </button>
+          )}
           {canCertificate && c.status === 'issued' && (
             <button
               onClick={async () => {
-                await revokeCertificate(rid(c))
-                setToast({ msg: 'Certificate revoked', tone: 'success' })
+                if (!window.confirm(`Revoke "${c.title}"? Public verification will show it as revoked.`)) return
+                try {
+                  await revokeCertificate(rid(c)).unwrap()
+                  setToast({ msg: 'Certificate revoked', tone: 'success' })
+                } catch (e) {
+                  setToast({ msg: errMsg(e, 'Failed to revoke'), tone: 'critical' })
+                }
               }}
               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
             >
@@ -465,6 +514,13 @@ export default function HROpsPage() {
           <Field label="Certificate title" required>
             <input className={inputCls} value={certTitle} onChange={(e) => setCertTitle(e.target.value)} placeholder="e.g. Advanced Pedagogy Certificate" />
           </Field>
+          <Field label="Description">
+            <textarea className={inputCls} rows={2} value={certDescription} onChange={(e) => setCertDescription(e.target.value)} placeholder="Optional line printed under the title" />
+          </Field>
+          <Field label="Valid until">
+            <input type="date" className={inputCls} value={certValidUntil} onChange={(e) => setCertValidUntil(e.target.value)} />
+          </Field>
+          <p className="text-xs text-gray-400">A certificate number and a public verification code are generated automatically.</p>
         </div>
       </ModalShell>
 

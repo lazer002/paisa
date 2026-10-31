@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Briefcase, Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Briefcase, Plus, Pencil, Trash2, Search, ListChecks } from 'lucide-react'
 
 import {
   useGetEmployeesQuery,
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
   useDeleteEmployeeMutation,
+  LIFECYCLE_STAGES,
   type Person,
 } from '@/features/people/peopleApi'
 import { usePermission } from '@/lib/auth/usePermission'
@@ -14,6 +15,30 @@ import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Badge from '@/components/ui/badge'
 import Button from '@/components/ui/button'
 import Modal from '@/components/ui/Modal'
+import ExportMenu from '@/components/ui/ExportMenu'
+import EmployeeLifecyclePanel from '@/components/employees/EmployeeLifecyclePanel'
+import { StageBadge } from '@/components/employees/stage'
+import { stageLabel } from '@/components/employees/stageMeta'
+import { fmtDate, humanize, type ExportColumn } from '@/lib/export'
+
+const orgNameOf = (p: Person) =>
+  typeof p.instituteId === 'object' ? p.instituteId?.name ?? '—' : 'Platform'
+
+const EXPORT_COLUMNS: ExportColumn<Person>[] = [
+  { header: 'Name', value: (p) => p.name },
+  { header: 'Email', value: (p) => p.email },
+  { header: 'Code', value: (p) => p.userCode ?? '' },
+  { header: 'Organization', value: (p) => orgNameOf(p) },
+  { header: 'Stage', value: (p) => stageLabel(p.lifecycleStage) },
+  {
+    header: 'Exit type',
+    value: (p) => (p.lifecycleStage === 'exited' ? humanize(p.employmentStatus) : ''),
+  },
+  { header: 'Joined', value: (p) => fmtDate(p.joiningDate) },
+  { header: 'Last working day', value: (p) => fmtDate(p.lastWorkingDate) },
+  { header: 'Account status', value: (p) => humanize(p.status ?? 'active') },
+  { header: 'Created', value: (p) => fmtDate(p.createdAt) },
+]
 
 const inputCls =
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-black focus:bg-white'
@@ -96,7 +121,15 @@ function CreateEmployeeModal({
   )
 }
 
-function EditEmployeeModal({ person, onClose }: { person: Person; onClose: () => void }) {
+function EditEmployeeModal({
+  person,
+  onClose,
+  onOpenLifecycle,
+}: {
+  person: Person
+  onClose: () => void
+  onOpenLifecycle: () => void
+}) {
   const [updateEmployee, { isLoading }] = useUpdateEmployeeMutation()
   const [name, setName] = useState(person.name ?? '')
   const [status, setStatus] = useState(person.status ?? 'active')
@@ -129,11 +162,20 @@ function EditEmployeeModal({ person, onClose }: { person: Person; onClose: () =>
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Status</label>
+          <label className={labelCls}>Login account status</label>
           <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+          <span className="flex items-center gap-2 text-sm text-gray-600">
+            Employment stage <StageBadge stage={person.lifecycleStage ?? 'none'} />
+          </span>
+          <Button variant="ghost" size="sm" onClick={onOpenLifecycle}>
+            <ListChecks size={14} /> Stage &amp; checklist
+          </Button>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -160,16 +202,28 @@ export default function EmployeesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<Person | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Person | null>(null)
+  const [lifecycleOf, setLifecycleOf] = useState<Person | null>(null)
+  const [stageFilter, setStageFilter] = useState('')
 
   const canCreate = can('employee:create')
   const canUpdate = can('employee:update')
   const canDelete = can('employee:delete')
+  // Server requires both for stage/checklist writes (employee role has update only).
+  const canManageLifecycle = canUpdate && can('employee:manage')
 
   const list: Person[] = (employees ?? []).filter((p) => {
+    if (stageFilter && (p.lifecycleStage ?? 'none') !== stageFilter) return false
     if (!search.trim()) return true
     const hay = [p.name, p.email, p.userCode].filter(Boolean).join(' ').toLowerCase()
     return hay.includes(search.toLowerCase().trim())
   })
+
+  const exportSubtitle = [
+    stageFilter ? `Stage: ${stageLabel(stageFilter)}` : '',
+    search.trim() ? `Search: "${search.trim()}"` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const handleDelete = async () => {
     if (!confirmDelete) return
@@ -183,23 +237,48 @@ export default function EmployeesPage() {
         title="Employees"
         subtitle="People working across your organization"
         actions={
-          canCreate ? (
-            <Button onClick={() => setShowCreate(true)}>
-              <Plus size={16} /> Add employee
-            </Button>
-          ) : undefined
+          <div className="flex gap-2">
+            <ExportMenu
+              title="Employees"
+              subtitle={exportSubtitle || undefined}
+              columns={EXPORT_COLUMNS}
+              rows={list}
+            />
+            {canCreate && (
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus size={16} /> Add employee
+              </Button>
+            )}
+          </div>
         }
       />
 
       {(employees?.length ?? 0) > 0 && (
-        <div className="relative max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, email or code…"
-            className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm outline-none transition focus:border-black focus:bg-white"
-          />
+        <div className="flex flex-wrap gap-3">
+          <div className="relative w-full max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, email or code…"
+              className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm outline-none transition focus:border-black focus:bg-white"
+            />
+          </div>
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            className="h-10 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm outline-none transition focus:border-black focus:bg-white"
+            aria-label="Filter by stage"
+          >
+            <option value="">All stages</option>
+            {LIFECYCLE_STAGES.map((s) => (
+              <option key={s} value={s}>
+                {stageLabel(s)}
+              </option>
+            ))}
+            <option value="inactive">{stageLabel('inactive')}</option>
+            <option value="none">{stageLabel('none')}</option>
+          </select>
         </div>
       )}
 
@@ -217,7 +296,7 @@ export default function EmployeesPage() {
         <EmptyState
           icon={<Search size={48} />}
           title="No matching employees"
-          hint="Try a different search term."
+          hint="Try a different search term or stage."
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
@@ -227,14 +306,14 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3 font-medium">Employee</th>
                 <th className="px-4 py-3 font-medium">Code</th>
                 <th className="px-4 py-3 font-medium">Organization</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                {(canUpdate || canDelete) && <th className="px-4 py-3 font-medium">Actions</th>}
+                <th className="px-4 py-3 font-medium">Stage</th>
+                <th className="px-4 py-3 font-medium">Account</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {list.map((u) => {
-                const orgName =
-                  typeof u.instituteId === 'object' ? u.instituteId?.name ?? '—' : 'Platform'
+                const orgName = orgNameOf(u)
                 return (
                   <tr key={u.publicId ?? u._id} className="border-b border-gray-50 transition hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -251,13 +330,22 @@ export default function EmployeesPage() {
                     <td className="px-4 py-3 text-xs text-gray-500">{u.userCode ?? '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{orgName}</td>
                     <td className="px-4 py-3">
+                      <StageBadge stage={u.lifecycleStage ?? 'none'} />
+                    </td>
+                    <td className="px-4 py-3">
                       <Badge color={u.status === 'inactive' ? 'red' : 'green'}>
                         {u.status ?? 'active'}
                       </Badge>
                     </td>
-                    {(canUpdate || canDelete) && (
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => setLifecycleOf(u)}
+                            className="rounded-lg border border-gray-200 p-1.5 text-gray-500 transition hover:border-black hover:text-black"
+                            title="Lifecycle stage and checklist"
+                          >
+                            <ListChecks size={14} />
+                          </button>
                           {canUpdate && (
                             <button
                               onClick={() => setEditing(u)}
@@ -278,7 +366,6 @@ export default function EmployeesPage() {
                           )}
                         </div>
                       </td>
-                    )}
                   </tr>
                 )
               })}
@@ -288,7 +375,29 @@ export default function EmployeesPage() {
       )}
 
       {showCreate && <CreateEmployeeModal open={showCreate} onClose={() => setShowCreate(false)} />}
-      {editing && <EditEmployeeModal person={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditEmployeeModal
+          person={editing}
+          onClose={() => setEditing(null)}
+          onOpenLifecycle={() => {
+            setLifecycleOf(editing)
+            setEditing(null)
+          }}
+        />
+      )}
+      {lifecycleOf && (
+        <Modal
+          open
+          onClose={() => setLifecycleOf(null)}
+          title={`Lifecycle · ${lifecycleOf.name}`}
+          size="lg"
+        >
+          <EmployeeLifecyclePanel
+            publicId={lifecycleOf.publicId ?? lifecycleOf._id}
+            canManage={canManageLifecycle}
+          />
+        </Modal>
+      )}
       {confirmDelete && (
         <Modal open onClose={() => setConfirmDelete(null)} title="Delete employee?" size="sm">
           <div className="space-y-4">

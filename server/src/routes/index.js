@@ -55,6 +55,11 @@ import messageRoutes, {
 } from "./messageRoutes.js";
 import liveSessionRoutes from "./liveSessionRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
+import publicRoutes from "./publicRoutes.js";
+import crmActivityRoutes, {
+  taskRouter as crmTaskRouter,
+  noteRouter as crmNoteRouter,
+} from "./crmActivityRoutes.js";
 
 const router = express.Router();
 
@@ -95,6 +100,9 @@ const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
   pipelines: "crm",
   contacts: "crm",
   customers: "crm",
+  "crm-activities": "crm",
+  "crm-tasks": "crm",
+  "crm-notes": "crm",
   tickets: "support",
   announcements: "communication",
   events: "communication",
@@ -125,6 +133,15 @@ router.use((req, res, next) => {
 
   next();
 });
+
+// ─────────────────────────────────────────────
+// PUBLIC (unauthenticated, rate-limited; e.g. certificate verification)
+// ─────────────────────────────────────────────
+
+router.use(
+  "/public",
+  publicRoutes
+);
 
 // ─────────────────────────────────────────────
 // AUTHENTICATION
@@ -398,6 +415,25 @@ router.use(
 router.use(
   "/notifications",
   notificationRoutes
+);
+
+// ─────────────────────────────────────────────
+// CRM ACTIVITIES / TASKS / NOTES
+// ─────────────────────────────────────────────
+
+router.use(
+  "/crm-activities",
+  crmActivityRoutes
+);
+
+router.use(
+  "/crm-tasks",
+  crmTaskRouter
+);
+
+router.use(
+  "/crm-notes",
+  crmNoteRouter
 );
 
 // ─────────────────────────────────────────────

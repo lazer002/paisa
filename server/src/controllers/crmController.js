@@ -4,7 +4,12 @@
 // Leads convert into Deals; Deals move through the
 // pipeline stages. Tenant-scoped throughout.
 
-import { Lead } from "../models/Lead.js";
+import {
+  Lead,
+  LEAD_SOURCES,
+  LEAD_PRIORITIES,
+} from "../models/Lead.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 import { Deal } from "../models/Deal.js";
 import { Pipeline } from "../models/Pipeline.js";
 
@@ -54,19 +59,65 @@ const sendForbiddenDirect = () => {
    LEADS
 ========================================================= */
 
+// The client speaks { company, email, phone, estimatedValue };
+// the Lead model stores companyName, top-level email/phone,
+// a required fullName and the value as qualification.budget.max.
+const LEAD_SOURCE_ALIASES = { manual: "other" };
+const LEAD_PRIORITY_ALIASES = { medium: "normal" };
+
+const leadFields = (body, current = null) => {
+  const fields = {};
+
+  for (const key of ["firstName", "lastName", "status", "notes"]) {
+    if (body[key] !== undefined) fields[key] = body[key] || null;
+  }
+
+  if (body.company !== undefined) {
+    fields.companyName = body.company || null;
+  }
+
+  if (body.email !== undefined) fields.email = body.email || null;
+  if (body.phone !== undefined) fields.phone = body.phone || null;
+
+  if (body.source !== undefined) {
+    const source = LEAD_SOURCE_ALIASES[body.source] ?? body.source;
+    fields.source = LEAD_SOURCES.includes(source) ? source : "other";
+  }
+
+  if (body.priority !== undefined) {
+    const priority = LEAD_PRIORITY_ALIASES[body.priority] ?? body.priority;
+    fields.priority = LEAD_PRIORITIES.includes(priority) ? priority : "normal";
+  }
+
+  if (body.estimatedValue !== undefined) {
+    fields["qualification.budget.max"] =
+      Math.max(Number(body.estimatedValue) || 0, 0);
+  }
+
+  const firstName = fields.firstName !== undefined ? fields.firstName : current?.firstName;
+  const lastName = fields.lastName !== undefined ? fields.lastName : current?.lastName;
+  const companyName = fields.companyName !== undefined ? fields.companyName : current?.companyName;
+  const fullName = [firstName, lastName].filter(Boolean).join(" ") || companyName;
+
+  if (fullName) fields.fullName = fullName;
+
+  return fields;
+};
+
+const leadView = (lead) => {
+  const json = lead.toJSON ? lead.toJSON() : lead;
+
+  return {
+    ...json,
+    company: json.companyName ?? null,
+    contact: { email: json.email ?? null, phone: json.phone ?? null },
+    estimatedValue: json.qualification?.budget?.max ?? 0,
+  };
+};
+
 export const createLead = asyncHandler(
   async (req, res) => {
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      company,
-      source,
-      priority,
-      estimatedValue,
-      notes,
-    } = req.body;
+    const { firstName, lastName, company } = req.body;
 
     if (!firstName && !lastName && !company) {
       return sendError(
@@ -76,34 +127,31 @@ export const createLead = asyncHandler(
       );
     }
 
+    const fields = leadFields({
+      source: "other",
+      priority: "normal",
+      ...req.body,
+    });
+
+    const { "qualification.budget.max": budgetMax, ...rest } = fields;
+
     const lead = await Lead.create({
+      ...rest,
+
+      ...(budgetMax !== undefined
+        ? { qualification: { budget: { max: budgetMax } } }
+        : {}),
+
       instituteId: req.user.instituteId,
 
       createdBy: req.user._id,
-
-      firstName: firstName || null,
-      lastName: lastName || null,
-      company: company || null,
-
-      contact: {
-        email: email || null,
-        phone: phone || null,
-      },
-
-      source: source || "manual",
-      priority: priority || "medium",
-
-      estimatedValue:
-        Number(estimatedValue) || 0,
-
-      notes: notes || null,
 
       status: "new",
     });
 
     return sendCreated(res, {
       message: "Lead created",
-      data: lead,
+      data: leadView(lead),
     });
   }
 );
@@ -120,14 +168,15 @@ export const getLeads = asyncHandler(async (req, res) => {
 
   if (search) {
     const regex = {
-      $regex: search,
+      $regex: escapeRegex(search),
       $options: "i",
     };
 
     query.$or = [
-      { firstName: regex },
-      { lastName: regex },
-      { company: regex },
+      { fullName: regex },
+      { companyName: regex },
+      { email: regex },
+      { phone: regex },
     ];
   }
 
@@ -137,7 +186,7 @@ export const getLeads = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Leads fetched",
-    data: leads,
+    data: leads.map(leadView),
   });
 });
 
@@ -153,7 +202,7 @@ export const getLead = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Lead fetched",
-    data: lead,
+    data: leadView(lead),
   });
 });
 
@@ -168,42 +217,15 @@ export const updateLead = asyncHandler(async (req, res) => {
 
   assertTenant(req, lead);
 
-  const allowed = [
-    "firstName",
-    "lastName",
-    "company",
-    "source",
-    "priority",
-    "status",
-    "estimatedValue",
-    "notes",
-  ];
-
-  const updates = {};
-
-  for (const field of allowed) {
-    if (req.body[field] !== undefined) {
-      updates[field] = req.body[field];
-    }
-  }
-
-  if (req.body.email !== undefined) {
-    updates["contact.email"] = req.body.email;
-  }
-
-  if (req.body.phone !== undefined) {
-    updates["contact.phone"] = req.body.phone;
-  }
-
   const updated = await Lead.findOneAndUpdate(
     { publicId: req.params.publicId },
-    updates,
+    leadFields(req.body, lead),
     { new: true, runValidators: true }
   );
 
   return sendSuccess(res, {
     message: "Lead updated",
-    data: updated,
+    data: leadView(updated),
   });
 });
 

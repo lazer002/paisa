@@ -4,6 +4,7 @@ import AuthGuard from '@/components/auth/AuthGuard'
 import RoleGuard from '@/components/auth/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import VerifyCertificatePage from '@/pages/VerifyCertificatePage'
 import DashboardLayout from '@/app/layouts/DashboardLayout'
 
 import DashboardHomePage from '@/pages/dashboard/DashboardHomePage'
@@ -46,6 +47,9 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        {/* Public certificate verification: outside AuthGuard on purpose. */}
+        <Route path="/verify" element={<VerifyCertificatePage />} />
+        <Route path="/verify/:code" element={<VerifyCertificatePage />} />
 
         <Route element={<AuthGuard />}>
           <Route element={<RoleGuard />}>

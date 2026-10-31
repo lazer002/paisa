@@ -10,6 +10,10 @@ import {
   updateTicket,
   deleteTicket,
   addTicketMessage,
+  getTicketTemplates,
+  createTicketTemplate,
+  updateTicketTemplate,
+  deleteTicketTemplate,
 } from "../controllers/ticketController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -24,6 +28,32 @@ router.get(
   "/",
   authorize({ anyPermissions: ["ticket:read"] }),
   getTickets
+);
+
+// Reply templates (canned responses). Declared before "/:publicId";
+// the controller limits reads to staff and writes to admin/support.
+router.get(
+  "/templates",
+  authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  getTicketTemplates
+);
+
+router.post(
+  "/templates",
+  authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  createTicketTemplate
+);
+
+router.put(
+  "/templates/:templateId",
+  authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  updateTicketTemplate
+);
+
+router.delete(
+  "/templates/:templateId",
+  authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  deleteTicketTemplate
 );
 
 router.get(

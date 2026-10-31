@@ -14,13 +14,13 @@ const ALLOWANCE_FIELDS = [
   "other",
 ];
 
+// Money fields only: deductions.lopDays is a day count and is never summed.
 const DEDUCTION_FIELDS = [
   "pf",
   "esi",
   "tax",
   "professionalTax",
   "loanRecovery",
-  "lopDays",
   "lopAmount",
   "other",
 ];
@@ -338,6 +338,30 @@ publicId: {
       type: String,
       trim: true,
       maxlength: 500,
+      default: null,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* GENERATION                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    // "manual" = entered by HR; "generated" = computed by POST /payroll/generate.
+    // Re-running generation only overwrites generated, unpaid, unfinalized rows.
+    source: {
+      type: String,
+      enum: ["manual", "generated"],
+      default: "manual",
+    },
+
+    salaryStructureId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SalaryStructure",
+      default: null,
+    },
+
+    // Day breakdown, rates and earning/deduction lines used for the payslip.
+    calculation: {
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
 

@@ -16,6 +16,8 @@ import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import StatCard from '@/components/ui/StatCard'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { fmtDateTime, type ExportColumn } from '@/lib/export'
 
 type Stat = {
   label: string
@@ -23,6 +25,17 @@ type Stat = {
   icon: typeof Users
   color: string
 }
+
+const REPORT_EXPORT_COLUMNS: ExportColumn<Stat>[] = [
+  { header: 'Metric', value: (s) => s.label.replace(' (₹)', ' (INR)') },
+  {
+    header: 'Value',
+    value: (s) =>
+      typeof s.value === 'number'
+        ? s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+        : s.value ?? '',
+  },
+]
 
 /**
  * One variant per role that the Reports nav entry is granted to
@@ -128,16 +141,32 @@ export default function ReportsPage() {
 
   const { isLoading, isError, refetch, data } = query
 
+  // Principal reads the same organization stats as admin.
+  const statsFor = stats[role === 'principal' ? 'admin' : role ?? ''] ?? (() => [])
+  const shown: Stat[] = data ? statsFor(data as unknown as Record<string, number>) : []
+
   return (
     <div className="space-y-6">
-      <PageHeader title={h.title} subtitle={h.subtitle} />
+      <PageHeader
+        title={h.title}
+        subtitle={h.subtitle}
+        actions={
+          <ExportMenu
+            title={h.title}
+            subtitle={`${h.subtitle} · as of ${fmtDateTime(new Date())}`}
+            columns={REPORT_EXPORT_COLUMNS}
+            rows={shown}
+            disabled={!data}
+          />
+        }
+      />
       {isLoading ? (
         <LoadingGrid cards={6} height="h-32" />
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
       ) : data ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(stats[role ?? ''] ?? (() => []))(data as unknown as Record<string, number>).map((s) => (
+          {shown.map((s) => (
             <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} color={s.color} />
           ))}
         </div>

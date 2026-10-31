@@ -427,12 +427,13 @@ publicId: {
       default: null,
     },
 
+    // No default: the text index treats `language` as its language
+    // override, and MongoDB rejects inserts where it is null.
     language: {
       type: String,
       trim: true,
       lowercase: true,
       maxlength: 20,
-      default: null,
     },
 
     /* ====================================================================== */

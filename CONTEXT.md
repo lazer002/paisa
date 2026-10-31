@@ -54,10 +54,20 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
   - [x] Platform: super_admin org list + create (shows one-time admin temp password) + delete (soft); user delete
     (= deactivate) for super_admin/admin (`components/platform-admin/`).
   - [x] Ticket delete, salary-structure edit, review/certificate delete.
-- **Wave 3: features with no outside service**: CRM activities/tasks/notes · leave balances + policies ·
-  payroll calculation from salary structure + attendance + leave/LOP, payslip PDF · ticket assignment/SLA/internal
-  notes/templates · certificate print + public verification · CSV/PDF export for reports and lists (H5) · employee
-  lifecycle stages · richer demo seed · Joi validation (H3) · tenant-isolation tests (H2) · finish H1.
+- **Wave 3: features with no outside service** 🔄 part 1 committed 2026-10-31 (see §12):
+  - [x] CRM activities/tasks/notes (`/api/crm-activities|crm-tasks|crm-notes`, Tasks tab + lead/deal timeline).
+  - [x] Leave policies + balances (`LeavePolicy`, `LeaveBalance`, `services/leaveBalanceService.js`), half-day,
+    overlap check; payroll generate/preview from assigned salary structure + attendance + leave
+    (`services/payrollCalculator.js`), payslip print, salary-structure assignment per employee.
+  - [x] Ticket SLA (`TICKET_SLA_HOURS`, `slaState`), first response time, internal notes, reply templates
+    (`TicketTemplate`); certificate print + public `GET /api/public/certificates/:code` + `/verify/:code` page.
+  - [x] CSV / print-PDF export (`lib/export`, `ExportMenu`, gated by `report:export`) on Reports, Users, Students,
+    Employees, Attendance, Invoices, Audit log (H5); employee lifecycle stages + history + checklists.
+  - [ ] Part 2: Joi validation (H3) · tenant-isolation tests (H2) · finish H1 · richer demo seed.
+  - Gaps found: teacher/counselor/support get payroll generated but lack `payroll:read` + nav to see their own
+    payslips; mid-month joiners not prorated; formula salary components count as 0; `models/CRMNote.js` is a copy
+    of CRMTask (notes are stored as `CRMActivity` type `note`) — delete it; counselors may delete only their own
+    CRM tasks/activities/notes (delete routes accept `:create` holders, controller limits to creator).
 - **Wave 4: integrations**:
   - [x] Payments module (committed separately 2026-10-29, verified live; see §12): Payment model, manual payments with receipts,
     refunds, Razorpay order/verify/webhook, client Pay online + payment history + printable receipts.
@@ -465,13 +475,26 @@ Cross-role defects (fix once, helps many roles):
 - [~] H2. (partly done 2026-10-29: `server/test/` has 17 pure-function tests: geo, crudHelpers, qr hashCode, permission-matrix invariants; no DB/integration tests, no client tests) Tests: server `node --test` for auth/tenant isolation first, then client.
 - [ ] H3. Joi validators for write routes (G5).
 - [x] H4. (done 2026-10-29, dry-run verified only) Working seed script.
-- [ ] H5. Verify `report:export` flow.
+- [x] H5. (done 2026-10-31: client-side CSV + print-PDF via `ExportMenu`, gated by `report:export`) Verify `report:export` flow.
 
 Done (from the 2026-10-25 backlog, in commit 60cb432): B1 parent access to classes/
 assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation (leaves for
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-10-31 — Wave 3 part 1.** Four parallel agents (CRM activities · leave + payroll · tickets + certificates ·
+  exports + employee lifecycle); a usage limit and a session restart interrupted them, all resumed and finished.
+  Fixes found on the way: every ticket reply 500ed (`TicketMessage.language` defaulted to null, which MongoDB
+  rejects as the text index's language override — default removed); `POST /leads` always failed (required
+  `fullName` never set, invalid `medium`/`manual` enum defaults, and the client's `company`/`contact`/
+  `estimatedValue` didn't exist on the model) — `crmController` now maps fields both ways and escapes search;
+  leave cancel 500; payroll subtracted LOP days as money; three imports used `models/Organization.js` (file is
+  lowercase, would break on Linux). Verified live: e2e:smoke 171/171, e2e:flows 42/42, leads 9/9, CRM 29/29,
+  leave/payroll 45/45, lifecycle 20/20, tickets/certificates 21/21, B10/O1/T1 16/16; 22/22 unit tests, client
+  lint + build. Environment: the nvm default node flipped back to v12 after the restart (owner then switched to
+  v22); the dev server was started with `nodemon --exec <v22 node.exe>` from PowerShell. NOT clicked through in a
+  browser.
 
 - **2026-10-29 (PM 2) — B10, O1, T1.** Study materials scoped for students/parents (`visibleClassIdsFor`); org
   list count/deleted view/restore endpoint + UI, detail page by id; ticket assignees endpoint + picker (populate now

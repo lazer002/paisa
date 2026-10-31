@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, LifeBuoy, Send, Trash2 } from 'lucide-react'
+import { Plus, LifeBuoy, Send, Trash2, FileText, Lock } from 'lucide-react'
 
 import {
   useGetTicketsQuery,
@@ -9,8 +9,12 @@ import {
   useAddTicketMessageMutation,
   useDeleteTicketMutation,
   useGetTicketAssigneesQuery,
+  useGetTicketTemplatesQuery,
   type SupportTicket,
+  type TicketMessageT,
 } from '@/features/platform/platformApi'
+import SlaBadge from '@/components/tickets/SlaBadge'
+import TicketTemplatesModal from '@/components/tickets/TicketTemplatesModal'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import { usePermission } from '@/lib/auth/usePermission'
@@ -24,6 +28,10 @@ import {
 const STAFF_ROLES = ['super_admin', 'admin', 'hr', 'support']
 // ticketController.deleteTicket also requires one of these roles on top of ticket:delete
 const DELETE_ROLES = ['super_admin', 'admin']
+// ticketController: staff read reply templates, these roles manage them
+const TEMPLATE_MANAGER_ROLES = ['super_admin', 'admin', 'support']
+
+const isInternalMessage = (m: TicketMessageT) => m.type === 'internal_note' || m.isInternal === true
 
 export default function TicketsPage() {
   const user = useAppSelector((s) => s.auth.user)
@@ -31,17 +39,29 @@ export default function TicketsPage() {
   const { can } = usePermission()
   const canDelete = can('ticket:delete') && DELETE_ROLES.includes(user?.role ?? '')
   const canAssign = isStaff && can('ticket:update')
+  const canUseTemplates = isStaff && (can('ticket:update') || can('ticket:manage'))
+  const canManageTemplates = canUseTemplates && TEMPLATE_MANAGER_ROLES.includes(user?.role ?? '')
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [overdueOnly, setOverdueOnly] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
   const [openTicketId, setOpenTicketId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
+  const [internalNote, setInternalNote] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
-  const { data: tickets, isLoading, isError, refetch } = useGetTicketsQuery()
+  const { data: tickets, isLoading, isError, refetch } = useGetTicketsQuery(overdueOnly ? { overdue: true } : undefined)
   const { data: ticketDetail } = useGetTicketQuery(openTicketId!, { skip: !openTicketId })
   const { data: assignees } = useGetTicketAssigneesQuery(openTicketId!, { skip: !openTicketId || !canAssign })
+  const { data: templates } = useGetTicketTemplatesQuery(undefined, { skip: !openTicketId || !canUseTemplates })
+
+  const insertTemplate = (templateId: string) => {
+    const t = (templates ?? []).find((x) => rid(x) === templateId)
+    if (!t) return
+    setReply((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')}\n\n${t.body}` : t.body))
+  }
 
   const [createTicket] = useCreateTicketMutation()
   const [updateTicket] = useUpdateTicketMutation()
@@ -73,8 +93,10 @@ export default function TicketsPage() {
   const sendReply = async () => {
     if (!reply.trim() || !openTicketId) return
     try {
-      await addMessage({ id: openTicketId, body: reply.trim() }).unwrap()
+      await addMessage({ id: openTicketId, body: reply.trim(), isInternal: isStaff && internalNote }).unwrap()
       setReply('')
+      if (internalNote) setToast({ msg: 'Internal note added', tone: 'success' })
+      setInternalNote(false)
     } catch {
       setToast({ msg: 'Failed to send reply', tone: 'critical' })
     }
@@ -138,6 +160,9 @@ export default function TicketsPage() {
       : []),
     { key: 'priority', header: 'Priority', render: (t) => <StatusBadge status={t.priority} /> },
     { key: 'status', header: 'Status', render: (t) => <StatusBadge status={t.status} /> },
+    ...(isStaff
+      ? [{ key: 'sla', header: 'SLA', render: (t: SupportTicket) => <SlaBadge sla={t.slaState} compact /> }]
+      : []),
     {
       key: 'actions',
       header: '',
@@ -180,7 +205,16 @@ export default function TicketsPage() {
       <PageHeader
         title={isStaff ? 'Support Tickets' : 'My Tickets'}
         subtitle={isStaff ? 'Respond to and resolve organization requests' : 'Get help from your organization'}
-        actions={<Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Ticket</Button>}
+        actions={
+          <div className="flex gap-2">
+            {canManageTemplates && (
+              <Button variant="secondary" onClick={() => setShowTemplates(true)}>
+                <FileText size={15} /> Templates
+              </Button>
+            )}
+            <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Ticket</Button>
+          </div>
+        }
       />
 
       <Toolbar
@@ -188,18 +222,31 @@ export default function TicketsPage() {
         onSearch={setSearch}
         searchPlaceholder="Search tickets..."
         filters={
-          <SelectFilter
-            label="Status"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { value: '', label: 'All statuses' },
-              { value: 'open', label: 'Open' },
-              { value: 'in_progress', label: 'In progress' },
-              { value: 'resolved', label: 'Resolved' },
-              { value: 'closed', label: 'Closed' },
-            ]}
-          />
+          <>
+            <SelectFilter
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: '', label: 'All statuses' },
+                { value: 'open', label: 'Open' },
+                { value: 'in_progress', label: 'In progress' },
+                { value: 'resolved', label: 'Resolved' },
+                { value: 'closed', label: 'Closed' },
+              ]}
+            />
+            {isStaff && (
+              <SelectFilter
+                label="SLA"
+                value={overdueOnly ? 'overdue' : ''}
+                onChange={(v) => setOverdueOnly(v === 'overdue')}
+                options={[
+                  { value: '', label: 'Any SLA' },
+                  { value: 'overdue', label: 'Overdue only' },
+                ]}
+              />
+            )}
+          </>
         }
       />
 
@@ -254,6 +301,20 @@ export default function TicketsPage() {
               </span>
             </div>
 
+            {isStaff && ticketDetail.ticket.slaState && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <SlaBadge sla={ticketDetail.ticket.slaState} />
+                <span>Resolve by {new Date(ticketDetail.ticket.slaState.dueAt).toLocaleString()}</span>
+                <span>
+                  {ticketDetail.ticket.slaState.firstResponseAt
+                    ? `First response ${new Date(ticketDetail.ticket.slaState.firstResponseAt).toLocaleString()}`
+                    : ticketDetail.ticket.slaState.responseOverdue
+                      ? 'First response overdue'
+                      : `Respond by ${new Date(ticketDetail.ticket.slaState.responseDueAt).toLocaleString()}`}
+                </span>
+              </div>
+            )}
+
             <SectionCard title="Conversation" padded={false}>
               <div className="max-h-80 space-y-3 overflow-y-auto p-4">
                 {ticketDetail.messages.length === 0 && (
@@ -261,20 +322,25 @@ export default function TicketsPage() {
                 )}
                 {ticketDetail.messages.map((m) => {
                   const isMine = typeof m.authorId === 'object' && m.authorId?._id === user?._id
+                  const internal = isInternalMessage(m)
                   return (
                     <div key={m._id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                       <div
                         className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${
-                          m.isInternalNote
+                          internal
                             ? 'border border-amber-200 bg-amber-50 text-amber-800'
                             : isMine
                               ? 'bg-gray-900 text-white'
                               : 'bg-gray-100 text-gray-800'
                         }`}
                       >
-                        {m.isInternalNote && <p className="mb-0.5 text-[10px] font-semibold uppercase">Internal note</p>}
+                        {internal && (
+                          <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase">
+                            <Lock size={10} /> Internal note · staff only
+                          </p>
+                        )}
                         <p className="whitespace-pre-wrap">{m.body}</p>
-                        <p className={`mt-1 text-[10px] ${isMine ? 'text-white/60' : 'text-gray-400'}`}>
+                        <p className={`mt-1 text-[10px] ${isMine && !internal ? 'text-white/60' : 'text-gray-400'}`}>
                           {typeof m.authorId === 'object' ? m.authorId?.name : '—'} ·{' '}
                           {new Date(m.createdAt).toLocaleString()}
                         </p>
@@ -285,16 +351,42 @@ export default function TicketsPage() {
               </div>
             </SectionCard>
 
+            {isStaff && (
+              <div className="flex flex-wrap items-center gap-3">
+                {canUseTemplates && (templates ?? []).length > 0 && (
+                  <select
+                    aria-label="Insert reply template"
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs outline-none focus:border-gray-900"
+                    value=""
+                    onChange={(e) => insertTemplate(e.target.value)}
+                  >
+                    <option value="">Insert template…</option>
+                    {(templates ?? []).map((t) => (
+                      <option key={rid(t)} value={rid(t)}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
+                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={internalNote}
+                    onChange={(e) => setInternalNote(e.target.checked)}
+                  />
+                  <Lock size={12} /> Internal note (hidden from requester)
+                </label>
+              </div>
+            )}
+
             <div className="flex items-end gap-2">
               <textarea
-                className={inputCls}
-                rows={2}
+                className={`${inputCls} ${internalNote ? 'bg-amber-50' : ''}`}
+                rows={3}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
-                placeholder="Write a reply..."
+                placeholder={internalNote ? 'Write an internal note for staff...' : 'Write a reply...'}
               />
               <Button onClick={sendReply} disabled={!reply.trim()}>
-                <Send size={14} /> Send
+                <Send size={14} /> {internalNote ? 'Add note' : 'Send'}
               </Button>
             </div>
           </div>
@@ -333,6 +425,14 @@ export default function TicketsPage() {
           </Field>
         </div>
       </ModalShell>
+
+      {canManageTemplates && (
+        <TicketTemplatesModal
+          open={showTemplates}
+          onClose={() => setShowTemplates(false)}
+          onToast={(msg, tone) => setToast({ msg, tone })}
+        />
+      )}
 
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>

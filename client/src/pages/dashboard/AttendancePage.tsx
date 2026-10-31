@@ -21,6 +21,12 @@ import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { fmtDate, humanize, type ExportColumn } from '@/lib/export'
+
+const recordPerson = (r: AttendanceRecord) => (typeof r.userId === 'object' ? r.userId.name : '')
+const recordClass = (r: AttendanceRecord) =>
+  typeof r.classId === 'object' && r.classId ? r.classId.name : 'General'
 
 const STATUS_STYLE: Record<AttendanceStatus, string> = {
   present: 'bg-green-500 text-white',
@@ -37,6 +43,15 @@ function MarkPanel() {
   const [saved, setSaved] = useState(false)
 
   const people = (users ?? []).filter((u) => u.status !== 'inactive')
+
+  type SheetRow = (typeof people)[number]
+  const sheetColumns: ExportColumn<SheetRow>[] = [
+    { header: 'Name', value: (p) => p.name },
+    { header: 'Code / email', value: (p) => p.userCode ?? p.email },
+    { header: 'Role', value: (p) => humanize(p.role) },
+    { header: 'Date', value: () => fmtDate(date) },
+    { header: 'Status', value: (p) => humanize(records[rid(p)] ?? 'not marked') },
+  ]
 
   const setAll = (s: AttendanceStatus) => {
     const next: Record<string, AttendanceStatus> = {}
@@ -66,6 +81,13 @@ function MarkPanel() {
           />
         </div>
         <div className="flex gap-2">
+          <ExportMenu
+            title={`Attendance sheet ${date}`}
+            subtitle={`Date: ${fmtDate(date)}`}
+            note="Shows the marks currently selected on screen, saved or not."
+            columns={sheetColumns}
+            rows={people}
+          />
           <Button variant="secondary" size="sm" onClick={() => setAll('present')}>All Present</Button>
           <Button variant="secondary" size="sm" onClick={() => setAll('absent')}>All Absent</Button>
           <Button size="sm" onClick={handleSave} loading={isLoading} disabled={!Object.keys(records).length}>
@@ -132,8 +154,24 @@ function MyAttendancePanel({ isParent }: { isParent: boolean }) {
       }
     : data?.summary
 
+  const historyColumns: ExportColumn<AttendanceRecord>[] = [
+    { header: 'Date', value: (r) => fmtDate(r.date) },
+    ...(isParent ? [{ header: 'Child', value: (r: AttendanceRecord) => recordPerson(r) }] : []),
+    { header: 'Class', value: (r) => recordClass(r) },
+    { header: 'Status', value: (r) => humanize(r.status) },
+    { header: 'Notes', value: (r) => r.notes ?? '' },
+  ]
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportMenu
+          title="Attendance history"
+          subtitle={child ? `Child: ${child}` : undefined}
+          columns={historyColumns}
+          rows={records}
+        />
+      </div>
       {children.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {['', ...children].map((name) => (

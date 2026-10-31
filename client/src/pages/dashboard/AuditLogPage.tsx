@@ -4,8 +4,24 @@ import { useGetAuditLogsQuery, type AuditLogEntry } from '@/features/audit/audit
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import { DataTable, Toolbar, SelectFilter, StatusBadge, type Column } from '@/components/ui/kit'
+import ExportMenu from '@/components/ui/ExportMenu'
+import { fmtDateTime, humanize, type ExportColumn } from '@/lib/export'
 
-const PAGE_SIZE = 25
+// The API caps one request at 100 rows (auditController MAX_PAGE_SIZE).
+const PAGE_SIZES = [25, 50, 100]
+
+const EXPORT_COLUMNS: ExportColumn<AuditLogEntry>[] = [
+  { header: 'When', value: (l) => fmtDateTime(l.createdAt) },
+  { header: 'Actor', value: (l) => l.name ?? l.email ?? 'System' },
+  { header: 'Actor email', value: (l) => l.email ?? '' },
+  { header: 'Role', value: (l) => humanize(l.role) },
+  { header: 'Category', value: (l) => humanize(l.category) },
+  { header: 'Action', value: (l) => humanize(l.action) },
+  { header: 'Details', value: (l) => l.description ?? l.resourceType ?? '' },
+  { header: 'Method', value: (l) => l.request?.method ?? '' },
+  { header: 'Route', value: (l) => l.request?.route ?? '' },
+  { header: 'Result', value: (l) => l.request?.statusCode ?? '' },
+]
 
 const CATEGORIES = [
   'authentication', 'authorization', 'user_management', 'organization', 'education',
@@ -17,16 +33,17 @@ export default function AuditLogPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0])
 
   const { data, isLoading, isError, refetch } = useGetAuditLogsQuery({
     page,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     category,
     search,
   })
 
   const total = data?.total ?? 0
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pages = Math.max(1, Math.ceil(total / pageSize))
 
   const columns: Column<AuditLogEntry>[] = [
     {
@@ -63,7 +80,27 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Audit Log" subtitle="Who did what, and when, across your organization" />
+      <PageHeader
+        title="Audit Log"
+        subtitle="Who did what, and when, across your organization"
+        actions={
+          <ExportMenu
+            title="Audit log"
+            subtitle={
+              [
+                category ? `Category: ${humanize(category)}` : '',
+                search ? `Search: "${search}"` : '',
+                `Page ${page} of ${pages}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            }
+            note={`Exports the current page only (page ${page} of ${pages}, ${total} entries in total). Raise "Rows per page" to 100 to export more at once.`}
+            columns={EXPORT_COLUMNS}
+            rows={data?.items ?? []}
+          />
+        }
+      />
 
       <Toolbar
         search={search}
@@ -93,7 +130,19 @@ export default function AuditLogPage() {
         emptyHint="Actions taken in the system will be recorded here"
       />
 
-      <div className="flex items-center justify-end gap-2 text-sm text-gray-500">
+      <div className="flex flex-wrap items-center justify-end gap-2 text-sm text-gray-500">
+        <label className="flex items-center gap-1.5">
+          Rows per page
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}
+            className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
         <span>Page {page} of {pages} · {total} entries</span>
         <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
         <Button variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button>
