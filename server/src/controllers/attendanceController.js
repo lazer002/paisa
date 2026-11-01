@@ -31,10 +31,14 @@ export const markAttendance = asyncHandler(async (req, res) => {
 
   const instituteId = req.user.instituteId;
 
+  // Users and classes must belong to the marker's own organization.
+  const scope = { instituteId };
+
   // classId arrives as a publicId — resolve once for the batch.
   const resolvedClassId = classId
     ? await resolveRef(Class, classId, {
         label: "Class",
+        scope,
       })
     : null;
 
@@ -47,6 +51,7 @@ export const markAttendance = asyncHandler(async (req, res) => {
 
       userId: await resolveRef(User, record.userId, {
         label: "User",
+        scope,
       }),
     });
   }
@@ -89,11 +94,16 @@ export const getAttendance = asyncHandler(async (req, res) => {
     query.instituteId = req.user.instituteId;
   }
 
+  const refScope =
+    req.user.role === "super_admin"
+      ? {}
+      : { instituteId: req.user.instituteId };
+
   if (req.query.classId) {
     query.classId = await resolveRef(
       Class,
       req.query.classId,
-      { label: "Class" }
+      { label: "Class", scope: refScope }
     );
   }
 
@@ -101,7 +111,7 @@ export const getAttendance = asyncHandler(async (req, res) => {
     query.userId = await resolveRef(
       User,
       req.query.userId,
-      { label: "User" }
+      { label: "User", scope: refScope }
     );
   }
 

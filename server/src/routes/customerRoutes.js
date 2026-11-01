@@ -13,17 +13,26 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import { customerSchema } from "../validators/crmValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get("/", authorize({ anyPermissions: ["customer:read"] }), getCustomers);
 
-router.post("/", authorize({ anyPermissions: ["customer:create"] }), createCustomer);
+router.post(
+  "/",
+  authorize({ anyPermissions: ["customer:create"] }),
+  body(customerSchema),
+  createCustomer
+);
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["customer:update"] }),
+  body(customerSchema),
   updateCustomer
 );
 

@@ -14,6 +14,13 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createEventSchema,
+  updateEventSchema,
+} from "../validators/communicationValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -39,6 +46,7 @@ router.post(
   authorize({
     anyPermissions: ["notification:create"],
   }),
+  body(createEventSchema),
   createEvent
 );
 
@@ -47,6 +55,7 @@ router.put(
   authorize({
     anyPermissions: ["notification:update"],
   }),
+  body(updateEventSchema),
   updateEvent
 );
 

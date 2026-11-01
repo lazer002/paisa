@@ -91,8 +91,11 @@ export const createTest = asyncHandler(async (req, res) => {
     return sendError(res, 400, "Title is required");
   }
 
+  // Classes and questions must come from this organization.
+  const orgScope = { instituteId: req.user.instituteId };
+
   const resolvedClassId = classId
-    ? await resolveRef(Class, classId, { label: "Class" })
+    ? await resolveRef(Class, classId, { label: "Class", scope: orgScope })
     : null;
 
   // Teachers may only attach their own classes.
@@ -119,6 +122,7 @@ export const createTest = asyncHandler(async (req, res) => {
     resolvedQuestionIds.push(
       await resolveRef(Question, questionId, {
         label: "Question",
+        scope: orgScope,
       })
     );
   }
@@ -137,16 +141,14 @@ export const createTest = asyncHandler(async (req, res) => {
     type: type || "quiz",
     mode: mode || "online",
 
-    schedule: {
-      startsAt: startsAt || null,
-      endsAt: endsAt || null,
+    // Request fields map onto the model's scheduling/grading names.
+    scheduling: {
+      scheduledStartAt: startsAt || null,
+      scheduledEndAt: endsAt || null,
       durationMinutes: durationMinutes || 30,
     },
 
-    grading: {
-      totalPoints: totalPoints || 100,
-      passingScore: passingScore || 40,
-    },
+    grading: gradingFor(totalPoints || 100, passingScore ?? 40),
 
     questionIds: resolvedQuestionIds,
 
@@ -161,6 +163,23 @@ export const createTest = asyncHandler(async (req, res) => {
 
 const nextForbidden = (res) =>
   sendForbidden(res, "Access denied");
+
+// Pass/fail is judged on percentage (grading.passingPercentage, default 40).
+const hasPassed = (test, percentage) =>
+  percentage >= (test?.grading?.passingPercentage ?? 40);
+
+// Clients send `passingScore` as a percentage; the model also keeps the
+// matching raw score, which must not exceed maxScore.
+const gradingFor = (maxScore, passingPercent) => {
+  const max = Math.max(Number(maxScore) || 100, 1);
+  const percent = Math.min(Math.max(Number(passingPercent) || 0, 0), 100);
+
+  return {
+    maxScore: max,
+    passingPercentage: percent,
+    passingScore: Math.round((max * percent) / 100),
+  };
+};
 
 export const getTests = asyncHandler(async (req, res) => {
   const { status, classId, search } = req.query;
@@ -199,11 +218,18 @@ export const getTests = asyncHandler(async (req, res) => {
   }
 
   if (classId) {
-    query.classId = await resolveRef(
+    const requested = await resolveRef(
       Class,
       classId,
-      { label: "Class" }
+      { label: "Class", scope: scoped(req) }
     );
+
+    // Students/parents keep their visible-classes restriction.
+    const visible = query.classId?.$in;
+    query.classId =
+      visible && !visible.some((id) => String(id) === String(requested))
+        ? { $in: [] }
+        : requested;
   }
 
   if (search) {
@@ -324,33 +350,38 @@ export const updateTest = asyncHandler(async (req, res) => {
   }
 
   if (req.body.durationMinutes !== undefined) {
-    updates["schedule.durationMinutes"] =
+    updates["scheduling.durationMinutes"] =
       req.body.durationMinutes;
   }
 
   if (req.body.startsAt !== undefined) {
-    updates["schedule.startsAt"] =
+    updates["scheduling.scheduledStartAt"] =
       req.body.startsAt;
   }
 
   if (req.body.endsAt !== undefined) {
-    updates["schedule.endsAt"] = req.body.endsAt;
+    updates["scheduling.scheduledEndAt"] = req.body.endsAt;
   }
 
-  if (req.body.totalPoints !== undefined) {
-    updates["grading.totalPoints"] =
-      req.body.totalPoints;
-  }
+  if (
+    req.body.totalPoints !== undefined ||
+    req.body.passingScore !== undefined
+  ) {
+    const grading = gradingFor(
+      req.body.totalPoints ?? test.grading?.maxScore,
+      req.body.passingScore ?? test.grading?.passingPercentage
+    );
 
-  if (req.body.passingScore !== undefined) {
-    updates["grading.passingScore"] =
-      req.body.passingScore;
+    updates["grading.maxScore"] = grading.maxScore;
+    updates["grading.passingPercentage"] = grading.passingPercentage;
+    updates["grading.passingScore"] = grading.passingScore;
   }
 
   if (req.body.classId !== undefined) {
     updates.classId = req.body.classId
       ? await resolveRef(Class, req.body.classId, {
           label: "Class",
+          scope: { instituteId: test.instituteId },
         })
       : null;
   }
@@ -362,6 +393,7 @@ export const updateTest = asyncHandler(async (req, res) => {
       resolved.push(
         await resolveRef(Question, questionId, {
           label: "Question",
+          scope: { instituteId: test.instituteId },
         })
       );
     }
@@ -806,7 +838,7 @@ export const getAttempts = asyncHandler(async (req, res) => {
     query.testId = await resolveRef(
       Test,
       testId,
-      { label: "Test" }
+      { label: "Test", scope: scoped(req) }
     );
   }
 
@@ -815,7 +847,7 @@ export const getAttempts = asyncHandler(async (req, res) => {
   }
 
   const attempts = await TestAttempt.find(query)
-    .populate("testId", "title publicId grading.status grading.totalPoints")
+    .populate("testId", "title publicId grading.status grading.maxScore grading.passingScore")
     .populate("studentId", "name email userCode")
     .sort({ createdAt: -1 });
 
@@ -931,10 +963,7 @@ export const submitAttempt = asyncHandler(async (req, res) => {
   attempt.percentage = total
     ? Math.round((earned / total) * 100)
     : 0;
-  attempt.passed =
-    test.grading?.passingScore !== undefined
-      ? attempt.percentage >= test.grading.passingScore
-      : null;
+  attempt.passed = hasPassed(test, attempt.percentage);
 
   attempt.submittedAt = new Date();
 
@@ -965,24 +994,25 @@ export const gradeAttempt = asyncHandler(async (req, res) => {
     throw forbidden();
   }
 
-  if (req.user.role === "teacher") {
-    const gradedTest = await Test.findById(
-      attempt.testId
-    ).select("createdBy");
+  const gradedTest = await Test.findById(
+    attempt.testId
+  ).select("createdBy grading");
 
-    if (
-      String(gradedTest?.createdBy) !==
+  if (
+    req.user.role === "teacher" &&
+    String(gradedTest?.createdBy) !==
       String(req.user._id)
-    ) {
-      throw forbidden();
-    }
+  ) {
+    throw forbidden();
   }
 
   if (score !== undefined) {
-    attempt.score = score;
+    const max = attempt.maxScore ?? Number(score);
+    attempt.score = Math.min(Math.max(Number(score) || 0, 0), max);
     attempt.percentage = attempt.maxScore
-      ? Math.round((score / attempt.maxScore) * 100)
+      ? Math.round((attempt.score / attempt.maxScore) * 100)
       : attempt.percentage ?? 0;
+    attempt.passed = hasPassed(gradedTest, attempt.percentage);
   }
 
   if (feedback !== undefined) {

@@ -27,13 +27,6 @@ const APPROVER_PERMISSIONS = [
   "leave:manage",
 ];
 
-// Roles that can only see their own leaves
-const SELF_ONLY_ROLES = [
-  "employee",
-  "teacher",
-  "student",
-];
-
 const HALF_DAY_DURATIONS = [
   "half_day_morning",
   "half_day_evening",
@@ -229,13 +222,8 @@ export const getLeaves = asyncHandler(async (req, res) => {
       req.user.instituteId;
   }
 
-  // Self-only roles can only see
-  // their own leaves.
-  if (
-    SELF_ONLY_ROLES.includes(
-      req.user.role
-    )
-  ) {
+  // Anyone who can't approve leave sees only their own.
+  if (!isApprover(req.user)) {
     query.userId =
       req.user._id;
   } else {

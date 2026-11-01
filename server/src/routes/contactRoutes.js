@@ -13,17 +13,26 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import { contactSchema } from "../validators/crmValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get("/", authorize({ anyPermissions: ["contact:read"] }), getContacts);
 
-router.post("/", authorize({ anyPermissions: ["contact:create"] }), createContact);
+router.post(
+  "/",
+  authorize({ anyPermissions: ["contact:create"] }),
+  body(contactSchema),
+  createContact
+);
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["contact:update"] }),
+  body(contactSchema),
   updateContact
 );
 

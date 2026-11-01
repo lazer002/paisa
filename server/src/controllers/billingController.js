@@ -17,6 +17,8 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { getNextSequence } from "../utils/sequence.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -35,6 +37,54 @@ const scoped = (req, extra = {}) => {
     instituteId: req.user.instituteId,
     ...extra,
   };
+};
+
+// The client sends/reads `lineItems: [{ description, quantity, unitPrice }]`;
+// the model stores `items` (name + unitPrice required) and `subtotal`.
+const toModelItems = (lineItems) =>
+  lineItems.map((item) => {
+    const quantity = Number(item.quantity) || 1;
+    const unitPrice = Math.max(Number(item.unitPrice) || 0, 0);
+    const label = String(item.name || item.description || "Item").trim();
+
+    return {
+      name: label.slice(0, 500),
+      description: item.description || null,
+      quantity,
+      unitPrice,
+      grossAmount: quantity * unitPrice,
+      taxAmount: Number(item.taxAmount) || 0,
+    };
+  });
+
+const invoiceView = (invoice) => {
+  if (!invoice) return invoice;
+  const json = invoice.toJSON ? invoice.toJSON() : invoice;
+
+  return {
+    ...json,
+    lineItems: (json.items ?? []).map((item) => ({
+      description: item.description ?? item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    })),
+  };
+};
+
+// INV-2026-00001 style, unique per organization; skips numbers already used.
+const nextInvoiceNumber = async (instituteId) => {
+  const year = new Date().getFullYear();
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const seq = await getNextSequence(`invoice:${instituteId}:${year}`);
+    const number = `INV-${year}-${String(seq).padStart(5, "0")}`;
+
+    if (!(await Invoice.exists({ instituteId, invoiceNumber: number }))) {
+      return number;
+    }
+  }
+
+  return null;
 };
 
 // Mirrors the Invoice model enum (models/Payment.js).
@@ -74,32 +124,34 @@ export const createInvoice = asyncHandler(
       );
     }
 
+    // Billed people must belong to this organization.
+    const orgScope = { instituteId: req.user.instituteId };
+
     const [resolvedStudent, resolvedEmployee] =
       await Promise.all([
         studentId
           ? resolveRef(User, studentId, {
               label: "Student",
+              scope: orgScope,
             })
           : null,
         employeeId
           ? resolveRef(User, employeeId, {
               label: "Employee",
+              scope: orgScope,
             })
           : null,
       ]);
 
-    const subTotal = lineItems.reduce(
-      (sum, item) =>
-        sum +
-        (Number(item.quantity) || 1) *
-          (Number(item.unitPrice) || 0),
+    const items = toModelItems(lineItems);
+
+    const subTotal = items.reduce(
+      (sum, item) => sum + item.grossAmount,
       0
     );
 
-    const taxTotal = lineItems.reduce(
-      (sum, item) =>
-        sum +
-        (Number(item.taxAmount) || 0),
+    const taxTotal = items.reduce(
+      (sum, item) => sum + item.taxAmount,
       0
     );
 
@@ -118,9 +170,11 @@ export const createInvoice = asyncHandler(
 
       notes: notes || null,
 
-      lineItems,
+      invoiceNumber: await nextInvoiceNumber(req.user.instituteId),
 
-      subTotal,
+      items,
+
+      subtotal: subTotal,
 
       taxTotal,
 
@@ -133,7 +187,7 @@ export const createInvoice = asyncHandler(
 
     return sendCreated(res, {
       message: "Invoice created",
-      data: invoice,
+      data: invoiceView(invoice),
     });
   }
 );
@@ -163,7 +217,7 @@ export const getInvoices = asyncHandler(
 
     if (search) {
       query.invoiceNumber = {
-        $regex: search,
+        $regex: escapeRegex(search),
         $options: "i",
       };
     }
@@ -175,7 +229,7 @@ export const getInvoices = asyncHandler(
 
     return sendSuccess(res, {
       message: "Invoices fetched",
-      data: invoices,
+      data: invoices.map(invoiceView),
     });
   }
 );
@@ -208,7 +262,7 @@ export const getInvoice = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: "Invoice fetched",
-    data: invoice,
+    data: invoiceView(invoice),
   });
 });
 

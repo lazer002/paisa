@@ -26,6 +26,16 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import {
+  createActivitySchema,
+  updateActivitySchema,
+  createTaskSchema,
+  updateTaskSchema,
+  completeTaskSchema,
+  noteSchema,
+} from "../validators/crmValidator.js";
+
 const can = (...anyPermissions) => authorize({ anyPermissions });
 
 /* ─── Activities ─────────────────────────────── */
@@ -43,12 +53,14 @@ activityRouter.get(
 activityRouter.post(
   "/",
   can("crm_activity:create", "crm_activity:manage"),
+  body(createActivitySchema),
   createActivity
 );
 
 activityRouter.put(
   "/:publicId",
   can("crm_activity:update", "crm_activity:manage"),
+  body(updateActivitySchema),
   updateActivity
 );
 
@@ -73,18 +85,21 @@ taskRouter.get(
 taskRouter.post(
   "/",
   can("crm_task:create", "crm_task:manage"),
+  body(createTaskSchema),
   createTask
 );
 
 taskRouter.put(
   "/:publicId",
   can("crm_task:update", "crm_task:manage"),
+  body(updateTaskSchema),
   updateTask
 );
 
 taskRouter.patch(
   "/:publicId/complete",
   can("crm_task:update", "crm_task:manage"),
+  body(completeTaskSchema),
   completeTask
 );
 
@@ -109,12 +124,14 @@ noteRouter.get(
 noteRouter.post(
   "/",
   can("crm_note:create", "crm_note:manage"),
+  body(noteSchema),
   createNote
 );
 
 noteRouter.put(
   "/:publicId",
   can("crm_note:update", "crm_note:manage"),
+  body(noteSchema),
   updateNote
 );
 

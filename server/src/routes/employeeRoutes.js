@@ -15,75 +15,97 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import {
-  requireRole,
+  authorize,
   requirePermission,
 } from "../middleware/authorize.js";
+import { validateBody } from "../middleware/validate.js";
+
+import {
+  createEmployeeSchema,
+  updateEmployeeSchema,
+  changeEmployeeStageSchema,
+  updateEmployeeChecklistSchema,
+} from "../validators/employeeValidator.js";
 
 const router = express.Router();
 
 // All employee routes require authentication
 router.use(authenticate);
 
-// Lifecycle writes need employee:update AND employee:manage. The employee
-// role holds employee:update for its own profile, so update alone would let
-// staff move each other through stages; manage is admin/hr only.
-const canManageLifecycle = requirePermission(
+// The employee directory is for people-management roles: employee:read AND
+// hr:read (admin, principal, hr). employee:read alone also covers the
+// employee/accountant/support roles, whose access is self-service only.
+const canReadEmployees = authorize({
+  permissions: ["employee:read", "hr:read"],
+});
+
+// Writes need employee:update AND employee:manage. The employee role holds
+// employee:update for its own profile, so update alone would let staff edit
+// each other; manage is admin/hr only.
+const canManageEmployees = requirePermission(
   "employee:update",
   "employee:manage"
 );
 
-// Create employee
+// Create employee (employee:create — admin, hr)
 router.post(
   "/",
-  requireRole("super_admin", "admin", "hr"),
+  authorize({
+    anyPermissions: ["employee:create"],
+  }),
+  validateBody(createEmployeeSchema),
   createEmployee
 );
 
-// Get employees (employee:read — admin, principal, hr)
+// Get employees
 router.get(
   "/",
-  requireRole("super_admin", "admin", "principal", "hr"),
+  canReadEmployees,
   getEmployees
 );
 
 // Lifecycle stage, history and onboarding/exit checklist
 router.get(
   "/:publicId/lifecycle",
-  requireRole("super_admin", "admin", "principal", "hr"),
-  requirePermission("employee:read"),
+  canReadEmployees,
   getEmployeeLifecycle
 );
 
 router.post(
   "/:publicId/stage",
-  canManageLifecycle,
+  canManageEmployees,
+  validateBody(changeEmployeeStageSchema),
   changeEmployeeStage
 );
 
 router.put(
   "/:publicId/checklist",
-  canManageLifecycle,
+  canManageEmployees,
+  validateBody(updateEmployeeChecklistSchema),
   updateEmployeeChecklist
 );
 
 // Get one employee
 router.get(
   "/:publicId",
-  requireRole("super_admin", "admin", "principal", "hr"),
+  canReadEmployees,
   getEmployee
 );
 
-// Update employee (employee:update — admin, hr)
+// Update employee (admin, hr)
 router.put(
   "/:publicId",
-  requireRole("super_admin", "admin", "hr"),
+  canManageEmployees,
+  validateBody(updateEmployeeSchema),
   updateEmployee
 );
 
 // Delete employee (employee:delete — admin)
 router.delete(
   "/:publicId",
-  requireRole("super_admin", "admin"),
+  authorize({
+    anyPermissions: ["employee:delete"],
+  }),
   deleteEmployee
 );
 

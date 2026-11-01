@@ -13,10 +13,13 @@ import {
 import { getUserDetail } from "../controllers/userDetailController.js";
 
 import authenticate from "../middleware/authenticate.js";
+import { authorize } from "../middleware/authorize.js";
+import { validateBody } from "../middleware/validate.js";
+
 import {
-  requireRole,
-  authorize,
-} from "../middleware/authorize.js";
+  createUserSchema,
+  updateUserSchema,
+} from "../validators/userValidator.js";
 
 const router = express.Router();
 
@@ -24,15 +27,16 @@ router.use(authenticate);
 
 // ─────────────────────────────────────────────
 // CREATE USER
+// user:create (admin) or user:manage (principal). Which roles each actor
+// may create is enforced by CREATABLE_ROLES in the controller.
 // ─────────────────────────────────────────────
 
 router.post(
   "/",
-  requireRole(
-    "super_admin",
-    "admin",
-    "principal"
-  ),
+  authorize({
+    anyPermissions: ["user:create", "user:manage"],
+  }),
+  validateBody(createUserSchema),
   createUser
 );
 
@@ -84,6 +88,7 @@ router.put(
   authorize({
     anyPermissions: ["user:update"],
   }),
+  validateBody(updateUserSchema),
   updateUser
 );
 
@@ -94,10 +99,9 @@ router.put(
 
 router.delete(
   "/:publicId",
-  requireRole(
-    "super_admin",
-    "admin"
-  ),
+  authorize({
+    anyPermissions: ["user:delete"],
+  }),
   deleteUser
 );
 

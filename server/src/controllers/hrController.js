@@ -17,6 +17,16 @@ import {
 
 import { resolveRef } from "../utils/resolveRef.js";
 
+// resolveRef throws a 404 for unknown ids; keep client errors as they are.
+const sendFailure = (res, err, label) => {
+  if (err?.isOperational && err.statusCode < 500) {
+    return sendError(res, err.statusCode, err.message);
+  }
+
+  console.error(`${label} error:`, err);
+  return sendError(res, 500, "Server error");
+};
+
 // Create HR
 export const createHR = async (req, res) => {
   try {
@@ -190,8 +200,7 @@ export const getHR = async (req, res) => {
 
     sendSuccess(res, "HR fetched", hr);
   } catch (err) {
-    console.error("Get HR error:", err);
-    sendError(res, 500, "Server error");
+    sendFailure(res, err, "Get HR");
   }
 };
 
@@ -237,8 +246,7 @@ export const updateHR = async (req, res) => {
 
     sendSuccess(res, "HR updated", safe);
   } catch (err) {
-    console.error("Update HR error:", err);
-    sendError(res, 500, "Server error");
+    sendFailure(res, err, "Update HR");
   }
 };
 
@@ -266,8 +274,7 @@ export const deleteHR = async (req, res) => {
 
     sendSuccess(res, "HR deleted", null);
   } catch (err) {
-    console.error("Delete HR error:", err);
-    sendError(res, 500, "Server error");
+    sendFailure(res, err, "Delete HR");
   }
 };
 

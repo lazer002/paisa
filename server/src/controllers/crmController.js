@@ -326,7 +326,7 @@ export const getDeals = asyncHandler(async (req, res) => {
   }
 
   const deals = await Deal.find(query)
-    .populate("leadId", "firstName lastName company")
+    .populate("leadId", "publicId fullName firstName lastName companyName status")
     .sort({ createdAt: -1 });
 
   return sendSuccess(res, {

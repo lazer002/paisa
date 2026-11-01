@@ -15,9 +15,17 @@ import {
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import {
+  razorpayOrderSchema,
+  razorpayVerifySchema,
+  refundSchema,
+} from "../validators/billingValidator.js";
+
 const router = express.Router();
 
 // Called by Razorpay, authenticated by its HMAC signature instead of a user.
+// No body validator here: the signature is checked over the raw body.
 router.post(
   "/razorpay/webhook",
   razorpayWebhook
@@ -44,6 +52,7 @@ router.post(
   authorize({
     anyPermissions: ["invoice:read"],
   }),
+  body(razorpayOrderSchema),
   createRazorpayOrder
 );
 
@@ -52,6 +61,7 @@ router.post(
   authorize({
     anyPermissions: ["invoice:read"],
   }),
+  body(razorpayVerifySchema),
   verifyRazorpayPayment
 );
 
@@ -68,6 +78,7 @@ router.post(
   authorize({
     anyPermissions: ["payment:refund"],
   }),
+  body(refundSchema),
   refundPayment
 );
 

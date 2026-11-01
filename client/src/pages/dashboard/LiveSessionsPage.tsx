@@ -62,7 +62,7 @@ export default function LiveSessionsPage() {
     const b: Record<Bucket, LiveSession[]> = { upcoming: [], live: [], past: [] }
     for (const s of sessions ?? []) {
       if (s.status === 'live') b.live.push(s)
-      else if (s.status === 'completed' || s.status === 'cancelled') b.past.push(s)
+      else if (s.status === 'ended' || s.status === 'cancelled') b.past.push(s)
       else b.upcoming.push(s)
     }
     return b
@@ -147,7 +147,7 @@ export default function LiveSessionsPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-2">
-              {s.joinUrl && s.status !== 'completed' && s.status !== 'cancelled' && (
+              {s.joinUrl && s.status !== 'ended' && s.status !== 'cancelled' && (
                 <a
                   href={s.joinUrl}
                   target="_blank"
@@ -169,7 +169,7 @@ export default function LiveSessionsPage() {
 
               {canModerate(s) && s.status === 'live' && (
                 <button
-                  onClick={() => setStatus(s, 'completed')}
+                  onClick={() => setStatus(s, 'ended')}
                   className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
                 >
                   <Square size={12} /> End

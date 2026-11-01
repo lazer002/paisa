@@ -18,6 +18,15 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createAchievementSchema,
+  updateAchievementSchema,
+  awardAchievementSchema,
+  awardPointsSchema,
+} from "../validators/gamificationValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -39,6 +48,7 @@ router.post(
   authorize({
     anyPermissions: ["achievement:create"],
   }),
+  body(createAchievementSchema),
   createAchievement
 );
 
@@ -47,6 +57,7 @@ router.put(
   authorize({
     anyPermissions: ["achievement:update"],
   }),
+  body(updateAchievementSchema),
   updateAchievement
 );
 
@@ -67,6 +78,7 @@ router.post(
   authorize({
     anyPermissions: ["achievement:create", "achievement:manage"],
   }),
+  body(awardAchievementSchema),
   awardAchievement
 );
 
@@ -87,6 +99,7 @@ router.post(
   authorize({
     anyPermissions: ["point_ledger:create"],
   }),
+  body(awardPointsSchema),
   awardPoints
 );
 

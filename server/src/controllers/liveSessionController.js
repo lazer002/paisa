@@ -1,13 +1,15 @@
 // server/src/controllers/liveSessionController.js
 //
 // Live sessions module: scheduled live classes / meetings
-// with a join-url, lifecycle (schedule → live → completed)
+// with a join-url, lifecycle (schedule → live → ended)
 // and participant roster. Host manages lifecycle; class
 // members / everyone else can view and join.
 
 import { LiveSession } from "../models/LiveSession.js";
+import { Class } from "../models/Class.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
+import { resolveRef } from "../utils/resolveRef.js";
 
 import ApiError from "../utils/ApiError.js";
 
@@ -27,6 +29,16 @@ const scoped = (req, extra = {}) => {
     ...extra,
   };
 };
+
+// Clients send class publicIds; the model stores the ObjectId.
+const resolveClassRef = (req, ref) =>
+  resolveRef(Class, ref, {
+    label: "Class",
+    scope:
+      req.user.role === "super_admin"
+        ? {}
+        : { instituteId: req.user.instituteId },
+  });
 
 const isHostish = (user, session) =>
   [
@@ -56,6 +68,8 @@ export const createLiveSession = asyncHandler(
       );
     }
 
+    const resolvedClassId = await resolveClassRef(req, classId);
+
     const session = await LiveSession.create({
       instituteId: req.user.instituteId,
 
@@ -63,17 +77,21 @@ export const createLiveSession = asyncHandler(
 
       description: description || null,
 
-      classId: classId || null,
+      classId: resolvedClassId,
 
       joinUrl: joinUrl || null,
 
       hostUserId: req.user._id,
 
+      createdBy: req.user._id,
+
       scheduledStartAt,
 
       scheduledEndAt: scheduledEndAt || null,
 
-      accessMode: accessMode || "class",
+      // "class" access needs a class; without one the session is org-wide.
+      accessMode:
+        accessMode || (resolvedClassId ? "class" : "organization"),
 
       status: "scheduled",
     });
@@ -98,7 +116,7 @@ export const getLiveSessions = asyncHandler(
     }
 
     if (classId) {
-      query.classId = classId;
+      query.classId = await resolveClassRef(req, classId);
     }
 
     if (from || to) {
@@ -197,6 +215,10 @@ export const updateLiveSession = asyncHandler(
       }
     }
 
+    if (updates.classId !== undefined) {
+      updates.classId = await resolveClassRef(req, updates.classId);
+    }
+
     if (
       updates.status === "live" &&
       !session.actualStartAt
@@ -205,7 +227,7 @@ export const updateLiveSession = asyncHandler(
     }
 
     if (
-      updates.status === "completed" &&
+      updates.status === "ended" &&
       !session.actualEndAt
     ) {
       session.actualEndAt = new Date();

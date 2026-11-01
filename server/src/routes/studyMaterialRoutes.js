@@ -11,6 +11,11 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createStudyMaterialSchema,
+  updateStudyMaterialSchema,
+} from "../validators/academicValidator.js";
 
 const router = express.Router();
 
@@ -26,6 +31,7 @@ router.get(
 router.post(
   "/",
   authorize({ anyPermissions: ["study_material:create"] }),
+  body(createStudyMaterialSchema),
   createStudyMaterial
 );
 
@@ -33,6 +39,7 @@ router.post(
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["study_material:update"] }),
+  body(updateStudyMaterialSchema),
   updateStudyMaterial
 );
 

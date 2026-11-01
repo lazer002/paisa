@@ -12,6 +12,11 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createAssignmentSchema,
+  updateAssignmentSchema,
+} from "../validators/academicValidator.js";
 
 const router = express.Router();
 
@@ -32,12 +37,14 @@ router.get(
 router.post(
   "/",
   authorize({ anyPermissions: ["assignment:create"] }),
+  body(createAssignmentSchema),
   createAssignment
 );
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["assignment:update"] }),
+  body(updateAssignmentSchema),
   updateAssignment
 );
 

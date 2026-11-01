@@ -4,6 +4,7 @@ import { Department } from "../models/Department.js";
 import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import ApiError from "../utils/ApiError.js";
 
 import {
   sendSuccess,
@@ -35,9 +36,10 @@ const ensureSameInstituteUser = async (
   }).select("_id name email role userCode instituteId");
 
   if (!user) {
-    const error = new Error(`${label} does not belong to this organization`);
-    error.statusCode = 400;
-    throw error;
+    throw ApiError.badRequest(
+      `${label} does not belong to this organization`,
+      { code: "CROSS_TENANT_REFERENCE" }
+    );
   }
 
   return user;
@@ -57,11 +59,10 @@ const resolveDepartmentHead = async (head, instituteId) => {
   );
 
   if (!MANAGEMENT_ROLES.includes(user.role)) {
-    const error = new Error(
-      "Department head must have a management role"
+    throw ApiError.badRequest(
+      "Department head must have a management role",
+      { code: "INVALID_DEPARTMENT_HEAD" }
     );
-    error.statusCode = 400;
-    throw error;
   }
 
   return user._id;

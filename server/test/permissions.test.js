@@ -80,6 +80,37 @@ test("CRM contacts and customers are not visible to students or parents", () => 
   assert.ok(can("support", "customer:read"));
 });
 
+test("every paid staff role can read payroll (own payslips are scoped in the controller)", () => {
+  assert.deepEqual(holders("payroll:read"), [
+    "admin",
+    "principal",
+    "hr",
+    "accountant",
+    "counselor",
+    "teacher",
+    "support",
+    "employee",
+  ]);
+  // Running, changing and deleting payroll stays with admin and hr.
+  for (const permission of ["payroll:create", "payroll:update", "payroll:delete"]) {
+    assert.deepEqual(holders(permission), ["admin", "hr"], permission);
+  }
+});
+
+test("each role dashboard is limited to its own role", () => {
+  assert.deepEqual(holders("stats:superadmin"), []);
+  assert.deepEqual(holders("stats:admin"), ["admin", "principal"]);
+  assert.deepEqual(holders("stats:hr"), ["admin", "hr"]);
+  for (const role of ["teacher", "student", "employee", "accountant", "counselor", "support"]) {
+    assert.deepEqual(holders(`stats:${role}`), [role], `stats:${role}`);
+  }
+});
+
+test("class registers are marked by admin and teacher; codes are redeemed by students", () => {
+  assert.deepEqual(holders("attendance:mark"), ["admin", "teacher"]);
+  assert.deepEqual(holders("attendance:scan"), ["student"]);
+});
+
 test("unknown roles hold nothing", () => {
   assert.equal(hasPermission({ role: "nobody" }, "class:read"), false);
 });

@@ -20,6 +20,16 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  directConversationSchema,
+  groupConversationSchema,
+  addParticipantsSchema,
+  sendMessageSchema,
+  editMessageSchema,
+} from "../validators/communicationValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -41,6 +51,7 @@ router.post(
   authorize({
     anyPermissions: ["conversation:create"],
   }),
+  body(directConversationSchema),
   createDirectConversation
 );
 
@@ -49,6 +60,7 @@ router.post(
   authorize({
     anyPermissions: ["conversation:create"],
   }),
+  body(groupConversationSchema),
   createGroupConversation
 );
 
@@ -65,6 +77,7 @@ router.post(
   authorize({
     anyPermissions: ["conversation:update"],
   }),
+  body(addParticipantsSchema),
   addConversationParticipants
 );
 
@@ -101,6 +114,7 @@ router.post(
   authorize({
     anyPermissions: ["message:create"],
   }),
+  body(sendMessageSchema),
   sendMessage
 );
 
@@ -114,6 +128,7 @@ messageItemRouter.put(
   authorize({
     anyPermissions: ["message:update"],
   }),
+  body(editMessageSchema),
   editMessage
 );
 

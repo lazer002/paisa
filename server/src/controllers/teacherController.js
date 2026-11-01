@@ -100,14 +100,24 @@ export const createTeacher = async (
       );
     }
 
+    // The form sends free text; the model stores subjects[],
+    // qualifications[{ degree }] and experienceYears.
+    const splitList = (value) =>
+      (Array.isArray(value) ? value : String(value ?? "").split(","))
+        .map((item) => (typeof item === "string" ? item.trim() : item))
+        .filter(Boolean);
+
     const teacher =
       await Teacher.create({
         userId: resolvedUserId,
         instituteId:
           resolvedInstituteId,
-        subject,
-        qualifications,
-        experience,
+        subjects: splitList(req.body.subjects ?? subject),
+        qualifications: splitList(qualifications).map((item) =>
+          typeof item === "string" ? { degree: item } : item
+        ),
+        experienceYears:
+          Math.max(Number(req.body.experienceYears ?? experience) || 0, 0),
       });
 
     sendCreated(

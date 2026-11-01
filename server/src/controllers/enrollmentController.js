@@ -10,6 +10,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { childUserIdsFor } from "../utils/parentScope.js";
 
 import {
   sendSuccess,
@@ -55,21 +56,27 @@ export const createEnrollment = asyncHandler(
       return sendError(res, 400, "studentId is required");
     }
 
+    // Student and class must belong to this organization.
+    const orgScope = { instituteId: req.user.instituteId };
+
     const resolvedStudentId = await resolveRef(
       User,
       studentId,
-      { label: "Student" }
+      { label: "Student", scope: { ...orgScope, role: "student" } }
     );
 
     const resolvedClassId = classId
       ? await resolveRef(Class, classId, {
           label: "Class",
+          scope: orgScope,
         })
       : null;
 
     const enrollment =
       await Enrollment.create({
         instituteId: req.user.instituteId,
+
+        createdBy: req.user._id,
 
         studentId: resolvedStudentId,
 
@@ -112,21 +119,32 @@ export const getEnrollments = asyncHandler(
       query.studentId = req.user._id;
     }
 
+    // Parents see only their linked children's enrollments.
+    if (req.user.role === "parent") {
+      query.studentId = { $in: await childUserIdsFor(req.user) };
+    }
+
     if (status) query.status = status;
+
+    const refScope =
+      req.user.role === "super_admin"
+        ? {}
+        : { instituteId: req.user.instituteId };
 
     if (classId) {
       query.classId = await resolveRef(
         Class,
         classId,
-        { label: "Class" }
+        { label: "Class", scope: refScope }
       );
     }
 
-    if (studentId) {
+    // Students and parents stay limited to their own/children's enrollments.
+    if (studentId && !["student", "parent"].includes(req.user.role)) {
       query.studentId = await resolveRef(
         User,
         studentId,
-        { label: "Student" }
+        { label: "Student", scope: refScope }
       );
     }
 

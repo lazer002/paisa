@@ -13,17 +13,30 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createEmployeeDocumentSchema,
+  updateEmployeeDocumentSchema,
+} from "../validators/hrOpsValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get("/", authorize({ anyPermissions: ["employee_document:read"] }), getEmployeeDocuments);
 
-router.post("/", authorize({ anyPermissions: ["employee_document:create"] }), createEmployeeDocument);
+router.post(
+  "/",
+  authorize({ anyPermissions: ["employee_document:create"] }),
+  body(createEmployeeDocumentSchema),
+  createEmployeeDocument
+);
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["employee_document:update"] }),
+  body(updateEmployeeDocumentSchema),
   updateEmployeeDocument
 );
 

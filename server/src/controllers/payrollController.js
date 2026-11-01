@@ -311,11 +311,11 @@ export const createPayroll = asyncHandler(async (req, res) => {
     );
   }
 
-  // employeeId arrives as a publicId — resolve to _id.
+  // employeeId arrives as a publicId — resolve within this organization.
   const resolvedEmployeeId = await resolveRef(
     User,
     employeeId,
-    { label: "Employee" }
+    { label: "Employee", scope: { instituteId: orgOf(req) } }
   );
 
   const existing =
@@ -423,7 +423,10 @@ export const getPayrolls = asyncHandler(async (req, res) => {
     query.employeeId = await resolveRef(
       User,
       req.query.employeeId,
-      { label: "Employee" }
+      {
+        label: "Employee",
+        scope: query.instituteId ? { instituteId: query.instituteId } : {},
+      }
     );
   }
 

@@ -59,7 +59,7 @@ export interface LiveSession {
   publicId?: string
   title: string
   description?: string | null
-  status: 'draft' | 'scheduled' | 'live' | 'completed' | 'cancelled'
+  status: 'draft' | 'scheduled' | 'live' | 'ended' | 'cancelled'
   classId?: { _id: string; name?: string } | string | null
   hostUserId?: Ref | string | null
   scheduledStartAt: string

@@ -31,8 +31,8 @@ export interface SchoolTest {
   type: string
   mode: string
   status: string
-  schedule?: { startsAt?: string | null; endsAt?: string | null; durationMinutes?: number }
-  grading?: { totalPoints?: number; passingScore?: number }
+  scheduling?: { scheduledStartAt?: string | null; scheduledEndAt?: string | null; durationMinutes?: number }
+  grading?: { maxScore?: number; passingScore?: number; passingPercentage?: number }
   questionIds?: TestQuestion[] | string[]
   createdAt: string
 }
@@ -40,7 +40,7 @@ export interface SchoolTest {
 export interface TestAttempt {
   _id: string
   publicId?: string
-  testId: { _id: string; publicId?: string; title: string; grading?: { totalPoints?: number } } | string
+  testId: { _id: string; publicId?: string; title: string; grading?: { maxScore?: number; passingScore?: number } } | string
   studentId: { _id: string; publicId?: string; name: string; userCode?: string } | string
   status: string
   attemptNumber: number

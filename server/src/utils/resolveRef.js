@@ -76,7 +76,18 @@ export const resolveRef = async (
     return null;
   }
 
+  const scoped = Object.keys(scope).length > 0;
+
   if (isObjectIdLike(value)) {
+    // A raw ObjectId must still satisfy the scope (tenant), otherwise any
+    // caller could reach another organization's record by its _id.
+    if (scoped && !(await Model.exists({ _id: value, ...scope }))) {
+      throw ApiError.notFound(
+        `${label} not found`,
+        "RESOURCE_NOT_FOUND"
+      );
+    }
+
     return value;
   }
 

@@ -553,10 +553,25 @@ export const changeEmployeeStage = asyncHandler(async (req, res) => {
 
   if (!profile) {
     // Accounts created from the Employees page have no profile yet.
-    const sequence = await getNextSequence(
-      `${Roles.EMPLOYEE}_${user.instituteId}`
-    );
-    const code = `EMP-${String(sequence).padStart(5, "0")}`;
+    // The counter can lag behind codes created elsewhere (seed, imports),
+    // so skip any code already taken in this organization.
+    let code;
+    for (let attempt = 0; attempt < 50 && !code; attempt += 1) {
+      const sequence = await getNextSequence(
+        `${Roles.EMPLOYEE}_${user.instituteId}`
+      );
+      const candidate = `EMP-${String(sequence).padStart(5, "0")}`;
+      const taken = await Employee.exists({
+        instituteId: user.instituteId,
+        employeeCode: candidate,
+      });
+      if (!taken) code = candidate;
+    }
+    if (!code) {
+      throw ApiError.conflict("Could not allocate an employee code", {
+        code: "EMPLOYEE_CODE_EXHAUSTED",
+      });
+    }
     const nameParts = String(user.name || "").trim().split(/\s+/);
 
     profile = new Employee({

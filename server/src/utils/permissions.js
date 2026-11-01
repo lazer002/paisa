@@ -89,6 +89,10 @@ const PERMISSIONS = Object.freeze({
   ATTENDANCE_UPDATE: "attendance:update",
   ATTENDANCE_DELETE: "attendance:delete",
   ATTENDANCE_MANAGE: "attendance:manage",
+  // Mark a class register for others (POST /attendance).
+  ATTENDANCE_MARK: "attendance:mark",
+  // Redeem a class attendance code (POST /attendance/qr-scan).
+  ATTENDANCE_SCAN: "attendance:scan",
 
   // Geofence / QR / Devices
   GEOFENCE_READ: "geofence:read",
@@ -371,6 +375,17 @@ const PERMISSIONS = Object.freeze({
   REPORT_READ: "report:read",
   REPORT_EXPORT: "report:export",
 
+  // Role dashboards: one per GET /api/stats/<name> endpoint.
+  STATS_SUPERADMIN: "stats:superadmin",
+  STATS_ADMIN: "stats:admin",
+  STATS_HR: "stats:hr",
+  STATS_TEACHER: "stats:teacher",
+  STATS_STUDENT: "stats:student",
+  STATS_EMPLOYEE: "stats:employee",
+  STATS_ACCOUNTANT: "stats:accountant",
+  STATS_COUNSELOR: "stats:counselor",
+  STATS_SUPPORT: "stats:support",
+
   // Settings
   SETTINGS_READ: "settings:read",
   SETTINGS_UPDATE: "settings:update",
@@ -457,6 +472,7 @@ const baseRolePermissions = {
     PERMISSIONS.ATTENDANCE_UPDATE,
     PERMISSIONS.ATTENDANCE_DELETE,
     PERMISSIONS.ATTENDANCE_MANAGE,
+    PERMISSIONS.ATTENDANCE_MARK,
 
     PERMISSIONS.GEOFENCE_READ,
     PERMISSIONS.GEOFENCE_CREATE,
@@ -701,6 +717,9 @@ const baseRolePermissions = {
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_EXPORT,
 
+    PERMISSIONS.STATS_ADMIN,
+    PERMISSIONS.STATS_HR,
+
     PERMISSIONS.SETTINGS_READ,
     PERMISSIONS.SETTINGS_UPDATE,
     PERMISSIONS.SETTINGS_MANAGE,
@@ -815,6 +834,8 @@ const baseRolePermissions = {
 
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_EXPORT,
+
+    PERMISSIONS.STATS_ADMIN,
   ],
 
   [ROLES.HR]: [
@@ -876,6 +897,7 @@ const baseRolePermissions = {
     PERMISSIONS.SALARY_STRUCTURE_READ,
     PERMISSIONS.SALARY_STRUCTURE_CREATE,
     PERMISSIONS.SALARY_STRUCTURE_UPDATE,
+    PERMISSIONS.SALARY_STRUCTURE_DELETE,
     PERMISSIONS.SALARY_STRUCTURE_MANAGE,
 
     PERMISSIONS.PAYROLL_READ,
@@ -889,6 +911,8 @@ const baseRolePermissions = {
 
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_EXPORT,
+
+    PERMISSIONS.STATS_HR,
 
     PERMISSIONS.DEVICE_READ,
   ],
@@ -930,8 +954,15 @@ const baseRolePermissions = {
 
     PERMISSIONS.SALARY_STRUCTURE_READ,
 
+    // Own leave only (leaveController scopes non-approvers to themselves).
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_CREATE,
+    PERMISSIONS.LEAVE_UPDATE,
+
     PERMISSIONS.REPORT_READ,
     PERMISSIONS.REPORT_EXPORT,
+
+    PERMISSIONS.STATS_ACCOUNTANT,
 
     PERMISSIONS.NOTIFICATION_READ,
   ],
@@ -1007,6 +1038,16 @@ const baseRolePermissions = {
     PERMISSIONS.NOTIFICATION_CREATE,
 
     PERMISSIONS.REPORT_READ,
+
+    PERMISSIONS.STATS_COUNSELOR,
+
+    // Own payslips only (payrollController scopes non-viewers to themselves).
+    PERMISSIONS.PAYROLL_READ,
+
+    // Own leave only (leaveController scopes non-approvers to themselves).
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_CREATE,
+    PERMISSIONS.LEAVE_UPDATE,
   ],
 
   [ROLES.TEACHER]: [
@@ -1040,6 +1081,7 @@ const baseRolePermissions = {
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_CREATE,
     PERMISSIONS.ATTENDANCE_UPDATE,
+    PERMISSIONS.ATTENDANCE_MARK,
     PERMISSIONS.QR_SESSION_READ,
     PERMISSIONS.QR_SESSION_CREATE,
     PERMISSIONS.QR_SESSION_UPDATE,
@@ -1091,6 +1133,11 @@ const baseRolePermissions = {
 
     PERMISSIONS.REPORT_READ,
 
+    PERMISSIONS.STATS_TEACHER,
+
+    // Own payslips only (payrollController scopes non-viewers to themselves).
+    PERMISSIONS.PAYROLL_READ,
+
     PERMISSIONS.CONVERSATION_READ,
     PERMISSIONS.CONVERSATION_CREATE,
 
@@ -1138,6 +1185,16 @@ const baseRolePermissions = {
     PERMISSIONS.NOTIFICATION_READ,
 
     PERMISSIONS.REPORT_READ,
+
+    PERMISSIONS.STATS_SUPPORT,
+
+    // Own payslips only (payrollController scopes non-viewers to themselves).
+    PERMISSIONS.PAYROLL_READ,
+
+    // Own leave only (leaveController scopes non-approvers to themselves).
+    PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_CREATE,
+    PERMISSIONS.LEAVE_UPDATE,
   ],
 
   [ROLES.EMPLOYEE]: [
@@ -1159,6 +1216,8 @@ const baseRolePermissions = {
     PERMISSIONS.LEAVE_UPDATE,
 
     PERMISSIONS.PAYROLL_READ,
+
+    PERMISSIONS.STATS_EMPLOYEE,
 
     PERMISSIONS.PERFORMANCE_READ,
 
@@ -1256,6 +1315,9 @@ const baseRolePermissions = {
     PERMISSIONS.ENROLLMENT_READ,
 
     PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_SCAN,
+
+    PERMISSIONS.STATS_STUDENT,
 
     PERMISSIONS.ASSIGNMENT_READ,
     PERMISSIONS.SUBMISSION_READ,

@@ -105,7 +105,7 @@ export default function TakeTestModal({
         <>
           <span className="mr-auto text-xs text-gray-500">
             {answered}/{questions.length} answered
-            {test?.schedule?.durationMinutes ? ` · ${test.schedule.durationMinutes} min` : ''}
+            {test?.scheduling?.durationMinutes ? ` · ${test.scheduling.durationMinutes} min` : ''}
           </span>
           <Button variant="secondary" onClick={onClose}>Save &amp; close</Button>
           <Button onClick={submit} disabled={submitting || isLoading || questions.length === 0}>

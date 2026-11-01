@@ -3,7 +3,9 @@
 // Events module: institute calendar of events
 // (academic + corporate), with RSVP-style metadata.
 
-import {Event} from "../models/Event.js";
+// Calendar entries. models/Event.js is the domain-event outbox and has no
+// title/startsAt, which is why creating events always failed.
+import { CalendarEvent as Event } from "../models/CalendarEvent.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -65,6 +67,8 @@ export const createEvent = asyncHandler(
       endsAt: endsAt || null,
 
       location: location || null,
+
+      targetRoles: Array.isArray(targetRoles) ? targetRoles : [],
 
       status: "scheduled",
     });

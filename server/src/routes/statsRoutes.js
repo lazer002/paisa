@@ -15,81 +15,42 @@ import {
 } from "../controllers/statsController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 
 const router = express.Router();
 
 router.use(authenticate);
 
+// One permission per dashboard (stats:<name>); super_admin passes every
+// permission check. Holders are listed in utils/permissions.js.
+const dashboard = (name) =>
+  authorize({ anyPermissions: [`stats:${name}`] });
+
 // Super Admin statistics
-router.get(
-  "/superadmin",
-  requireRole("super_admin"),
-  getSuperAdminStats
-);
+router.get("/superadmin", dashboard("superadmin"), getSuperAdminStats);
 
 // Admin statistics (admin & principal share org-wide stats)
-router.get(
-  "/admin",
-  requireRole(
-    "super_admin",
-    "admin",
-    "principal"
-  ),
-  getAdminStats
-);
+router.get("/admin", dashboard("admin"), getAdminStats);
 
 // Teacher statistics
-router.get(
-  "/teacher",
-  requireRole("teacher"),
-  getTeacherStats
-);
+router.get("/teacher", dashboard("teacher"), getTeacherStats);
 
 // Student statistics
-router.get(
-  "/student",
-  requireRole("student"),
-  getStudentStats
-);
+router.get("/student", dashboard("student"), getStudentStats);
 
-// HR statistics
-router.get(
-  "/hr",
-  requireRole(
-    "super_admin",
-    "admin",
-    "hr"
-  ),
-  getHRStats
-);
+// HR statistics (admin, hr)
+router.get("/hr", dashboard("hr"), getHRStats);
 
 // Employee statistics
-router.get(
-  "/employee",
-  requireRole("employee"),
-  getEmployeeStats
-);
+router.get("/employee", dashboard("employee"), getEmployeeStats);
 
 // Accountant statistics
-router.get(
-  "/accountant",
-  requireRole("accountant"),
-  getAccountantStats
-);
+router.get("/accountant", dashboard("accountant"), getAccountantStats);
 
 // Counselor statistics
-router.get(
-  "/counselor",
-  requireRole("counselor"),
-  getCounselorStats
-);
+router.get("/counselor", dashboard("counselor"), getCounselorStats);
 
 // Support statistics
-router.get(
-  "/support",
-  requireRole("support"),
-  getSupportStats
-);
+router.get("/support", dashboard("support"), getSupportStats);
 
 export default router;

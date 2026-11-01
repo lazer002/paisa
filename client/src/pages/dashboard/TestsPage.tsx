@@ -260,8 +260,8 @@ export default function TestsPage() {
       ),
     },
     { key: 'questions', header: 'Questions', render: (t) => <span className="text-gray-500">{(t.questionIds as unknown[])?.length ?? 0}</span> },
-    { key: 'points', header: 'Points', render: (t) => <span className="text-gray-500">{t.grading?.totalPoints ?? '—'}</span> },
-    { key: 'duration', header: 'Duration', render: (t) => <span className="text-gray-500">{t.schedule?.durationMinutes ?? 30} min</span> },
+    { key: 'points', header: 'Points', render: (t) => <span className="text-gray-500">{t.grading?.maxScore ?? '—'}</span> },
+    { key: 'duration', header: 'Duration', render: (t) => <span className="text-gray-500">{t.scheduling?.durationMinutes ?? 30} min</span> },
     { key: 'status', header: 'Status', render: (t) => <StatusBadge status={t.status} /> },
     {
       key: 'actions',

@@ -47,12 +47,13 @@ export const createClass = asyncHandler(async (req, res) => {
     );
   }
 
-  // teacherId arrives as a publicId — resolve it.
+  // teacherId arrives as a publicId — resolve it within this organization.
   const resolvedTeacherId =
     req.user.role === "teacher"
       ? req.user._id
       : ((await resolveRef(User, teacherId, {
           label: "Teacher",
+          scope: { instituteId },
         })) ??
           req.user._id);
 
@@ -118,7 +119,13 @@ export const getClasses = asyncHandler(async (req, res) => {
     query.teacherId = await resolveRef(
       User,
       teacherId,
-      { label: "Teacher" }
+      {
+        label: "Teacher",
+        scope:
+          req.user.role === "super_admin"
+            ? {}
+            : { instituteId: req.user.instituteId },
+      }
     );
   }
 
@@ -290,6 +297,14 @@ export const updateClass = asyncHandler(async (req, res) => {
     }
   }
 
+  // A new teacher must belong to the class's own organization.
+  if (updates.teacherId) {
+    updates.teacherId = await resolveRef(User, updates.teacherId, {
+      label: "Teacher",
+      scope: { instituteId: cls.instituteId },
+    });
+  }
+
   const updated = await Class.findOneAndUpdate(
     {
       publicId: req.params.publicId,
@@ -352,13 +367,6 @@ export const enrollStudent = asyncHandler(async (req, res) => {
     );
   }
 
-  // studentId arrives as a publicId — resolve before storing.
-  const resolvedStudentId = await resolveRef(
-    User,
-    studentId,
-    { label: "Student" }
-  );
-
   const cls = await Class.findOne({
     publicId: req.params.publicId,
   });
@@ -380,6 +388,17 @@ export const enrollStudent = asyncHandler(async (req, res) => {
       "Access denied"
     );
   }
+
+  // studentId arrives as a publicId; only students of the class's own
+  // organization can be enrolled.
+  const resolvedStudentId = await resolveRef(
+    User,
+    studentId,
+    {
+      label: "Student",
+      scope: { instituteId: cls.instituteId, role: "student" },
+    }
+  );
 
   const updated = await Class.findOneAndUpdate(
     {

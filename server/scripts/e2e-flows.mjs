@@ -9,6 +9,16 @@ const check = (name, ok, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  -> " + detail}`);
 };
 
+// Self check-in/out works once per user per day, so a second run on the same
+// day can only be skipped, not passed. Skips are reported, not counted.
+const checkOncePerDay = (name, r) => {
+  if (r.status === 400 && /already checked (in|out) today/i.test(r.message)) {
+    console.log(`SKIP  ${name}  -> already done today (re-run tomorrow)`);
+    return;
+  }
+  check(name, r.status === 200, `${r.status} ${r.message}`);
+};
+
 const sessions = {};
 const login = async (role) => {
   const res = await fetch(`${BASE}/auth/login`, {
@@ -132,14 +142,14 @@ const fenceId = id(r.data);
 r = await call("hr", "POST", "/attendance/check-in", { action: "in", latitude: 12.97, longitude: 77.59, accuracy: 20, timezone: "Asia/Kolkata" });
 check("check-in outside the area is refused", r.status === 403, `${r.status} ${r.message}`);
 r = await call("hr", "POST", "/attendance/check-in", { action: "in", latitude: 10.0003, longitude: 10.0003, accuracy: 20, timezone: "Asia/Kolkata" });
-check("check-in inside the area works", r.status === 200, `${r.status} ${r.message}`);
+checkOncePerDay("check-in inside the area works", r);
 r = await call("hr", "POST", "/attendance/check-in", { action: "in", latitude: 10, longitude: 10, accuracy: 20, timezone: "Asia/Kolkata" });
 check("checking in twice is refused", r.status === 400, `${r.status} ${r.message}`);
 r = await call("hr", "POST", "/attendance/check-in", { action: "out", latitude: 10, longitude: 10, accuracy: 20, timezone: "Asia/Kolkata" });
-check("check-out works", r.status === 200, `${r.status} ${r.message}`);
+checkOncePerDay("check-out works", r);
 await call("admin", "DELETE", `/geofences/${fenceId}`);
 r = await call("employee", "POST", "/attendance/check-in", { action: "in", timezone: "Asia/Kolkata" });
-check("with no areas, check-in works anywhere", r.status === 200, `${r.status} ${r.message}`);
+checkOncePerDay("with no areas, check-in works anywhere", r);
 
 // ── 6. Invoices: parent sees the child's, accountant manages ──
 r = await call("accountant", "POST", "/invoices", { studentId: studentUser, lineItems: [{ description: "Fees", quantity: 1, unitPrice: 1000 }] });

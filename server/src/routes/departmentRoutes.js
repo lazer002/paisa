@@ -11,6 +11,11 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createDepartmentSchema,
+  updateDepartmentSchema,
+} from "../validators/organizationValidator.js";
 
 const router = express.Router();
 
@@ -26,6 +31,7 @@ router.get(
 router.post(
   "/",
   authorize({ anyPermissions: ["department:create"] }),
+  body(createDepartmentSchema),
   createDepartment
 );
 
@@ -33,6 +39,7 @@ router.post(
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["department:update"] }),
+  body(updateDepartmentSchema),
   updateDepartment
 );
 

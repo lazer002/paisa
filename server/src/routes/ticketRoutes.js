@@ -20,6 +20,16 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createTicketSchema,
+  updateTicketSchema,
+  ticketMessageSchema,
+  createTicketTemplateSchema,
+  updateTicketTemplateSchema,
+} from "../validators/ticketValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -41,12 +51,14 @@ router.get(
 router.post(
   "/templates",
   authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  body(createTicketTemplateSchema),
   createTicketTemplate
 );
 
 router.put(
   "/templates/:templateId",
   authorize({ anyPermissions: ["ticket:update", "ticket:manage"] }),
+  body(updateTicketTemplateSchema),
   updateTicketTemplate
 );
 
@@ -71,18 +83,21 @@ router.get(
 router.post(
   "/",
   authorize({ anyPermissions: ["ticket:create"] }),
+  body(createTicketSchema),
   createTicket
 );
 
 router.post(
   "/:publicId/messages",
   authorize({ anyPermissions: ["ticket_message:create", "ticket:update"] }),
+  body(ticketMessageSchema),
   addTicketMessage
 );
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["ticket:update"] }),
+  body(updateTicketSchema),
   updateTicket
 );
 

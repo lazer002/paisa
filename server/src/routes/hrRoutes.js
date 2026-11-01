@@ -11,23 +11,25 @@ import {
 } from "../controllers/hrController.js";
 
 import authenticate from "../middleware/authenticate.js";
+import { authorize } from "../middleware/authorize.js";
+import { validateBody } from "../middleware/validate.js";
+
 import {
-  requireRole,
-  authorize,
-} from "../middleware/authorize.js";
+  createHRSchema,
+  updateHRSchema,
+} from "../validators/hrValidator.js";
 
 const router = express.Router();
 
 router.use(authenticate);
 
-// Create HR
+// Create HR (hr:create — admin, hr)
 router.post(
   "/",
-  requireRole(
-    "admin",
-    "super_admin",
-    "hr"
-  ),
+  authorize({
+    anyPermissions: ["hr:create"],
+  }),
+  validateBody(createHRSchema),
   createHR
 );
 
@@ -49,17 +51,22 @@ router.get(
   getHR
 );
 
-// Update HR (hr:update — admin)
+// Update HR (hr:update — admin, hr)
 router.put(
   "/:publicId",
-  requireRole("admin", "super_admin", "hr"),
+  authorize({
+    anyPermissions: ["hr:update"],
+  }),
+  validateBody(updateHRSchema),
   updateHR
 );
 
 // Delete HR (hr:delete — admin)
 router.delete(
   "/:publicId",
-  requireRole("admin", "super_admin"),
+  authorize({
+    anyPermissions: ["hr:delete"],
+  }),
   deleteHR
 );
 

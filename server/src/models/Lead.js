@@ -1479,7 +1479,7 @@ leadSchema.virtual(
 ).get(function () {
   return (
     this.status === "converted" ||
-    this.conversion.converted
+    Boolean(this.conversion?.converted)
   );
 });
 

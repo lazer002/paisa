@@ -13,6 +13,13 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createEnrollmentSchema,
+  updateEnrollmentStatusSchema,
+} from "../validators/academicValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -30,6 +37,7 @@ router.post(
   authorize({
     anyPermissions: ["enrollment:create"],
   }),
+  body(createEnrollmentSchema),
   createEnrollment
 );
 
@@ -38,6 +46,7 @@ router.put(
   authorize({
     anyPermissions: ["enrollment:update"],
   }),
+  body(updateEnrollmentStatusSchema),
   updateEnrollmentStatus
 );
 

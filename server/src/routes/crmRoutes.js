@@ -21,6 +21,14 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import {
+  leadSchema,
+  createDealSchema,
+  updateDealStageSchema,
+  createPipelineSchema,
+} from "../validators/crmValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -48,12 +56,14 @@ leadRouter.get(
 leadRouter.post(
   "/",
   authorize({ anyPermissions: ["lead:create"] }),
+  body(leadSchema),
   createLead
 );
 
 leadRouter.put(
   "/:publicId",
   authorize({ anyPermissions: ["lead:update"] }),
+  body(leadSchema),
   updateLead
 );
 
@@ -80,12 +90,14 @@ dealRouter.get(
 dealRouter.post(
   "/",
   authorize({ anyPermissions: ["deal:create"] }),
+  body(createDealSchema),
   createDeal
 );
 
 dealRouter.put(
   "/:publicId/stage",
   authorize({ anyPermissions: ["deal:update"] }),
+  body(updateDealStageSchema),
   updateDealStage
 );
 
@@ -112,6 +124,7 @@ pipelineRouter.get(
 pipelineRouter.post(
   "/",
   authorize({ anyPermissions: ["pipeline:create"] }),
+  body(createPipelineSchema),
   createPipeline
 );
 

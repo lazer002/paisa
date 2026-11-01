@@ -11,8 +11,13 @@ import {
 } from "../controllers/attendanceController.js";
 
 import authenticate from "../middleware/authenticate.js";
-import { requireRole, authorize } from "../middleware/authorize.js";
+import { authorize } from "../middleware/authorize.js";
 import { createRateLimiter } from "../middleware/rateLimiter.js";
+import {
+  validateMarkAttendance,
+  validateSelfCheck,
+  validateQrScan,
+} from "../validators/attendanceValidator.js";
 
 const router = express.Router();
 
@@ -27,14 +32,18 @@ const qrScanLimiter = createRateLimiter({
 
 router.use(authenticate);
 
+// Gates run before body validation so forbidden roles get 403, not 400.
+// super_admin passes every permission check.
+
 router.get(
   "/me",
   getMyAttendance
 );
 
+// Everyone's attendance: attendance:update = admin, principal, hr, teacher
 router.get(
   "/",
-  requireRole("super_admin", "admin", "teacher", "hr", "principal"),
+  authorize({ anyPermissions: ["attendance:update"] }),
   getAttendance
 );
 
@@ -42,16 +51,25 @@ router.get(
 router.post(
   "/check-in",
   authorize({ anyPermissions: ["attendance:create"] }),
+  validateSelfCheck,
   selfCheck
 );
 
-// Students redeem a class attendance code; the controller verifies the
-// code and the student's enrollment.
-router.post("/qr-scan", requireRole("student"), qrScanLimiter, scanQr);
+// Students redeem a class attendance code (attendance:scan = student); the
+// controller verifies the code and the student's enrollment.
+router.post(
+  "/qr-scan",
+  authorize({ anyPermissions: ["attendance:scan"] }),
+  qrScanLimiter,
+  validateQrScan,
+  scanQr
+);
 
+// Mark a class register: attendance:mark = admin, teacher
 router.post(
   "/",
-  requireRole("super_admin", "admin", "teacher"),
+  authorize({ anyPermissions: ["attendance:mark"] }),
+  validateMarkAttendance,
   markAttendance
 );
 

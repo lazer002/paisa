@@ -16,6 +16,13 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  notificationPreferencesSchema,
+  broadcastNotificationSchema,
+} from "../validators/communicationValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -77,6 +84,7 @@ router.put(
       "notification_preference:update",
     ],
   }),
+  body(notificationPreferencesSchema),
   updateNotificationPreferences
 );
 
@@ -89,6 +97,7 @@ router.post(
   authorize({
     anyPermissions: ["notification:create"],
   }),
+  body(broadcastNotificationSchema),
   broadcastNotification
 );
 

@@ -21,6 +21,17 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createSalaryStructureSchema,
+  updateSalaryStructureSchema,
+  createReviewSchema,
+  updateReviewSchema,
+  createCertificateSchema,
+  revokeCertificateSchema,
+} from "../validators/hrOpsValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -46,6 +57,7 @@ salaryRouter.post(
   authorize({
     anyPermissions: ["salary_structure:create"],
   }),
+  body(createSalaryStructureSchema),
   createSalaryStructure
 );
 
@@ -54,6 +66,7 @@ salaryRouter.put(
   authorize({
     anyPermissions: ["salary_structure:update"],
   }),
+  body(updateSalaryStructureSchema),
   updateSalaryStructure
 );
 
@@ -86,6 +99,7 @@ reviewRouter.post(
   authorize({
     anyPermissions: ["performance:create"],
   }),
+  body(createReviewSchema),
   createReview
 );
 
@@ -94,6 +108,7 @@ reviewRouter.put(
   authorize({
     anyPermissions: ["performance:update"],
   }),
+  body(updateReviewSchema),
   updateReview
 );
 
@@ -126,6 +141,7 @@ certificateRouter.post(
   authorize({
     anyPermissions: ["certificate:create"],
   }),
+  body(createCertificateSchema),
   createCertificate
 );
 
@@ -134,6 +150,7 @@ certificateRouter.put(
   authorize({
     anyPermissions: ["certificate:update", "certificate:manage"],
   }),
+  body(revokeCertificateSchema),
   revokeCertificate
 );
 

@@ -14,6 +14,11 @@ import {
 import authenticate from "../middleware/authenticate.js";
 import { superAdminOnly } from "../middleware/policies.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createOrganizationSchema,
+  updateOrganizationSchema,
+} from "../validators/organizationValidator.js";
 
 const router = express.Router();
 
@@ -55,6 +60,7 @@ router.get(
 router.post(
   "/",
   superAdminOnly,
+  body(createOrganizationSchema),
   createOrganization
 );
 
@@ -70,6 +76,7 @@ router.put(
   authorize({
     anyPermissions: ["organization:update"],
   }),
+  body(updateOrganizationSchema),
   updateOrganization
 );
 

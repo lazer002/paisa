@@ -10,6 +10,11 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createAnnouncementSchema,
+  updateAnnouncementSchema,
+} from "../validators/communicationValidator.js";
 
 const router = express.Router();
 
@@ -33,6 +38,7 @@ router.post(
   authorize({
     anyPermissions: ["notification:create"],
   }),
+  body(createAnnouncementSchema),
   createAnnouncement
 );
 
@@ -45,6 +51,7 @@ router.put(
       "notification:update",
     ],
   }),
+  body(updateAnnouncementSchema),
   updateAnnouncement
 );
 

@@ -15,6 +15,13 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+import {
+  createInvoiceSchema,
+  recordPaymentSchema,
+  updateInvoiceStatusSchema,
+} from "../validators/billingValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -40,6 +47,7 @@ router.post(
   authorize({
     anyPermissions: ["invoice:create"],
   }),
+  body(createInvoiceSchema),
   createInvoice
 );
 
@@ -48,6 +56,7 @@ router.post(
   authorize({
     anyPermissions: ["payment:create", "invoice:update"],
   }),
+  body(recordPaymentSchema),
   recordPayment
 );
 
@@ -56,6 +65,7 @@ router.put(
   authorize({
     anyPermissions: ["invoice:update"],
   }),
+  body(updateInvoiceStatusSchema),
   updateInvoiceStatus
 );
 

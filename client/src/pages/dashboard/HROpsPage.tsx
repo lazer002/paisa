@@ -481,7 +481,7 @@ export default function HROpsPage() {
           </Field>
           <Field label="Type">
             <select className={inputCls} value={reviewType} onChange={(e) => setReviewType(e.target.value)}>
-              {['annual', 'semi_annual', 'quarterly', 'probation', 'project'].map((t) => (
+              {['annual', 'half_yearly', 'quarterly', 'probation', 'project'].map((t) => (
                 <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
               ))}
             </select>

@@ -63,11 +63,20 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
     (`TicketTemplate`); certificate print + public `GET /api/public/certificates/:code` + `/verify/:code` page.
   - [x] CSV / print-PDF export (`lib/export`, `ExportMenu`, gated by `report:export`) on Reports, Users, Students,
     Employees, Attendance, Invoices, Audit log (H5); employee lifecycle stages + history + checklists.
-  - [ ] Part 2: Joi validation (H3) · tenant-isolation tests (H2) · finish H1 · richer demo seed.
-  - Gaps found: teacher/counselor/support get payroll generated but lack `payroll:read` + nav to see their own
-    payslips; mid-month joiners not prorated; formula salary components count as 0; `models/CRMNote.js` is a copy
-    of CRMTask (notes are stored as `CRMActivity` type `note`) — delete it; counselors may delete only their own
-    CRM tasks/activities/notes (delete routes accept `:create` holders, controller limits to creator).
+  - [x] Part 2 (committed 2026-11-01): H1 finished (no `requireRole` left in routes; per-role gate diff proved
+    unchanged access), H3 Joi validation on every write route (`validators/*`, `validators/common.js` `body()`;
+    bad input → **422** `VALIDATION_ERROR`, unknown keys kept, authorize runs before validation), H2
+    `npm run e2e:tenant` (two demo orgs, 671 checks, 0 leaks), rich idempotent seed (`server/src/utils/seed/`,
+    second org "Demo Company Two" `<role>@demo2.paisa.test` for admin/hr/accountant/support/employee),
+    `npm run seed:report`.
+  - Still open: mid-month joiners not prorated; formula salary components count as 0; `models/CRMNote.js` is a
+    copy of CRMTask (notes are stored as `CRMActivity` type `note`) — delete it; counselors may delete only their
+    own CRM tasks/activities/notes (delete routes accept `:create` holders, controller limits to creator);
+    organizations drop top-level `website`/`logo` (model keeps them under `branding`); study-material update
+    with `type: ""` passes validation then fails in the model; `ApiError.notFound(msg, "CODE")` string-code
+    calls (G9) still lose their codes; teacher/student/enrollment creates not covered live in the tenant suite.
+  - Fixed in part 2: payslips for teacher/counselor/support (`payroll:read` + nav), self-service leave for
+    accountant/counselor/support (leave list = own unless approver), hr `salary_structure:delete`.
 - **Wave 4: integrations**:
   - [x] Payments module (committed separately 2026-10-29, verified live; see §12): Payment model, manual payments with receipts,
     refunds, Razorpay order/verify/webhook, client Pay online + payment history + printable receipts.
@@ -117,7 +126,12 @@ npm install              # root: installs both workspaces (use Node ≥20!)
 npm run dev              # API (nodemon, :5000) + UI (vite, :5173) together
 npm run build            # server build is a no-op echo; client = tsc -b && vite build
 npm run seed             # demo org + one user per role (<role>@demo.paisa.test, pw Paisa@Demo1 or SEED_PASSWORD)
+                         #   plus rich demo data and a 2nd org (<role>@demo2.paisa.test); idempotent, safe to re-run
                          #   -- --dry-run validates only (no DB), -- --reset recreates; refuses in production
+npm --prefix server run seed:report   # record counts per collection for both demo orgs
+npm --prefix server run e2e:smoke     # every role's page loads (needs the API running)
+npm --prefix server run e2e:flows     # end-to-end flows (check-in steps SKIP after the first run of the day)
+npm --prefix server run e2e:tenant    # cross-org isolation suite (two demo orgs)
 
 cd server && npm run check   # node --check server.js (entry file only)
 cd server && npm test        # node --test → finds 0 test files today
@@ -471,10 +485,10 @@ Cross-role defects (fix once, helps many roles):
 - [x] M4. (done 2026-10-28: /api/contacts, /api/customers + CRM tabs; create/list/delete only, no edit form) CRM Contacts & Customers.
 
 **P3 — hardening**
-- [~] H1. (partly done 2026-10-29: assignment, study-material, submission-grade, department, class routes are permission-based; still `requireRole`: student, teacher, employee, hr, payroll, leave, stats, user, attendance mark routes) Migrate `requireRole` routes to permission-based gating.
-- [~] H2. (partly done 2026-10-29: `server/test/` has 17 pure-function tests: geo, crudHelpers, qr hashCode, permission-matrix invariants; no DB/integration tests, no client tests) Tests: server `node --test` for auth/tenant isolation first, then client.
-- [ ] H3. Joi validators for write routes (G5).
-- [x] H4. (done 2026-10-29, dry-run verified only) Working seed script.
+- [x] H1. (done 2026-11-01: no `requireRole` left in any route; new perms `stats:<role>`, `attendance:mark|scan`) Migrate `requireRole` routes to permission-based gating.
+- [x] H2. (done 2026-11-01: 25 unit tests + `npm run e2e:tenant` live cross-org suite, 671 checks, 0 leaks; still no client tests) Tests: server `node --test` for auth/tenant isolation first, then client.
+- [x] H3. (done 2026-11-01: Joi on every POST/PUT/PATCH, 422 on bad input) Joi validators for write routes (G5).
+- [x] H4. (done 2026-11-01: rich idempotent demo data for two orgs, verified real run + re-run creates 0) Working seed script.
 - [x] H5. (done 2026-10-31: client-side CSV + print-PDF via `ExportMenu`, gated by `report:export`) Verify `report:export` flow.
 
 Done (from the 2026-10-25 backlog, in commit 60cb432): B1 parent access to classes/
@@ -482,6 +496,26 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Wave 3 part 2 (hardening).** Four agents (people routes H1+H3 · ops routes H1+H3+perms ·
+  validators for all other routes · tenant suite + seed); one usage-limit stop, resumed. Then fixed directly:
+  **`resolveRef` returned raw ObjectIds without checking `scope`** (every tenant-scoped lookup could be bypassed
+  with a 24-hex id) — now enforced; 5 cross-org create/link leaks found by `e2e:tenant` (class enroll + teacherId
+  on create/update, test questionIds/classId, payroll employeeId, invoice studentId/employeeId) plus enrollment
+  create, attendance mark/filter, test/attempt/enrollment list filters — all scoped to the record's org; parents
+  now see only their children's enrollments; a student's `?classId=` no longer widens the tests list. Bugs fixed:
+  live sessions could never be created (`createdBy` missing; `class` access without a class; `completed` →
+  model's `ended`; class publicIds not resolved); calendar events could never be created (controller used the
+  domain-event outbox `models/Event.js`) — new `models/CalendarEvent.js`; invoices lost line items (`lineItems`/
+  `subTotal` vs model `items`/`subtotal`) and got no number — now `INV-YYYY-NNNNN` per org, `lineItems` returned;
+  tests wrote `schedule`/`totalPoints` (model: `scheduling`/`grading.maxScore`), `passingScore` is a percentage →
+  `grading.passingPercentage`, grading recomputes `passed`; deals list 500 (`isConverted` virtual on partial
+  populate); department head errors were 500; enrollment create always failed (`createdBy`); employee-code
+  collision on first stage change; hr unknown id 500; teacher form fields; review type `semi_annual`. Validation
+  status unified at 422. `e2e-flows` now SKIPs once-per-day check-in steps instead of failing. Verified live:
+  e2e:smoke 171/171, e2e:flows 39/39 (+3 skipped), e2e:tenant 671/671 (0 leaks), part-2 fixes 18/18, invoices 6/6,
+  leave/payroll 45/45, CRM 29/29, tickets/certs 21/21, leads 9/9, B10/O1/T1 16/16, people-route validation 33/33;
+  25/25 unit tests; client lint + tsc. Scratchpad scripts expecting 400 (live-h1h3, lifecycle) are stale since 422.
 
 - **2026-10-31 — Wave 3 part 1.** Four parallel agents (CRM activities · leave + payroll · tickets + certificates ·
   exports + employee lifecycle); a usage limit and a session restart interrupted them, all resumed and finished.

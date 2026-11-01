@@ -22,6 +22,17 @@ import authenticate from "../middleware/authenticate.js";
 
 import { authorize } from "../middleware/authorize.js";
 
+import { body } from "../validators/common.js";
+
+import {
+  createTestSchema,
+  updateTestSchema,
+  createQuestionSchema,
+  updateQuestionSchema,
+  submitAttemptSchema,
+  gradeAttemptSchema,
+} from "../validators/testValidator.js";
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -51,6 +62,7 @@ router.post(
   authorize({
     anyPermissions: ["test:create"],
   }),
+  body(createTestSchema),
   createTest
 );
 
@@ -59,6 +71,7 @@ router.put(
   authorize({
     anyPermissions: ["test:update"],
   }),
+  body(updateTestSchema),
   updateTest
 );
 
@@ -91,6 +104,7 @@ questionRouter.post(
   authorize({
     anyPermissions: ["question:create"],
   }),
+  body(createQuestionSchema),
   createQuestion
 );
 
@@ -99,6 +113,7 @@ questionRouter.put(
   authorize({
     anyPermissions: ["question:update"],
   }),
+  body(updateQuestionSchema),
   updateQuestion
 );
 
@@ -143,6 +158,7 @@ attemptRouter.put(
   authorize({
     anyPermissions: ["test_attempt:update"],
   }),
+  body(submitAttemptSchema),
   submitAttempt
 );
 
@@ -153,6 +169,7 @@ attemptRouter.put(
     // submit permission. The controller limits teachers to their own tests.
     anyPermissions: ["test_attempt:manage", "test:manage", "test:update"],
   }),
+  body(gradeAttemptSchema),
   gradeAttempt
 );
 

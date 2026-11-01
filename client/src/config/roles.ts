@@ -361,6 +361,10 @@ export const NAV_SECTIONS: NavSection[] = [
           'hr',
           'employee',
           'teacher',
+          // Self-service: own leave only
+          'accountant',
+          'counselor',
+          'support',
         ],
       },
       {
@@ -373,6 +377,10 @@ export const NAV_SECTIONS: NavSection[] = [
           'hr',
           'accountant',
           'employee',
+          // Self-service: own payslips only
+          'teacher',
+          'counselor',
+          'support',
         ],
       },
     ],

@@ -14,6 +14,12 @@ import {
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
+import { body } from "../validators/common.js";
+import {
+  createClassSchema,
+  updateClassSchema,
+  enrollStudentSchema,
+} from "../validators/academicValidator.js";
 
 const router = express.Router();
 
@@ -34,12 +40,14 @@ router.get(
 router.post(
   "/",
   authorize({ anyPermissions: ["class:create"] }),
+  body(createClassSchema),
   createClass
 );
 
 router.put(
   "/:publicId",
   authorize({ anyPermissions: ["class:update"] }),
+  body(updateClassSchema),
   updateClass
 );
 
@@ -52,6 +60,7 @@ router.delete(
 router.post(
   "/:publicId/enroll",
   authorize({ anyPermissions: ["enrollment:create"] }),
+  body(enrollStudentSchema),
   enrollStudent
 );
 
