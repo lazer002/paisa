@@ -47,6 +47,10 @@ const assertTenant = (req, row) => {
   }
 };
 
+// Students and parents may chat with staff, but not start or extend a
+// conversation with other students or parents.
+const LEARNER_ROLES = ["student", "parent"];
+
 // resolveRef only returns an _id, so load the user to check the tenant.
 const loadOrgUser = async (req, reference) => {
   const id = await resolveRef(User, reference, {
@@ -57,7 +61,7 @@ const loadOrgUser = async (req, reference) => {
     _id: id,
 
     isDeleted: { $ne: true },
-  }).select("_id name instituteId");
+  }).select("_id name role instituteId");
 
   if (!user) {
     throw ApiError.notFound(
@@ -74,6 +78,16 @@ const loadOrgUser = async (req, reference) => {
     throw ApiError.forbidden(
       `${user.name || "User"} is not in your organization`,
       "TENANT_ACCESS_DENIED"
+    );
+  }
+
+  if (
+    LEARNER_ROLES.includes(req.user.role) &&
+    LEARNER_ROLES.includes(user.role)
+  ) {
+    throw ApiError.forbidden(
+      "Students and parents can only message staff",
+      "CHAT_STAFF_ONLY"
     );
   }
 

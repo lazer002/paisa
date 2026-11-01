@@ -1183,6 +1183,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   hr: [
     'teacher:read',
@@ -1248,6 +1251,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   accountant: [
     'ticket:read',
@@ -1287,6 +1293,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   counselor: [
     'ticket:read',
@@ -1346,6 +1355,7 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'message:delete',
   ],
   teacher: [
     'student:create',
@@ -1419,6 +1429,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   support: [
     'user:read',
@@ -1453,6 +1466,7 @@ export const ROLE_PERMISSIONS: Readonly<
     'leave:update',
     'notification_preference:read',
     'notification_preference:update',
+    'message:delete',
   ],
   employee: [
     'ticket:read',
@@ -1489,6 +1503,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   parent: [
     'class:read',
@@ -1528,6 +1545,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
   student: [
     'leave:read',
@@ -1574,6 +1594,9 @@ export const ROLE_PERMISSIONS: Readonly<
     'ticket:update',
     'ticket_message:read',
     'ticket_message:create',
+    'conversation:update',
+    'message:update',
+    'message:delete',
   ],
 }
 

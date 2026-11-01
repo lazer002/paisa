@@ -399,7 +399,9 @@ const ALL_PERMISSIONS = Object.freeze(
 /*
  * Self-service grants every authenticated role needs for its own data.
  * Controllers scope these to the caller (own notification preferences;
- * requesters may only view, reply to and close their own tickets).
+ * requesters may only view, reply to and close their own tickets; chat:
+ * edit only your own messages, delete your own (admins any), add/leave
+ * groups you are in — students and parents may only add or message staff).
  */
 const SELF_SERVICE_PERMISSIONS = Object.freeze([
   PERMISSIONS.NOTIFICATION_PREFERENCE_READ,
@@ -409,6 +411,13 @@ const SELF_SERVICE_PERMISSIONS = Object.freeze([
   PERMISSIONS.TICKET_UPDATE,
   PERMISSIONS.TICKET_MESSAGE_READ,
   PERMISSIONS.TICKET_MESSAGE_CREATE,
+  PERMISSIONS.CONVERSATION_READ,
+  PERMISSIONS.CONVERSATION_CREATE,
+  PERMISSIONS.CONVERSATION_UPDATE,
+  PERMISSIONS.MESSAGE_READ,
+  PERMISSIONS.MESSAGE_CREATE,
+  PERMISSIONS.MESSAGE_UPDATE,
+  PERMISSIONS.MESSAGE_DELETE,
 ]);
 
 const baseRolePermissions = {

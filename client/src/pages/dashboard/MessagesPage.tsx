@@ -39,6 +39,7 @@ function otherPartyName(c: Conversation, myId?: string): string {
 // Server rule (messageController): only the sender may edit; the sender or an
 // admin/super_admin may delete. No time window.
 const MESSAGE_MODERATOR_ROLES = ['super_admin', 'admin']
+const LEARNER_ROLES = ['student', 'parent']
 
 const errMsg = (e: unknown, fallback: string) =>
   (e as { data?: { message?: string } })?.data?.message ?? fallback
@@ -92,9 +93,15 @@ export default function MessagesPage() {
   const [showAddMembers, setShowAddMembers] = useState(false)
   const [newMembers, setNewMembers] = useState<string[]>([])
 
-  // user directory for "new chat" — only fetchable by managers; others pick from existing threads
-  const canBrowseUsers = ['super_admin', 'admin', 'hr', 'principal', 'teacher', 'counselor', 'support'].includes(user?.role ?? '')
+  // Everyone can start chats from the org directory (GET /users returns a
+  // name/role directory to non-managers). Students and parents may only
+  // message staff — the server enforces the same rule (CHAT_STAFF_ONLY).
+  const canBrowseUsers = can('user:read') && can('conversation:create')
   const { data: users } = useGetUsersQuery(undefined, { skip: !canBrowseUsers })
+  const isLearner = LEARNER_ROLES.includes(user?.role ?? '')
+  const contacts = (users ?? []).filter(
+    (u) => rid(u) !== myId && u._id !== myId && (!isLearner || !LEARNER_ROLES.includes(u.role)),
+  )
 
   const [directUserId, setDirectUserId] = useState('')
   const [groupTitle, setGroupTitle] = useState('')
@@ -483,16 +490,14 @@ export default function MessagesPage() {
         <Field label="Pick a person" required>
           <select className={inputCls} value={directUserId} onChange={(e) => setDirectUserId(e.target.value)}>
             <option value="">— Select user —</option>
-            {(users ?? [])
-              .filter((u) => rid(u) !== myId)
-              .map((u) => (
-                <option key={rid(u)} value={rid(u)}>{u.name} ({u.role})</option>
-              ))}
+            {contacts.map((u) => (
+              <option key={rid(u)} value={rid(u)}>{u.name} ({u.role})</option>
+            ))}
           </select>
         </Field>
-        {!canBrowseUsers && (
+        {isLearner && (
           <p className="mt-2 text-xs text-gray-400">
-            Ask an admin to add you to a conversation, or use a group you're already in.
+            You can message teachers and staff of your organization.
           </p>
         )}
       </ModalShell>
@@ -515,8 +520,7 @@ export default function MessagesPage() {
           </Field>
           <Field label={`Members (${groupMembers.length} selected)`} required>
             <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
-              {(users ?? [])
-                .filter((u) => rid(u) !== myId)
+              {contacts
                 .map((u) => {
                   const id = rid(u)
                   const checked = groupMembers.includes(id)
@@ -557,7 +561,7 @@ export default function MessagesPage() {
       >
         {(() => {
           const existing = active ? participantIds(active) : new Set<string>()
-          const candidates = (users ?? []).filter((u) => !existing.has(u._id) && !existing.has(rid(u)))
+          const candidates = contacts.filter((u) => !existing.has(u._id) && !existing.has(rid(u)))
           if (candidates.length === 0) {
             return <p className="py-6 text-center text-sm text-gray-400">Everyone you can see is already in this group</p>
           }

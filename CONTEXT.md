@@ -325,18 +325,20 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 | super_admin | 10 | 29 | 75% | No session list / 2FA · Companies/Institutes read-only (F5) |
 | admin | 29 | 146 | 88% | CRM activity/note edit UI (D15) · Razorpay + Resend untested without keys · no restore of other soft-deleted records |
 | principal | 28 | 62 | 80% | No Billing (lacks `finance:read`, by design) · can't delete assignments/materials (D13) |
-| teacher | 19 | 52 | 80% | Can't delete own tests/questions or edit own events (D13) · can't add/leave group chats (D7) · no rubrics/proctoring |
-| student | 17 | 26 | 80% | Can't start a chat (D8) · online pay untested (no keys) |
-| hr | 15 | 55 | 80% | Payroll proration for mid-month joiners · formula salary components count as 0 · D7 |
-| accountant | 9 | 29 | 72% | Can't mark payroll paid (D14) · reports are stat cards + CSV · can't start a chat (D8) |
+| teacher | 19 | 52 | 82% | Can't delete own tests/questions or edit own events (D13) · no rubrics/proctoring |
+| student | 17 | 26 | 82% | Online pay untested (no keys) |
+| hr | 15 | 55 | 80% | Payroll proration for mid-month joiners · formula salary components count as 0 |
+| accountant | 9 | 29 | 74% | Can't mark payroll paid (D14) · reports are stat cards + CSV |
 | counselor | 12 | 47 | 78% | Can't delete leads/deals (D14) · no CRM activity/note edit (D15) · no lead scoring/duplicate check |
 | support | 8 | 22 | 78% | Customers read-only (D14) · no ticket merge |
-| employee | 11 | 20 | 75% | Can't upload own documents or acknowledge a review (D14) · can't start a chat (D8) |
-| parent | 14 | 20 | 75% | Can't start a chat (D8) · read-mostly by design |
+| employee | 11 | 20 | 77% | Can't upload own documents or acknowledge a review (D14) |
+| parent | 14 | 20 | 78% | Read-mostly by design |
 
-Open audit items (2026-11-01): **D7/D8 need an owner decision** — who may start chats / edit own messages /
-add-leave groups (today only admin, counselor, support; students, parents, employees and accountants have no
-New Chat). D13 owners can't edit/delete what they create in a few modules (events, achievements, own
+Chat (D7/D8, owner decision 2026-11-01 "all roles, scoped"): every role may start direct/group chats, edit and
+delete its own messages, add members to and leave groups it is in (chat perms are in SELF_SERVICE_PERMISSIONS);
+**students and parents may only start or extend chats with staff** — `messageController.loadOrgUser` returns 403
+`CHAT_STAFF_ONLY` when both sides are student/parent; staff may still add students to groups.
+Open audit items: D13 owners can't edit/delete what they create in a few modules (events, achievements, own
 tests/questions, principal assignments/materials). D14 narrow per-role gaps listed above. D15 no edit UI for CRM
 activities/notes (PUT routes exist). D16 tenant-suite test accounts stay as inactive users (no hard-delete API).
 Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
@@ -370,7 +372,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | CRM leads/deals/contacts/customers | 4/5 + 4/4 + 4/4 + 4/4 | 78% | No scoring / duplicate check |
 | CRM pipelines | 3/3 | 70% | No pipeline edit route |
 | CRM activities/tasks/notes | 3/4 + 5/5 + 3/4 | 72% | No activity/note edit UI (D15) |
-| Messaging | 8/9 + 2/2 | 70% | D7/D8 (owner decision) |
+| Messaging | 9/9 + 2/2 | 85% | No attachments in chat · no message search |
 | Announcements / events | 4/5 + 4/5 | 75% | D13 |
 | Tickets | 11/11 | 82% | No merge |
 | Gamification | 9/9 | 55% | Leaderboard empty for demo users · Streak/Leaderboard models unused |
@@ -522,6 +524,14 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Chat for all roles (D7/D8, owner chose "all roles, scoped").** Chat permissions
+  (conversation:create/update, message:create/update/delete) moved into SELF_SERVICE_PERMISSIONS; controllers
+  already limit edit to own messages, delete to own (admins any), add/leave to participants. New rule in
+  `loadOrgUser`: students/parents can't start or extend chats with other students/parents (403 CHAT_STAFF_ONLY).
+  MessagesPage: New Chat / New Group / Add for every role, contact list = org directory minus self, staff-only for
+  students and parents. Verified: chat-scope live 20/20, unit 40/40 (new chat-permission test), client lint +
+  tsc, smoke 171/171, realtime 31/31, wave5 33/33, tenant 671/671 (0 leaks).
 
 - **2026-11-01 — Wave 5: audit + final fixes.** One read-only audit agent (gates for 252 routes × 11 roles, client
   map, 484 live GETs, cross-org probes) while known gaps were fixed in this session. Fixed: **D1 (high) every role

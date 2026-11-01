@@ -33,6 +33,20 @@ test("every role has self-service notification preferences and ticket replies", 
   }
 });
 
+test("every role can chat and manage its own messages (scope enforced in messageController)", () => {
+  for (const role of ROLES) {
+    for (const permission of [
+      "conversation:create",
+      "conversation:update",
+      "message:create",
+      "message:update",
+      "message:delete",
+    ]) {
+      assert.ok(can(role, permission), `${role} should hold ${permission}`);
+    }
+  }
+});
+
 test("super_admin passes every permission check", () => {
   assert.equal(hasPermission({ role: "super_admin" }, "audit:read"), true);
   assert.equal(hasPermission({ role: "super_admin" }, "geofence:create"), true);
