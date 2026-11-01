@@ -8,7 +8,7 @@ export type OrgType =
   | 'ngo'
   | 'others'
 
-export type OrgPlan = 'free' | 'pro' | 'enterprise'
+export type OrgPlan = 'free' | 'starter' | 'pro' | 'enterprise'
 export type OrgStatus = 'active' | 'inactive' | 'suspended'
 
 export interface OrgContact {

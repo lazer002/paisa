@@ -80,7 +80,13 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 - **Wave 4: integrations**:
   - [x] Payments module (committed separately 2026-10-29, verified live; see §12): Payment model, manual payments with receipts,
     refunds, Razorpay order/verify/webhook, client Pay online + payment history + printable receipts.
-  - [ ] Billing subscriptions (F4): org plan purchase through Razorpay.
+  - [x] Billing subscriptions (F4, 2026-11-01): `config/plans.js` (free / starter ₹999 / pro ₹2,499 / enterprise
+    ₹9,999 per month, yearly = 10×; user/student/storage limits), `Subscription` model + `services/subscriptionService.js`,
+    `/api/subscriptions` (plans, current, checkout → Razorpay order, verify, cancel/resume, super_admin override with
+    audit), webhook routes subscription orders (idempotent), lazy expiry (7-day past_due grace → free), seat limit →
+    403 `PLAN_LIMIT_REACHED` in createUser/createEmployee. BillingPage rewritten; override panel on org detail.
+    Gated by `finance:read|manage` (principal: read-only page, 403 on API). Gaps: legacy `PUT /organizations` `plan`
+    still bypasses the Subscription record; HR/teacher creation not seat-checked; real checkout untested (no keys).
   - [x] Email via Resend (2026-11-01): `services/emailService.js` (fetch to Resend; logs instead of sending when
     `RESEND_API_KEY` is unset; never throws), templates, forgot/reset password (`/auth/forgot-password` always
     200 + same message; sha256 single-use token, `PASSWORD_RESET_TTL_SECONDS` default 15 min; reset revokes all
@@ -93,7 +99,15 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
     the linked record's rules; delete removes bytes). Employee documents, study materials and submissions accept
     `fileId` (links still work). Client `components/ui/FileUpload.tsx` + `lib/api/files.ts`. Gaps: orphaned uploads
     and files of deleted materials are not cleaned up; S3 not implemented.
-  - [ ] Live video (Jitsi links) · realtime messaging and notifications (socket.io) · optional AI features.
+  - [x] Live video (2026-11-01): sessions without a link get `https://${JITSI_DOMAIN}/<unguessable slug>`; embedded
+    `JitsiMeetingModal` (external_api.js) with the user's name; `POST /live-sessions/:id/join` records attendance,
+    `GET /:id/participants` host-only; access by accessMode + class membership (private/invite-only hidden).
+  - [x] Realtime (2026-11-01): `server/src/realtime/` (socket.io 4.8.3 on the http server, handshake mirrors
+    authenticate.js, rooms `user:` / `org:` / `conv:` (participant-checked), throttled typing, `auth_error` on expiry),
+    emits from messageController + notificationController; client `lib/realtime/` (connect with the in-memory token,
+    refresh + reconnect, RTK cache sync, typing label), Vite `/socket.io` proxy. Gaps: logout-all doesn't kick live
+    sockets (they drop at token expiry ≤15 min); multi-process needs a socket.io Redis adapter.
+  - [ ] Optional AI features (only when an API key is set).
 - **Wave 5: final pass**: re-run the §8b/§8c audits, aim for every role at ~100% of its scope, update reports.
 
 ### Cleanup owed
@@ -154,6 +168,8 @@ cd client && npm run build   # tsc -b + vite build = the client typecheck
 - `server/.env` exists locally (git-ignored). No `client/.env` needed in dev.
 - **Environment (this machine):** the default `node` is now **v24.21.0** (nvm current), so plain `node`/`npm`
   work. It used to be v12 (can't parse `?.`); if `node -v` shows v12 again, run `nvm use 22.14.0`.
+- **Dependencies:** this is an npm-workspaces repo. Add packages from the root (`npm install <pkg>@<ver> -w client`
+  / `-w server`), never with `npm --prefix client install` — that creates nested `node_modules` that shadow the root.
 - **Agents: avoid permission prompts.** Do NOT prefix commands with `PATH=…`/`export PATH=…`, do NOT edit files via
   `python - <<EOF`/`sed -i`, and avoid `cd … && … | …; …` chains: Claude Code asks for approval on these even in
   bypass mode. Edit with the Edit/Write tools, search with Grep, and run single commands with absolute paths
@@ -506,6 +522,18 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Wave 4 round 2: subscriptions + Jitsi, realtime.** Two agents. Verified on the combined tree:
+  39/39 unit tests (plans + realtime emitter tests added), client lint + build, e2e:smoke 171/171, e2e:flows 39/39
+  (+3 once-per-day skips), e2e:tenant 671/671 (0 leaks), subscriptions/Jitsi live 45/45 (demo org restored to free),
+  realtime live 31/31, signed-webhook activation 15/15 (in-process with a test secret; no real Razorpay keys).
+  **Workspace install fix:** the agents ran `npm install` inside `client/`/`server/`, which created a nested
+  `client/node_modules` whose Vite 8.0.14 shadowed the root 8.3.0 and left `socket.io-client` out of the root lock —
+  restored `client/package-lock.json` and re-ran `npm install` at the root (345 nested duplicates removed). **Rule:
+  add dependencies from the root with `npm install <pkg>@<ver> -w client` (or `-w server`).** Also: a Karpathy-
+  guidelines `UserPromptSubmit` hook was added to `.claude/settings.local.json` and the rule to AGENTS.md.
+  Leftover demo rows: two empty "REALTIME-AGENT test" groups (no delete API), broadcast notifications for org-1
+  teachers, subscription history entries. Not tested: real Razorpay checkout, browser UI.
 
 - **2026-11-01 — Wave 4 round 1: email + file uploads.** Two agents in parallel (cap of 2 to stay under usage
   limits). Env keys for S3 and `JITSI_DOMAIN` added up front so agents didn't share env.js. Verified on the

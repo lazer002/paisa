@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
-import { Plus, Video, Trash2, Play, Square, ExternalLink } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { Plus, Video, Trash2, Play, Square, ExternalLink, Users } from 'lucide-react'
 
 import {
   useGetLiveSessionsQuery,
   useCreateLiveSessionMutation,
   useUpdateLiveSessionMutation,
   useDeleteLiveSessionMutation,
-  type LiveSession,
+  type LiveSession as BaseLiveSession,
 } from '@/features/messaging/messagingApi'
+import { useJoinLiveSessionMutation, type LiveSessionJoin } from '@/features/liveSessions/liveSessionsApi'
+import JitsiMeetingModal from '@/components/live/JitsiMeetingModal'
+import LiveSessionParticipantsModal from '@/components/live/LiveSessionParticipantsModal'
 import { useGetClassesQuery } from '@/features/classes/classesApi'
 import { rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
@@ -32,6 +35,11 @@ function fmtWhen(iso?: string | null): string {
 
 type Bucket = 'upcoming' | 'live' | 'past'
 
+type LiveSession = BaseLiveSession & { provider?: string; participantCount?: number }
+
+const errMsg = (e: unknown, fallback: string) =>
+  (e as { data?: { message?: string } })?.data?.message ?? fallback
+
 export default function LiveSessionsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role ?? ''
@@ -49,6 +57,34 @@ export default function LiveSessionsPage() {
   const [createSession] = useCreateLiveSessionMutation()
   const [updateSession] = useUpdateLiveSessionMutation()
   const [deleteSession] = useDeleteLiveSessionMutation()
+  const [joinSession] = useJoinLiveSessionMutation()
+  const [joining, setJoining] = useState<string | null>(null)
+  const [meeting, setMeeting] = useState<LiveSessionJoin | null>(null)
+  const [roster, setRoster] = useState<LiveSession | null>(null)
+  const closeMeeting = useCallback(() => setMeeting(null), [])
+
+  // Records attendance and opens the room: embedded for Jitsi, new tab otherwise.
+  const join = async (s: LiveSession) => {
+    const id = rid(s)
+    setJoining(id)
+    try {
+      const result = await joinSession(id).unwrap()
+      if (result.jitsi) setMeeting(result)
+      else window.open(result.joinUrl, '_blank', 'noopener,noreferrer')
+    } catch (e: unknown) {
+      setToast({ msg: errMsg(e, 'Could not join the session'), tone: 'critical' })
+    } finally {
+      setJoining(null)
+    }
+  }
+
+  // External links must open from the click itself (popup blockers), so the
+  // attendance call runs alongside.
+  const recordJoin = (s: LiveSession) => {
+    joinSession(rid(s)).unwrap().catch((e: unknown) =>
+      setToast({ msg: errMsg(e, 'Could not record attendance'), tone: 'critical' }),
+    )
+  }
 
   const [showCreate, setShowCreate] = useState(false)
   const [title, setTitle] = useState('')
@@ -147,15 +183,35 @@ export default function LiveSessionsPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-2">
-              {s.joinUrl && s.status !== 'ended' && s.status !== 'cancelled' && (
-                <a
-                  href={s.joinUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700"
+              {s.status !== 'ended' && s.status !== 'cancelled' && (
+                s.joinUrl && s.provider !== 'jitsi' ? (
+                  <a
+                    href={s.joinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => recordJoin(s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700"
+                  >
+                    <ExternalLink size={12} /> Join
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => join(s)}
+                    disabled={joining === rid(s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700 disabled:opacity-50"
+                  >
+                    <Video size={12} /> {joining === rid(s) ? 'Joining…' : 'Join'}
+                  </button>
+                )
+              )}
+
+              {canModerate(s) && (
+                <button
+                  onClick={() => setRoster(s)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
                 >
-                  <ExternalLink size={12} /> Join
-                </a>
+                  <Users size={12} /> Participants{s.participantCount ? ` (${s.participantCount})` : ''}
+                </button>
               )}
 
               {canModerate(s) && s.status === 'scheduled' && (
@@ -262,8 +318,8 @@ export default function LiveSessionsPage() {
               </select>
             </Field>
           )}
-          <Field label="Join URL (Zoom/Meet link, optional)">
-            <input className={inputCls} value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} placeholder="https://meet.google.com/..." />
+          <Field label="Meeting link (optional)">
+            <input className={inputCls} value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} placeholder="Leave empty to get a Jitsi video room" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Starts at" required>
@@ -275,6 +331,12 @@ export default function LiveSessionsPage() {
           </div>
         </div>
       </ModalShell>
+
+      {meeting && <JitsiMeetingModal join={meeting} onClose={closeMeeting} />}
+
+      {roster && (
+        <LiveSessionParticipantsModal sessionId={rid(roster)} title={roster.title} onClose={() => setRoster(null)} />
+      )}
 
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>

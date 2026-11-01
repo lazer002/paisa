@@ -5,6 +5,7 @@ import {
   Network, ShieldCheck, Calendar, ArrowUp, Trash2,
 } from 'lucide-react'
 import DeleteOrganizationDialog from '@/components/platform-admin/DeleteOrganizationDialog'
+import SubscriptionOverridePanel from '@/components/billing/SubscriptionOverridePanel'
 import { useCanManageOrganizations } from '@/components/platform-admin/useCanManageOrganizations'
 import { useGetOrganizationQuery } from '@/features/organizations/organizationsApi'
 import { useGetUsersQuery, rid, type OrgUser } from '@/features/users/usersApi'
@@ -14,7 +15,7 @@ import { LoadingList, ErrorState } from '@/components/ui/StateViews'
 import Badge from '@/components/ui/badge'
 import StatCard from '@/components/ui/StatCard'
 
-const PLAN_COLOR = { free: 'gray', pro: 'blue', enterprise: 'purple' } as const
+const PLAN_COLOR = { free: 'gray', starter: 'green', pro: 'blue', enterprise: 'purple' } as const
 const STATUS_COLOR = { active: 'green', inactive: 'yellow', suspended: 'red' } as const
 
 /**
@@ -292,6 +293,8 @@ export default function OrganizationDetailPage() {
           onDeleted={() => navigate('/dashboard/organizations')}
         />
       )}
+
+      {isSuperAdmin && org.publicId && <SubscriptionOverridePanel organizationId={org.publicId} />}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -24,6 +24,12 @@ import { sendInBackground } from "../services/emailService.js";
 
 import { sendNotificationEmails } from "../services/transactionalEmails.js";
 
+import { emit } from "../realtime/emitter.js";
+
+// Tells the user's other tabs/devices that read state changed.
+const pushReadState = (req) =>
+  emit.toUser(req.user._id, "notification:read", {});
+
 import {
   sendSuccess,
   sendCreated,
@@ -107,6 +113,8 @@ export const markNotificationRead =
 
     await notification.markRead();
 
+    pushReadState(req);
+
     return sendSuccess(res, {
       message: "Marked as read",
 
@@ -120,6 +128,8 @@ export const markAllNotificationsRead =
       req.user.instituteId,
       req.user._id
     );
+
+    pushReadState(req);
 
     return sendSuccess(res, {
       message: "All marked as read",
@@ -147,6 +157,8 @@ export const archiveNotification =
     }
 
     await notification.archive();
+
+    pushReadState(req);
 
     return sendSuccess(res, {
       message: "Notification archived",
@@ -320,6 +332,13 @@ export const broadcastNotification =
 
     const created =
       await NotificationLog.insertMany(docs);
+
+    // Realtime: each recipient's bell updates at once (no-op without sockets).
+    for (const notification of created) {
+      emit.toUser(notification.userId, "notification:new", {
+        notification: notification.toJSON(),
+      });
+    }
 
     sendCreated(res, {
       message: `Notification sent to ${created.length} users`,

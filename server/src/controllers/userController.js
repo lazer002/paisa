@@ -34,6 +34,7 @@ import  {ROLES }  from "../config/constants.js";
 import { canManageRole } from "../utils/permissions.js";
 import { sendInBackground } from "../services/emailService.js";
 import { sendWelcomeEmail } from "../services/passwordResetService.js";
+import { checkSeatLimit } from "../services/subscriptionService.js";
 
 
 export const createUser = async (req, res) => {
@@ -138,6 +139,19 @@ export const createUser = async (req, res) => {
           "You cannot create a user in another organization"
         );
       }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* PLAN LIMITS (soft: fails open on billing errors)                       */
+    /* ---------------------------------------------------------------------- */
+
+    const planLimit = await checkSeatLimit(instituteId, normalizedRole);
+
+    if (planLimit) {
+      return sendForbidden(res, planLimit.message, {
+        code: "PLAN_LIMIT_REACHED",
+        details: planLimit,
+      });
     }
 
     /* ---------------------------------------------------------------------- */

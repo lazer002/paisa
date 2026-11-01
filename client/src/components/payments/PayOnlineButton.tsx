@@ -6,32 +6,7 @@ import {
   useVerifyRazorpayPaymentMutation,
   type RazorpayResult,
 } from '@/features/payments/paymentsApi'
-
-interface RazorpayInstance {
-  open: () => void
-  on: (event: string, handler: (response: { error?: { description?: string } }) => void) => void
-}
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => RazorpayInstance
-  }
-}
-
-const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js'
-
-const loadCheckout = () =>
-  new Promise<void>((resolve, reject) => {
-    if (window.Razorpay) return resolve()
-    const script = document.createElement('script')
-    script.src = CHECKOUT_SRC
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Could not load the payment window'))
-    document.body.appendChild(script)
-  })
-
-const errorMessage = (e: unknown) =>
-  (e as { data?: { message?: string } })?.data?.message ?? (e as Error)?.message ?? 'Payment failed'
+import { loadCheckout, paymentErrorMessage as errorMessage } from '@/lib/payments/razorpayCheckout'
 
 /** Opens Razorpay Checkout for an invoice; the server verifies and records the payment. */
 export default function PayOnlineButton({

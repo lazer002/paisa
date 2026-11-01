@@ -210,6 +210,9 @@ export const updateLiveSessionSchema = Joi.object({
   status: oneOf(LIVE_SESSION_STATUS),
 });
 
+// Join takes no input; the caller and the session come from the request.
+export const joinLiveSessionSchema = Joi.object({});
+
 /* ------------------------------------------------------------------ */
 
 export default Object.freeze({

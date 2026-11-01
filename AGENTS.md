@@ -10,6 +10,17 @@ On **every user prompt** — before answering or writing any code — load the s
 
 Never skip the skill because a request looks simple. If the user explicitly says to skip a phase, follow their instruction.
 
+`feature-workflow` is not registered as a skill tool in this setup — if the skill tool says "Unknown skill", Read
+`.agents/skills/feature-workflow/SKILL.md` directly and follow it.
+
+## Always use the Karpathy guidelines skill
+
+On **every user prompt**, also invoke the skill `andrej-karpathy-skills:karpathy-guidelines` (Skill tool) before
+answering or writing code, and apply it together with feature-workflow: surgical changes over rewrites, state
+assumptions instead of guessing, define how success is verified, keep it simple. A `UserPromptSubmit` hook in
+`.claude/settings.local.json` reminds the main session of this on every prompt. Background agents don't receive
+that hook, so their briefs must tell them to load the skill as their first step.
+
 ## Always read and update CONTEXT.md
 
 Before analyzing or coding, read `CONTEXT.md` at the repo root — it holds the

@@ -18,6 +18,7 @@ import {
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
 import { usePermission } from '@/lib/auth/usePermission'
+import { useConversationRealtime, useRealtimeEvent } from '@/lib/realtime'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -113,6 +114,18 @@ export default function MessagesPage() {
 
   const active = sorted.find((c) => (c.publicId ?? c._id) === activeId) ?? null
 
+  // Live updates: join the open conversation's room; messages arrive through
+  // the RTK Query cache (lib/realtime/cacheSync), typing state comes from here.
+  const { typingLabel, notifyTyping, stopTyping } = useConversationRealtime(activeId, [user?.publicId, user?._id])
+
+  // Keep the open thread read while new messages from others stream in.
+  useRealtimeEvent<{ conversationId?: string; message?: ChatMessage }>('message:new', (push) => {
+    if (!activeId || push?.conversationId !== activeId || !push.message) return
+    const sender = push.message.senderId
+    const senderId = typeof sender === 'object' && sender ? sender._id : sender
+    if (senderId && senderId !== myId) markRead(activeId)
+  })
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages?.length])
@@ -126,6 +139,7 @@ export default function MessagesPage() {
   const send = async () => {
     const text = draft.trim()
     if (!text || !activeId) return
+    stopTyping()
     try {
       await sendMessage({ conversationId: activeId, text }).unwrap()
       setDraft('')
@@ -421,12 +435,21 @@ export default function MessagesPage() {
                 <div ref={bottomRef} />
               </div>
 
+              <p className="h-5 px-4 pt-1 text-xs italic text-gray-400" aria-live="polite">
+                {typingLabel ?? ''}
+              </p>
+
               <div className="flex items-end gap-2 border-t border-gray-100 p-3">
                 <textarea
                   className={inputCls}
                   rows={2}
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value)
+                    if (e.target.value.trim()) notifyTyping()
+                    else stopTyping()
+                  }}
+                  onBlur={stopTyping}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()

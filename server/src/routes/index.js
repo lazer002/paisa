@@ -31,6 +31,7 @@ import testRoutes, {
 import enrollmentRoutes from "./enrollmentRoutes.js";
 import billingRoutes from "./billingRoutes.js";
 import paymentRoutes from "./paymentRoutes.js";
+import subscriptionRoutes from "./subscriptionRoutes.js";
 import auditRoutes from "./auditRoutes.js";
 import geofenceRoutes from "./geofenceRoutes.js";
 import qrSessionRoutes from "./qrSessionRoutes.js";
@@ -96,6 +97,7 @@ const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
   payroll: "payroll",
   invoices: "finance",
   payments: "finance",
+  subscriptions: "finance",
   leads: "crm",
   deals: "crm",
   pipelines: "crm",
@@ -290,6 +292,11 @@ router.use(
 router.use(
   "/payments",
   paymentRoutes
+);
+
+router.use(
+  "/subscriptions",
+  subscriptionRoutes
 );
 
 // ─────────────────────────────────────────────

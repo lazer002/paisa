@@ -31,6 +31,7 @@ import ApiError from "../utils/ApiError.js";
 import { getNextSequence } from "../utils/sequence.js";
 import { sendInBackground } from "../services/emailService.js";
 import { sendWelcomeEmail } from "../services/passwordResetService.js";
+import { checkSeatLimit } from "../services/subscriptionService.js";
 
 // Create Employee
 export const createEmployee = async (req, res) => {
@@ -86,6 +87,21 @@ export const createEmployee = async (req, res) => {
         400,
         "Invalid instituteId"
       );
+    }
+
+    // Soft plan limit (fails open on billing errors).
+    const planLimit = await checkSeatLimit(
+      resolvedInstitute,
+      Roles.EMPLOYEE
+    );
+
+    if (planLimit) {
+      return sendError(res, {
+        statusCode: 403,
+        code: "PLAN_LIMIT_REACHED",
+        message: planLimit.message,
+        details: planLimit,
+      });
     }
 
     const employee =

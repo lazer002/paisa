@@ -18,6 +18,10 @@ import {
   disconnectRedis,
 } from "./src/config/redis.js";
 import logger from "./src/config/logger.js";
+import {
+  initRealtime,
+  closeRealtime,
+} from "./src/realtime/socket.js";
 
 let server = null;
 let shuttingDown = false;
@@ -54,6 +58,11 @@ if (env.REDIS_REQUIRED) {
      * HTTP Server
      */
     server = http.createServer(app);
+
+    /*
+     * Realtime (socket.io on /socket.io)
+     */
+    initRealtime(server);
 
     /*
      * Server timeouts
@@ -169,6 +178,9 @@ const shutdown = async (signal) => {
    * Stop accepting new connections
    */
   if (server) {
+    // Open websockets would keep server.close() waiting.
+    closeRealtime();
+
     await new Promise((resolve) => {
       server.close(() => {
         resolve();

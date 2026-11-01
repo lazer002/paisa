@@ -15,6 +15,8 @@ import { asyncHandler } from "../utils/errorHandler.js";
 
 import ApiError from "../utils/ApiError.js";
 
+import { emit } from "../realtime/emitter.js";
+
 import {
   sendSuccess,
   sendCreated,
@@ -104,6 +106,29 @@ const participantView = (conversation, users = new Map()) =>
 
       unreadCount: participant.unreadCount,
     }));
+
+const activeParticipantIds = (conversation) =>
+  conversation.participants
+    .filter((participant) => participant.status === "active")
+    .map((participant) => String(participant.userId));
+
+// Realtime pushes (no-ops when sockets are not initialised). The message
+// goes to the conversation room (open threads); every active participant
+// also gets `conversation:updated` so lists and unread badges refresh.
+const pushMessageEvent = (conversation, event, payload) => {
+  const conversationId = conversation.publicId;
+
+  emit.toConversation(conversationId, event, {
+    conversationId,
+    ...payload,
+  });
+
+  emit.toUsers(
+    activeParticipantIds(conversation),
+    "conversation:updated",
+    { conversationId, reason: event }
+  );
+};
 
 /* =========================================================
    CONVERSATIONS
@@ -258,6 +283,12 @@ export const createDirectConversation =
         lastActivityAt: new Date(),
       });
 
+    emit.toUsers(
+      activeParticipantIds(conversation),
+      "conversation:updated",
+      { conversationId: conversation.publicId, reason: "created" }
+    );
+
     return sendCreated(res, {
       message: "Conversation created",
 
@@ -336,6 +367,12 @@ export const createGroupConversation =
 
         lastActivityAt: new Date(),
       });
+
+    emit.toUsers(
+      activeParticipantIds(conversation),
+      "conversation:updated",
+      { conversationId: conversation.publicId, reason: "created" }
+    );
 
     return sendCreated(res, {
       message: "Group created",
@@ -438,6 +475,15 @@ export const addConversationParticipants =
       });
     }
 
+    emit.toUsers(
+      activeParticipantIds(conversation),
+      "conversation:updated",
+      {
+        conversationId: conversation.publicId,
+        reason: "participants",
+      }
+    );
+
     return sendSuccess(res, {
       message: "Participants added",
 
@@ -473,6 +519,21 @@ export const leaveConversation = asyncHandler(
     }
 
     await conversation.leave(req.user._id);
+
+    // Stop pushing this conversation to the leaver's open sockets.
+    emit.removeUserFromConversation(
+      req.user._id,
+      conversation.publicId
+    );
+
+    emit.toUsers(
+      [
+        ...activeParticipantIds(conversation),
+        String(req.user._id),
+      ],
+      "conversation:updated",
+      { conversationId: conversation.publicId, reason: "left" }
+    );
 
     return sendSuccess(res, {
       message: "Left conversation",
@@ -517,6 +578,12 @@ export const markConversationRead =
       req.user._id,
       latest?._id ?? null
     );
+
+    // Other tabs/devices of this user refresh their unread badges.
+    emit.toUser(req.user._id, "conversation:updated", {
+      conversationId: conversation.publicId,
+      reason: "read",
+    });
 
     return sendSuccess(res, {
       message: "Marked as read",
@@ -667,6 +734,10 @@ export const sendMessage = asyncHandler(
       req.user._id
     );
 
+    pushMessageEvent(conversation, "message:new", {
+      message: message.toJSON(),
+    });
+
     return sendCreated(res, {
       message: "Message sent",
 
@@ -713,6 +784,16 @@ export const deleteMessage = asyncHandler(
     message.deletedBy = req.user._id;
 
     await message.save();
+
+    const conversation = await Conversation.findById(
+      message.conversationId
+    ).select("_id publicId participants");
+
+    if (conversation) {
+      pushMessageEvent(conversation, "message:deleted", {
+        messageId: message.publicId || String(message._id),
+      });
+    }
 
     return sendSuccess(res, {
       message: "Message deleted",
@@ -769,6 +850,16 @@ export const editMessage = asyncHandler(
     message.editedBy = req.user._id;
 
     await message.save();
+
+    const conversation = await Conversation.findById(
+      message.conversationId
+    ).select("_id publicId participants");
+
+    if (conversation) {
+      pushMessageEvent(conversation, "message:updated", {
+        message: message.toJSON(),
+      });
+    }
 
     return sendSuccess(res, {
       message: "Message updated",

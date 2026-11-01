@@ -21,6 +21,12 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
+      // Realtime (socket.io): same origin as the UI, upgraded to websocket.
+      '/socket.io': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })

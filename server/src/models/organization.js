@@ -22,8 +22,10 @@ const ORG_STATUS = [
   "suspended",
 ];
 
+// Keep in sync with config/plans.js (PLAN_CATALOG keys).
 const PLANS = [
   "free",
+  "starter",
   "pro",
   "enterprise",
 ];

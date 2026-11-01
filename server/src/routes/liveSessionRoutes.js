@@ -8,6 +8,8 @@ import {
   getLiveSession,
   updateLiveSession,
   deleteLiveSession,
+  joinLiveSession,
+  getLiveSessionParticipants,
 } from "../controllers/liveSessionController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -19,6 +21,7 @@ import { body } from "../validators/common.js";
 import {
   createLiveSessionSchema,
   updateLiveSessionSchema,
+  joinLiveSessionSchema,
 } from "../validators/academicValidator.js";
 
 const router = express.Router();
@@ -39,6 +42,26 @@ router.get(
     anyPermissions: ["live_session:read"],
   }),
   getLiveSession
+);
+
+// Anyone who may see the session may join it (the controller checks access
+// mode / class membership and records attendance).
+router.post(
+  "/:publicId/join",
+  authorize({
+    anyPermissions: ["live_session:read"],
+  }),
+  body(joinLiveSessionSchema),
+  joinLiveSession
+);
+
+// Roster for the host / admins (checked in the controller).
+router.get(
+  "/:publicId/participants",
+  authorize({
+    anyPermissions: ["live_session:read"],
+  }),
+  getLiveSessionParticipants
 );
 
 router.post(

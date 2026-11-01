@@ -24,6 +24,7 @@ import {
   verifyPaymentSignature,
   verifyWebhookSignature,
 } from "../services/razorpay.js";
+import { activateSubscriptionPayment } from "../services/subscriptionService.js";
 
 const PAYMENT_POPULATE = [
   { path: "invoiceId", select: "publicId invoiceNumber title grandTotal amountDue status currency" },
@@ -111,6 +112,7 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
     currency: invoice.currency || "INR",
     receipt: invoice.invoiceNumber || invoice.publicId,
     notes: {
+      kind: "invoice",
       invoicePublicId: invoice.publicId,
       instituteId: String(invoice.instituteId),
       payerId: String(req.user._id),
@@ -202,6 +204,27 @@ export const razorpayWebhook = asyncHandler(async (req, res) => {
 
   const event = req.body?.event;
   const entity = req.body?.payload?.payment?.entity;
+
+  // Subscription orders (notes.kind = "subscription", see subscriptionController).
+  if (event === "payment.captured" && entity?.notes?.kind === "subscription") {
+    try {
+      await activateSubscriptionPayment({
+        instituteId: entity.notes.instituteId,
+        gatewayPayment: entity,
+        plan: entity.notes.plan,
+        billingCycle: entity.notes.billingCycle,
+        payerId: entity.notes.payerId || null,
+        source: "webhook",
+      });
+    } catch (error) {
+      logger.warn?.("Razorpay subscription webhook not applied", {
+        paymentId: entity.id,
+        reason: error.message,
+      });
+    }
+
+    return res.status(200).json({ success: true });
+  }
 
   if (event === "payment.captured" && entity?.notes?.invoicePublicId) {
     const invoice = await Invoice.findOne({
