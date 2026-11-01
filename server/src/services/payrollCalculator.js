@@ -15,7 +15,11 @@
 //   3. no attendance record: a day after "today" is assumed present (payroll
 //      run before the month ends); otherwise it is an UNMARKED absence (LOP),
 //      unless the run uses unmarkedAsPresent=true.
-// - LOP days = unpaid leave + absent + unmarked. Paid days = working - LOP.
+// - Working days before the employee's joining date or after their last
+//   working date are "not employed" days: they are not classified (so they are
+//   never LOP) and their pay is prorated away (see MONEY RULES).
+// - LOP days = unpaid leave + absent + unmarked.
+//   Paid days = working - not employed - LOP.
 //
 // MONEY RULES:
 // - Monthly basic = structure.monthlyBaseSalary, else baseSalary (annual
@@ -23,13 +27,21 @@
 //   working hours per day x working days).
 // - Components (active, recurring) are computed like the structure's own
 //   totals: fixed / percentage of basic, gross, ctc or another component /
-//   per_day x working days / per_hour x hours x working days. Formula
-//   components are not evaluated (0).
-// - Gross = basic + earnings (full month). LOP amount = (basic + proratable
-//   earnings) / working days x LOP days (0 when the structure disables LOP).
+//   per_day x working days / per_hour x hours x working days / formula
+//   (services/salaryFormula.js; reads BASIC, GROSS, CTC, WORKING_DAYS,
+//   PAID_DAYS, LOP_DAYS, HOURS_PER_DAY and earlier component codes).
+//   per_unit components need a unit count per run and count as 0.
+// - Proration (mid-month joiners/leavers): basic and proratable earnings are
+//   scaled by employed working days / working days. ESI eligibility uses the
+//   full-month gross.
+// - Gross = basic + earnings (after proration). LOP amount = (full basic +
+//   full proratable earnings) / working days x LOP days (0 when the structure
+//   disables LOP).
 // - PF (if enabled) = employee % of earned basic (capped by the ceiling);
 //   ESI (if enabled and gross <= wage ceiling) = employee % of earned gross.
 // - Net = gross - (LOP amount + PF + ESI + other deductions), never below 0.
+
+import { evaluateFormula } from "./salaryFormula.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -65,9 +77,13 @@ export const computeAttendanceBreakdown = ({
   weeklyOff = [0],
   unmarkedAsPresent = false,
   today = new Date(),
+  joiningDate = null,
+  lastWorkingDate = null,
 }) => {
   const { start, days } = monthBounds(month, year);
   const todayKey = dayKey(today);
+  const joinKey = joiningDate ? dayKey(joiningDate) : null;
+  const exitKey = lastWorkingDate ? dayKey(lastWorkingDate) : null;
 
   const attendanceByDay = new Map();
   for (const record of attendance) {
@@ -98,6 +114,7 @@ export const computeAttendanceBreakdown = ({
     absentDays: 0,
     unmarkedDays: 0,
     assumedPresentDays: 0,
+    notEmployedDays: 0,
   };
 
   for (let i = 0; i < days; i += 1) {
@@ -111,6 +128,11 @@ export const computeAttendanceBreakdown = ({
     }
 
     totals.workingDays += 1;
+
+    if ((joinKey && key < joinKey) || (exitKey && key > exitKey)) {
+      totals.notEmployedDays += 1;
+      continue;
+    }
 
     let remaining = 1;
     const leave = leaveByDay.get(key);
@@ -146,7 +168,7 @@ export const computeAttendanceBreakdown = ({
   }
 
   totals.lopDays = totals.unpaidLeaveDays + totals.absentDays + totals.unmarkedDays;
-  totals.paidDays = totals.workingDays - totals.lopDays;
+  totals.paidDays = totals.workingDays - totals.notEmployedDays - totals.lopDays;
 
   return totals;
 };
@@ -208,7 +230,7 @@ export const computeSalary = ({ structure, breakdown }) => {
     loanRecovery: 0, lopDays: 0, lopAmount: 0, other: 0,
   };
 
-  const earningLines = [];
+  const earnings = [];
   const deductionLines = [];
   const values = new Map();
   let earningsTotal = 0;
@@ -238,6 +260,21 @@ export const computeSalary = ({ structure, breakdown }) => {
         amount = (Number(component.perHourAmount) || 0) * hoursPerDay * workingDays;
         break;
       case "formula":
+        try {
+          amount = evaluateFormula(component.formula, {
+            ...Object.fromEntries(values),
+            BASIC: basic,
+            GROSS: basic + earningsTotal,
+            CTC: basic + earningsTotal + employerContributions,
+            WORKING_DAYS: workingDays,
+            PAID_DAYS: breakdown.paidDays ?? workingDays - (breakdown.lopDays || 0),
+            LOP_DAYS: breakdown.lopDays || 0,
+            HOURS_PER_DAY: hoursPerDay,
+          });
+        } catch {
+          amount = 0; // saved before formulas were validated
+        }
+        break;
       case "per_unit":
         amount = 0;
         break;
@@ -252,10 +289,14 @@ export const computeSalary = ({ structure, breakdown }) => {
       if (component.category === "basic") {
         basic += amount;
       } else {
-        const bucket = EARNING_BUCKET[component.category] ?? "other";
-        allowances[bucket] = round2(allowances[bucket] + amount);
+        earnings.push({
+          bucket: EARNING_BUCKET[component.category] ?? "other",
+          code: component.code,
+          name: component.name,
+          amount,
+          proratable: component.proratable !== false,
+        });
         earningsTotal += amount;
-        earningLines.push({ code: component.code, name: component.name, amount });
       }
       if (component.proratable !== false && component.category !== "basic") {
         proratableEarnings += amount;
@@ -269,20 +310,37 @@ export const computeSalary = ({ structure, breakdown }) => {
     }
   }
 
-  basic = round2(basic);
-  const gross = round2(basic + earningsTotal);
-  const ratio = workingDays > 0 ? breakdown.lopDays / workingDays : 0;
+  // Proration for days outside employment (mid-month join / exit).
+  const notEmployedDays = Number(breakdown.notEmployedDays) || 0;
+  const employedRatio = workingDays > 0 ? (workingDays - notEmployedDays) / workingDays : 1;
+
+  const fullBasic = round2(basic);
+  const fullGross = round2(fullBasic + earningsTotal);
+  basic = round2(fullBasic * employedRatio);
+
+  const earningLines = [];
+  let earnedTotal = 0;
+  for (const earning of earnings) {
+    const amount = earning.proratable ? round2(earning.amount * employedRatio) : earning.amount;
+    allowances[earning.bucket] = round2(allowances[earning.bucket] + amount);
+    earningLines.push({ code: earning.code, name: earning.name, amount });
+    earnedTotal += amount;
+  }
+
+  const gross = round2(basic + earnedTotal);
+  const lopDays = breakdown.lopDays || 0;
+  const ratio = workingDays > 0 ? lopDays / workingDays : 0;
   const lopEnabled = structure.leave?.lossOfPayEnabled !== false;
 
-  const perDayRate = workingDays > 0 ? round2((basic + proratableEarnings) / workingDays) : 0;
-  const lopAmount = lopEnabled ? round2((basic + proratableEarnings) * ratio) : 0;
+  const perDayRate = workingDays > 0 ? round2((fullBasic + proratableEarnings) / workingDays) : 0;
+  const lopAmount = lopEnabled ? round2((fullBasic + proratableEarnings) * ratio) : 0;
 
-  deductions.lopDays = breakdown.lopDays;
+  deductions.lopDays = lopDays;
   deductions.lopAmount = lopAmount;
 
-  const paidRatio = 1 - (lopEnabled ? ratio : 0);
-  const earnedBasic = basic * paidRatio;
-  const earnedGross = gross * paidRatio;
+  const paidRatio = Math.max(0, employedRatio - (lopEnabled ? ratio : 0));
+  const earnedBasic = fullBasic * paidRatio;
+  const earnedGross = fullGross * paidRatio;
 
   const pf = structure.benefits?.providentFund;
   if (pf?.enabled && pf.employeePercentage > 0) {
@@ -293,14 +351,14 @@ export const computeSalary = ({ structure, breakdown }) => {
   }
 
   const esi = structure.benefits?.esi;
-  if (esi?.enabled && esi.employeePercentage > 0 && (!esi.wageCeiling || gross <= esi.wageCeiling)) {
+  if (esi?.enabled && esi.employeePercentage > 0 && (!esi.wageCeiling || fullGross <= esi.wageCeiling)) {
     const amount = round2((earnedGross * esi.employeePercentage) / 100);
     deductions.esi = round2(deductions.esi + amount);
     deductionLines.push({ code: "ESI", name: "Employee state insurance", amount });
   }
 
   if (lopAmount > 0) {
-    deductionLines.push({ code: "LOP", name: `Loss of pay (${breakdown.lopDays} day(s))`, amount: lopAmount });
+    deductionLines.push({ code: "LOP", name: `Loss of pay (${lopDays} day(s))`, amount: lopAmount });
   }
 
   const totalDeductions = round2(

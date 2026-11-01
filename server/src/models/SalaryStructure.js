@@ -3,6 +3,7 @@
 import mongoose from "mongoose";
 
 import crypto from "node:crypto";
+import { evaluateFormula, validateFormula } from "../services/salaryFormula.js";
 const SALARY_STATUSES = [
   "draft",
   "active",
@@ -1180,6 +1181,24 @@ salaryStructureSchema.pre(
 
       if (
         component.calculationType ===
+          "formula"
+      ) {
+        const problem = validateFormula(
+          component.formula,
+          this.components.map((c) => c.code)
+        );
+
+        if (problem) {
+          return next(
+            new Error(
+              `Invalid formula for component ${code}: ${problem}`
+            )
+          );
+        }
+      }
+
+      if (
+        component.calculationType ===
           "per_day" &&
         (
           component.perDayAmount ===
@@ -1510,9 +1529,32 @@ salaryStructureSchema.methods.calculateTotals =
             0;
           break;
 
-        case "formula":
-          amount = 0;
+        case "formula": {
+          const days =
+            this.leave?.workingDaysPerMonth || 26;
+
+          try {
+            amount = evaluateFormula(
+              component.formula,
+              {
+                ...Object.fromEntries(componentValues),
+                BASIC: this.monthlyBaseSalary,
+                GROSS: monthlyEarnings,
+                CTC:
+                  monthlyEarnings +
+                  monthlyEmployerContributions,
+                WORKING_DAYS: days,
+                PAID_DAYS: days,
+                LOP_DAYS: 0,
+                HOURS_PER_DAY:
+                  this.leave?.workingHoursPerDay || 8,
+              }
+            );
+          } catch {
+            amount = 0;
+          }
           break;
+        }
 
         default:
           amount = 0;

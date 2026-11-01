@@ -56,7 +56,8 @@ export function printPayslip({ payroll, employee, organization }: PayslipData) {
 <td><div class="k">Paid leave</div><div class="v">${esc(summary.paidLeaveDays)}</div></td>
 <td><div class="k">LOP days</div><div class="v">${esc(lopDays)}</div></td>
 </tr></table>
-${calc ? `<p class="muted">LOP = unpaid leave ${esc(calc.unpaidLeaveDays)} + absent ${esc(calc.absentDays)} + unmarked ${esc(calc.unmarkedDays)} day(s).</p>` : ''}`
+${calc ? `<p class="muted">LOP = unpaid leave ${esc(calc.unpaidLeaveDays)} + absent ${esc(calc.absentDays)} + unmarked ${esc(calc.unmarkedDays)} day(s).</p>` : ''}
+${calc?.notEmployedDays ? `<p class="muted">Prorated: ${esc(calc.notEmployedDays)} of ${esc(calc.workingDays)} working day(s) fall outside the employment period.</p>` : ''}`
     : ''
 
   const win = window.open('', '_blank', 'width=800,height=960')

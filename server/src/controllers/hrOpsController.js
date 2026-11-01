@@ -17,6 +17,7 @@ import env from "../config/env.js";
 import ApiError from "../utils/ApiError.js";
 import { hasPermission } from "../utils/permissions.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
+import { validateFormula } from "../services/salaryFormula.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -61,6 +62,29 @@ const ApiErrorFor = () =>
    SALARY STRUCTURES
 ========================================================= */
 
+// The model checks formulas too, but update uses findOneAndUpdate (no
+// document hooks) and a hook error would surface as a 500.
+const assertValidFormulas = (components) => {
+  if (!Array.isArray(components)) return;
+
+  const codes = components.map((c) => c?.code).filter(Boolean);
+
+  for (const component of components) {
+    if (component?.calculationType !== "formula") continue;
+
+    const problem = component.formula
+      ? validateFormula(component.formula, codes)
+      : "a formula is required";
+
+    if (problem) {
+      throw ApiError.badRequest(
+        `Invalid formula for component ${component.code ?? component.name}: ${problem}`,
+        { code: "INVALID_FORMULA" }
+      );
+    }
+  }
+};
+
 export const createSalaryStructure = asyncHandler(
   async (req, res) => {
     const {
@@ -80,6 +104,8 @@ export const createSalaryStructure = asyncHandler(
         "Name and baseSalary are required"
       );
     }
+
+    assertValidFormulas(components);
 
     const structure = await SalaryStructure.create({
       instituteId: req.user.instituteId,
@@ -164,6 +190,8 @@ export const updateSalaryStructure = asyncHandler(
         updates[field] = req.body[field];
       }
     }
+
+    assertValidFormulas(updates.components);
 
     const updated =
       await SalaryStructure.findOneAndUpdate(

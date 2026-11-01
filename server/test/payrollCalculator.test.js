@@ -78,6 +78,72 @@ test("holiday attendance and custom weekly off reduce working days", () => {
   assert.equal(b.workingDays, 21);
 });
 
+test("mid-month joiner: days before joining are not LOP and pay is prorated", () => {
+  // Joins Thu 15 Oct: working days 1-14 = 12 (Sundays 4, 11), so 15 of 27 employed.
+  const b = computeAttendanceBreakdown({ ...OCT, today: day(31), unmarkedAsPresent: true, joiningDate: day(15) });
+  assert.equal(b.workingDays, 27);
+  assert.equal(b.notEmployedDays, 12);
+  assert.equal(b.lopDays, 0);
+  assert.equal(b.paidDays, 15);
+
+  const s = computeSalary({
+    breakdown: b,
+    structure: {
+      baseSalary: 27000,
+      components: [
+        { code: "HRA", name: "HRA", type: "earning", category: "hra", calculationType: "percentage", percentage: 50, percentageBase: "basic" },
+        { code: "JOIN", name: "Joining bonus", type: "earning", category: "bonus", amount: 1000, proratable: false },
+      ],
+    },
+  });
+
+  assert.equal(s.basicSalary, 15000);
+  assert.equal(s.allowances.hra, 7500);
+  assert.equal(s.allowances.bonus, 1000); // not proratable
+  assert.equal(s.grossSalary, 23500);
+  assert.equal(s.netSalary, 23500);
+});
+
+test("leaver: days after the last working date are not paid; LOP still counts", () => {
+  // Last day Sat 10 Oct: 9 working days employed (Sunday 4 is off), 18 not employed.
+  const b = computeAttendanceBreakdown({
+    ...OCT,
+    today: day(31),
+    unmarkedAsPresent: true,
+    lastWorkingDate: day(10),
+    leaves: [{ type: "unpaid", startDate: day(9), endDate: day(9) }],
+  });
+  assert.equal(b.notEmployedDays, 18);
+  assert.equal(b.lopDays, 1);
+  assert.equal(b.paidDays, 8);
+
+  const s = computeSalary({ breakdown: b, structure: { baseSalary: 27000 } });
+  assert.equal(s.basicSalary, 9000);
+  assert.equal(s.deductions.lopAmount, 1000);
+  assert.equal(s.netSalary, 8000);
+});
+
+test("formula components are evaluated in order", () => {
+  const s = computeSalary({
+    breakdown: { workingDays: 26, lopDays: 0, paidDays: 26 },
+    structure: {
+      baseSalary: 26000,
+      components: [
+        { code: "HRA", name: "HRA", type: "earning", category: "hra", calculationType: "formula", formula: "BASIC * 0.4", displayOrder: 1 },
+        { code: "MEAL", name: "Meals", type: "earning", category: "other", calculationType: "formula", formula: "PAID_DAYS * 100", displayOrder: 2 },
+        { code: "PFX", name: "PF", type: "deduction", category: "other", calculationType: "formula", formula: "min(BASIC * 0.12, 1800)", displayOrder: 3 },
+        { code: "BAD", name: "Broken", type: "earning", category: "other", calculationType: "formula", formula: "BASIC *", displayOrder: 4 },
+      ],
+    },
+  });
+
+  assert.equal(s.allowances.hra, 10400);
+  assert.equal(s.allowances.other, 2600); // meals; the broken formula counts as 0
+  assert.equal(s.deductions.other, 1800);
+  assert.equal(s.grossSalary, 39000);
+  assert.equal(s.netSalary, 37200);
+});
+
 test("PF is on earned basic; LOP can be disabled", () => {
   const breakdown = { workingDays: 20, lopDays: 5 };
   const structure = {

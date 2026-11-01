@@ -177,6 +177,14 @@ const calculateFor = async ({
   options,
 }) => {
   const { start, end } = monthBounds(month, year);
+
+  if (
+    (employee.joiningDate && new Date(employee.joiningDate) > end) ||
+    (employee.lastWorkingDate && new Date(employee.lastWorkingDate) < start)
+  ) {
+    return { error: "Not employed in this month", code: "NOT_EMPLOYED_IN_PERIOD" };
+  }
+
   const structure = await findStructureFor(employee, start, end);
 
   if (!structure) {
@@ -212,6 +220,8 @@ const calculateFor = async ({
     leaves,
     weeklyOff: options.weeklyOff,
     unmarkedAsPresent: options.unmarkedAsPresent,
+    joiningDate: employee.joiningDate,
+    lastWorkingDate: employee.lastWorkingDate,
   });
 
   const salary = computeSalary({ structure, breakdown });
@@ -847,7 +857,7 @@ export const previewPayroll = asyncHandler(async (req, res) => {
   });
 
   if (calculation.error) {
-    return sendError(res, { statusCode: 400, code: "NO_SALARY_STRUCTURE", message: calculation.error });
+    return sendError(res, { statusCode: 400, code: calculation.code ?? "NO_SALARY_STRUCTURE", message: calculation.error });
   }
 
   const fields = payrollFields({ calculation, options, month, year });
@@ -881,12 +891,18 @@ export const generatePayroll = asyncHandler(async (req, res) => {
   const instituteId = orgOf(req);
   const { month, year } = parsePeriod(req.body);
   const options = parseOptions(req.body);
+  const { start } = monthBounds(month, year);
 
+  // Payable employees, plus leavers whose last working day falls in or after
+  // this month (their final, prorated payroll).
   const employees = await Employee.find({
     instituteId,
     isDeleted: { $ne: true },
     userId: { $ne: null },
-    status: { $in: PAYABLE_EMPLOYEE_STATUSES },
+    $or: [
+      { status: { $in: PAYABLE_EMPLOYEE_STATUSES } },
+      { lastWorkingDate: { $gte: start } },
+    ],
   }).populate("userId", "name email role publicId userCode status");
 
   const summary = {
@@ -902,7 +918,8 @@ export const generatePayroll = asyncHandler(async (req, res) => {
   for (const employee of employees) {
     const user = employee.userId;
 
-    if (!user || user.status !== "active") {
+    // A leaver's account may already be deactivated; they still get paid.
+    if (!user || (user.status !== "active" && !employee.lastWorkingDate)) {
       summary.skipped.push({ user: userSummary(user), reason: "User account is not active" });
       continue;
     }

@@ -141,13 +141,27 @@ export interface TicketMessageT {
   createdAt: string
 }
 
+export interface SalaryComponent {
+  code: string
+  name: string
+  type: string
+  category?: string
+  calculationType?: string
+  amount?: number
+  percentage?: number | null
+  percentageBase?: string | null
+  formula?: string | null
+  proratable?: boolean
+  [key: string]: unknown
+}
+
 export interface SalaryStructure {
   _id: string
   publicId?: string
   name: string
   type: string
   baseSalary: number
-  components?: { name?: string; amount?: number; type?: string }[]
+  components?: SalaryComponent[]
   payFrequency?: string
   status: string
   createdAt: string

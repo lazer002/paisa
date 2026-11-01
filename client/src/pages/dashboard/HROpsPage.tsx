@@ -17,12 +17,14 @@ import {
   useRevokeCertificateMutation,
   useDeleteCertificateMutation,
   type SalaryStructure,
+  type SalaryComponent,
   type PerformanceReview,
   type Certificate,
 } from '@/features/platform/platformApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import EmployeeDocumentsPanel from '@/components/hr/EmployeeDocumentsPanel'
+import SalaryComponentsEditor from '@/components/hr-payroll/SalaryComponentsEditor'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import {
@@ -81,6 +83,7 @@ export default function HROpsPage() {
   const [name, setName] = useState('')
   const [baseSalary, setBaseSalary] = useState('')
   const [payFrequency, setPayFrequency] = useState('monthly')
+  const [components, setComponents] = useState<SalaryComponent[]>([])
 
   const [reviewEmployee, setReviewEmployee] = useState('')
   const [reviewTitle, setReviewTitle] = useState('')
@@ -107,7 +110,7 @@ export default function HROpsPage() {
 
   const openCreateStructure = () => {
     setEditingStructureId(null)
-    setName(''); setBaseSalary(''); setPayFrequency('monthly')
+    setName(''); setBaseSalary(''); setPayFrequency('monthly'); setComponents([])
     setShowStructure(true)
   }
 
@@ -116,6 +119,7 @@ export default function HROpsPage() {
     setName(s.name ?? '')
     setBaseSalary(String(s.baseSalary ?? ''))
     setPayFrequency(s.payFrequency ?? 'monthly')
+    setComponents(s.components ?? [])
     setShowStructure(true)
   }
 
@@ -126,7 +130,11 @@ export default function HROpsPage() {
 
   const submitStructure = async () => {
     if (!name || !baseSalary) return
-    const payload = { name, baseSalary: Number(baseSalary), payFrequency }
+    if (components.some((c) => !c.code || !c.name)) {
+      setToast({ msg: 'Every component needs a code and a name', tone: 'critical' })
+      return
+    }
+    const payload = { name, baseSalary: Number(baseSalary), payFrequency, components }
     try {
       if (editingStructureId) {
         await updateStructure({ id: editingStructureId, payload }).unwrap()
@@ -469,6 +477,9 @@ export default function HROpsPage() {
               </select>
             </Field>
           </div>
+          <Field label="Components">
+            <SalaryComponentsEditor value={components} onChange={setComponents} />
+          </Field>
         </div>
       </ModalShell>
 

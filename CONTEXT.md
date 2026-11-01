@@ -28,9 +28,9 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 ### Snapshot (2026-11-01, after Wave 5)
 - Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
   leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
-- Roles ~77–90% done (§8b); features 55–88% (§8c). D7/D8 and D13–D15 are fixed. What keeps it below 100%:
-  payroll proration/formula components, real Razorpay/Resend runs (need keys), and not-built items
-  (2FA/session list, SMS/push, scheduled jobs, AI, i18n).
+- Roles ~77–90% done (§8b); features 55–88% (§8c). D7/D8, D13–D15 and payroll proration/formulas are done.
+  What keeps it below 100%: real Razorpay/Resend runs (need keys), and not-built items (2FA/session list,
+  SMS/push, scheduled jobs, AI, i18n).
 
 ### Decisions (owner, 2026-10-29)
 | Area | Decision |
@@ -69,7 +69,7 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
     `npm run e2e:tenant` (two demo orgs, 671 checks, 0 leaks), rich idempotent seed (`server/src/utils/seed/`,
     second org "Demo Company Two" `<role>@demo2.paisa.test` for admin/hr/accountant/support/employee),
     `npm run seed:report`.
-  - Still open: mid-month joiners not prorated; formula salary components count as 0; `models/CRMNote.js` is a
+  - Still open: ~~mid-month joiners not prorated; formula salary components count as 0~~ (done 2026-11-01); `models/CRMNote.js` is a
     copy of CRMTask (notes are stored as `CRMActivity` type `note`) — delete it; counselors may delete only their
     own CRM tasks/activities/notes (delete routes accept `:create` holders, controller limits to creator);
     organizations drop top-level `website`/`logo` (model keeps them under `branding`); study-material update
@@ -110,7 +110,7 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
   - [ ] Optional AI features (only when an API key is set).
 - **Wave 5: final pass** ✅ 2026-11-01: fresh audit (§8b/§8c), D1–D6 + D9–D12 fixed, known gaps closed (plan
   bypass, seat checks, socket kick on revoke, duplicate models, org website/logo, material type, material file
-  cleanup, G9). D7/D8 (chat) and D13–D15 fixed after it. **Next:** payroll proration/formula components, real
+  cleanup, G9). D7/D8 (chat), D13–D15 and payroll proration/formula components done after it. **Next:** real
   Razorpay/Resend runs with keys, and the not-built items in §8c.
 
 ### Cleanup owed
@@ -327,7 +327,7 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 | principal | 28 | 66 | 84% | No Billing (lacks `finance:read`, by design) |
 | teacher | 19 | 56 | 85% | No rubrics/proctoring |
 | student | 17 | 26 | 82% | Online pay untested (no keys) |
-| hr | 15 | 55 | 80% | Payroll proration for mid-month joiners · formula salary components count as 0 |
+| hr | 15 | 56 | 86% | `per_unit` salary components need a unit count per run (count as 0) · no goals/PIP |
 | accountant | 9 | 30 | 77% | Reports are stat cards + CSV |
 | counselor | 12 | 51 | 82% | No lead scoring/duplicate check |
 | support | 8 | 23 | 80% | No ticket merge |
@@ -366,7 +366,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
-| Payroll | 9/9 | 75% | Proration · formula components |
+| Payroll | 9/9 | 85% | `per_unit` components count as 0 · no tax regime / Form 16 |
 | Salary structures / reviews | 9/9 | 75% | No goals/PIP |
 | Employee documents | 4/4 | 85% | — |
 | Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
@@ -526,6 +526,19 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Payroll proration + formula salary components.** `computeAttendanceBreakdown` takes
+  `joiningDate`/`lastWorkingDate`: working days outside employment become `notEmployedDays` (never LOP);
+  `computeSalary` scales basic + proratable earnings by employed/working days (non-proratable earnings stay full;
+  LOP still = full per-day rate × LOP days; ESI eligibility on full-month gross). Preview/generate return 400
+  `NOT_EMPLOYED_IN_PERIOD` when the whole month is outside employment; generate also pays leavers whose
+  `lastWorkingDate` is in/after the month (even if the login is deactivated). New `services/salaryFormula.js`:
+  safe parser (no eval) — BASIC, GROSS, CTC, WORKING_DAYS, PAID_DAYS, LOP_DAYS, HOURS_PER_DAY, earlier component
+  codes, + - * / %, comparisons, `?:`, min/max/round/floor/ceil/abs; result clamped ≥ 0. Formulas are validated on
+  structure create/update (400 `INVALID_FORMULA`, unknown variables rejected) and used in the model's
+  `calculateTotals`. Client: `SalaryComponentsEditor` in the salary-structure modal (fixed / % of basic / formula,
+  proratable flag); preview + payslip show not-employed days. Verified: unit 48/48 (8 new), proration live 11/11,
+  leave-payroll 45/45, client lint + build, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks).
 
 - **2026-11-01 — D13–D15: owners manage what they create, narrow role gaps, CRM entry edit.** New
   `assertOwnerOrPermission` (crudHelpers) + `canOwn` (usePermission): teachers/counselors/principals edit and

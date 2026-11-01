@@ -19,6 +19,8 @@ export interface PayrollCalculation {
   absentDays: number
   unmarkedDays: number
   assumedPresentDays: number
+  /** Working days before joining / after the last working date (prorated away). */
+  notEmployedDays?: number
   lopDays: number
   paidDays: number
   perDayRate: number

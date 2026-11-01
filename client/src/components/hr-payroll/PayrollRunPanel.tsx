@@ -88,6 +88,7 @@ export default function PayrollRunPanel() {
         <p className="mt-2 text-xs text-gray-500">
           LOP days = unpaid leave + days marked absent + past working days with no attendance (unless treated as present).
           Sundays{saturdayOff ? ' and Saturdays' : ''} and days marked holiday are not working days; future days count as present.
+          Working days before an employee's joining date or after their last working date are not paid (prorated).
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button onClick={runGenerate} loading={generating}><PlayCircle size={16} /> Generate payroll for {MONTHS[month - 1]} {year}</Button>
@@ -136,6 +137,7 @@ export default function PayrollRunPanel() {
               ['Absent', calc.absentDays],
               ['Unmarked', calc.unmarkedDays],
               ['LOP days', calc.lopDays],
+              ['Not employed', calc.notEmployedDays ?? 0],
               ['Gross', money(preview.grossSalary)],
               ['LOP amount', money(preview.deductions.lopAmount)],
               ['Deductions', money(preview.totalDeductions)],
