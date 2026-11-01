@@ -67,9 +67,10 @@ leadRouter.put(
   updateLead
 );
 
+// Creators may delete their own leads/deals; managers any (controller).
 leadRouter.delete(
   "/:publicId",
-  authorize({ anyPermissions: ["lead:delete"] }),
+  authorize({ anyPermissions: ["lead:delete", "lead:create"] }),
   deleteLead
 );
 
@@ -103,7 +104,7 @@ dealRouter.put(
 
 dealRouter.delete(
   "/:publicId",
-  authorize({ anyPermissions: ["deal:delete"] }),
+  authorize({ anyPermissions: ["deal:delete", "deal:create"] }),
   deleteDeal
 );
 

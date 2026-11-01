@@ -12,6 +12,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { assertOwnerOrPermission } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -122,6 +123,8 @@ export const updateAchievement = asyncHandler(
       );
     }
 
+    assertOwnerOrPermission(req, achievement, "achievement:update");
+
     const allowed = [
       "name",
       "shortDescription",
@@ -169,6 +172,8 @@ export const deleteAchievement = asyncHandler(
         "Achievement not found"
       );
     }
+
+    assertOwnerOrPermission(req, achievement, "achievement:delete");
 
     await achievement.deleteOne();
 

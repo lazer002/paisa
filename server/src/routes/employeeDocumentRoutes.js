@@ -26,9 +26,11 @@ router.use(authenticate);
 
 router.get("/", authorize({ anyPermissions: ["employee_document:read"] }), getEmployeeDocuments);
 
+// HR files documents for anyone; employees (read holders) only for
+// themselves — the controller forces self and status "submitted".
 router.post(
   "/",
-  authorize({ anyPermissions: ["employee_document:create"] }),
+  authorize({ anyPermissions: ["employee_document:create", "employee_document:read"] }),
   body(createEmployeeDocumentSchema),
   createEmployeeDocument
 );

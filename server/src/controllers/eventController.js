@@ -8,6 +8,7 @@
 import { CalendarEvent as Event } from "../models/CalendarEvent.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
+import { assertOwnerOrPermission } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -138,6 +139,8 @@ export const updateEvent = asyncHandler(async (req, res) => {
     return sendForbidden(res, "Access denied");
   }
 
+  assertOwnerOrPermission(req, event, "notification:update");
+
   const allowed = [
     "title",
     "description",
@@ -185,6 +188,8 @@ export const deleteEvent = asyncHandler(async (req, res) => {
   ) {
     return sendForbidden(res, "Access denied");
   }
+
+  assertOwnerOrPermission(req, event, "notification:delete");
 
   await event.deleteOne();
 

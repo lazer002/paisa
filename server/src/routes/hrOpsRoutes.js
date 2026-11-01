@@ -10,6 +10,7 @@ import {
   createReview,
   getReviews,
   updateReview,
+  acknowledgeReview,
   deleteReview,
   createCertificate,
   getCertificates,
@@ -110,6 +111,15 @@ reviewRouter.put(
   }),
   body(updateReviewSchema),
   updateReview
+);
+
+// The reviewed employee acknowledges a finished review (own only — controller).
+reviewRouter.post(
+  "/:publicId/acknowledge",
+  authorize({
+    anyPermissions: ["performance:read"],
+  }),
+  acknowledgeReview
 );
 
 reviewRouter.delete(

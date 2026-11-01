@@ -110,6 +110,18 @@ const assertCanDelete = (req, doc, resource) => {
   }
 };
 
+// Editing follows the same rule as deleting: managers any record, everyone
+// else only the records they created.
+const assertCanEdit = (req, doc, resource) => {
+  if (hasAnyPermission(req.user, [`${resource}:manage`], userPermissions(req))) {
+    return;
+  }
+
+  if (String(doc.createdBy?._id ?? doc.createdBy) !== String(req.user._id)) {
+    throw ApiError.forbidden("You can only edit records you created");
+  }
+};
+
 const softDelete = async (doc, req) => {
   doc.isDeleted = true;
   doc.deletedAt = new Date();
@@ -205,6 +217,8 @@ export const updateActivity = asyncHandler(async (req, res) => {
   if (!activity) {
     return sendNotFound(res, "Activity not found");
   }
+
+  assertCanEdit(req, activity, "crm_activity");
 
   const data = pickFields(req.body, ACTIVITY_WRITABLE);
   assertNotNoteType(data.type);
@@ -325,6 +339,8 @@ export const updateNote = asyncHandler(async (req, res) => {
   if (!note) {
     return sendNotFound(res, "Note not found");
   }
+
+  assertCanEdit(req, note, "crm_note");
 
   Object.assign(note, noteFields(req.body), {
     updatedBy: req.user._id,

@@ -15,7 +15,7 @@ import { Class } from "../models/Class.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
-import { escapeRegex } from "../utils/crudHelpers.js";
+import { escapeRegex, assertOwnerOrPermission } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -426,6 +426,7 @@ export const deleteTest = asyncHandler(async (req, res) => {
   }
 
   assertTenantRow(req, test);
+  assertOwnerOrPermission(req, test, "test:delete");
 
   await test.deleteOne();
 
@@ -565,6 +566,15 @@ const withOptionKeys = (options) =>
     key: option.key || String.fromCharCode(65 + index),
   }));
 
+// The model requires options for true/false; clients send only the answer.
+const optionsFor = (type, options, correctAnswer) =>
+  type === "true_false" && !(options || []).length
+    ? [
+        { key: "A", text: "True", isCorrect: String(correctAnswer) === "true" },
+        { key: "B", text: "False", isCorrect: String(correctAnswer) === "false" },
+      ]
+    : withOptionKeys(options);
+
 export const createQuestion = asyncHandler(async (req, res) => {
   const {
     text,
@@ -584,7 +594,7 @@ export const createQuestion = asyncHandler(async (req, res) => {
     return sendError(res, 400, "Text and type are required");
   }
 
-  const keyedOptions = withOptionKeys(options);
+  const keyedOptions = optionsFor(type, options, correctAnswer);
 
   const question = await Question.create({
     instituteId: req.user.instituteId,
@@ -689,7 +699,16 @@ export const updateQuestion = asyncHandler(async (req, res) => {
     delete updates.points;
   }
 
-  if (updates.options !== undefined) {
+  const nextType = updates.type ?? question.type;
+
+  if (nextType === "true_false" && (updates.correctAnswer !== undefined || updates.type !== undefined)) {
+    // Keep the True/False options' correct flag in step with the answer.
+    updates.options = optionsFor(
+      "true_false",
+      [],
+      updates.correctAnswer ?? question.answer?.acceptedValues?.[0]
+    );
+  } else if (updates.options !== undefined) {
     updates.options = withOptionKeys(updates.options);
   }
 
@@ -736,6 +755,7 @@ export const deleteQuestion = asyncHandler(
     }
 
     assertTenantRow(req, question);
+    assertOwnerOrPermission(req, question, "question:delete");
 
     await question.deleteOne();
 

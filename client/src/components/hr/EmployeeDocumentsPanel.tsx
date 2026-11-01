@@ -29,6 +29,8 @@ const errorMessage = (e: unknown, fallback: string) =>
 export default function EmployeeDocumentsPanel() {
   const { can } = usePermission()
   const canManage = can('employee_document:create')
+  // Employees file their own documents (server forces self + "submitted").
+  const canSelfUpload = !canManage && can('employee_document:read')
 
   const { data, isLoading, isError, refetch } = useGetEmployeeDocumentsQuery()
   const { data: employees } = useGetUsersQuery({ role: 'employee' }, { skip: !canManage })
@@ -55,10 +57,10 @@ export default function EmployeeDocumentsPanel() {
   )
 
   const submit = async () => {
-    if (!employee || !title.trim() || uploading) return
+    if ((canManage && !employee) || !title.trim() || uploading) return
     try {
       await createDocument({
-        employeeUserId: employee,
+        ...(canManage ? { employeeUserId: employee } : {}),
         title: title.trim(),
         type,
         documentNumber: documentNumber.trim() || undefined,
@@ -180,7 +182,11 @@ export default function EmployeeDocumentsPanel() {
         onSearch={setSearch}
         searchPlaceholder="Search documents..."
         actions={
-          canManage ? <Button onClick={() => setOpen(true)}><Plus size={15} /> Document</Button> : undefined
+          canManage ? (
+            <Button onClick={() => setOpen(true)}><Plus size={15} /> Document</Button>
+          ) : canSelfUpload ? (
+            <Button onClick={() => setOpen(true)}><Plus size={15} /> Upload document</Button>
+          ) : undefined
         }
       />
 
@@ -198,7 +204,7 @@ export default function EmployeeDocumentsPanel() {
       <ModalShell
         open={open}
         onClose={() => setOpen(false)}
-        title="Record document"
+        title={canManage ? 'Record document' : 'Upload a document for HR review'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
@@ -207,16 +213,18 @@ export default function EmployeeDocumentsPanel() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <Field label="Employee" required>
-              <select className={inputCls} value={employee} onChange={(e) => setEmployee(e.target.value)}>
-                <option value="">Select employee</option>
-                {(employees ?? []).map((u) => (
-                  <option key={u._id} value={rid(u)}>{u.name}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          {canManage && (
+            <div className="col-span-2">
+              <Field label="Employee" required>
+                <select className={inputCls} value={employee} onChange={(e) => setEmployee(e.target.value)}>
+                  <option value="">Select employee</option>
+                  {(employees ?? []).map((u) => (
+                    <option key={u._id} value={rid(u)}>{u.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
           <Field label="Title" required>
             <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>

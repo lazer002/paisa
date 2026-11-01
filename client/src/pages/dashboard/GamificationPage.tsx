@@ -35,12 +35,13 @@ const RARITY_RING: Record<string, string> = {
 }
 
 export default function GamificationPage() {
-  const { can, canAny } = usePermission()
+  const { can, canAny, canOwn } = usePermission()
   const canManage = canAny('achievement:create', 'point_ledger:create')
   const canCreateAchievement = can('achievement:create')
   const canAward = canAny('achievement:create', 'achievement:manage')
-  const canEditAchievement = can('achievement:update')
-  const canDeleteAchievement = can('achievement:delete')
+  // Creators may edit/delete their own achievements; managers any (server rule).
+  const canEditAchievement = (a: Achievement) => canOwn('achievement:update', 'achievement:create', a)
+  const canDeleteAchievement = (a: Achievement) => canOwn('achievement:delete', 'achievement:create', a)
   const canReadLedger = can('point_ledger:read')
 
   const [tab, setTab] = useState<TabId>('leaderboard')
@@ -206,7 +207,7 @@ export default function GamificationPage() {
               Award
             </button>
           )}
-          {canEditAchievement && (
+          {canEditAchievement(a) && (
             <button
               onClick={() => openEdit(a)}
               aria-label="Edit achievement"
@@ -215,7 +216,7 @@ export default function GamificationPage() {
               <Pencil size={14} />
             </button>
           )}
-          {canDeleteAchievement && (
+          {canDeleteAchievement(a) && (
             <button
               onClick={() => deleteAchievement(rid(a))}
               aria-label="Delete achievement"

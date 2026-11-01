@@ -138,6 +138,8 @@ export default function PayrollPage() {
   const canDelete = can('payroll:delete')
   // Generate / preview / salary assignments need payroll:create (admin, hr).
   const canRun = can('payroll:create')
+  // Finance (accountant) records the payment: "paid" only (server rule).
+  const canMarkPaid = !canManage && can('finance:manage')
   const [tab, setTab] = useState<'records' | 'run'>('records')
 
   const { data: payrolls, isLoading, isError, refetch } = useGetPayrollsQuery()
@@ -264,9 +266,9 @@ export default function PayrollPage() {
                       <Button size="sm" variant="ghost" onClick={() => openPayslip(p)}>
                         <Printer size={14} /> Payslip
                       </Button>
-                      {canManage && p.status !== 'paid' && (
+                      {(canManage || canMarkPaid) && p.status !== 'paid' && (
                         <>
-                          {p.status === 'draft' && (
+                          {canManage && p.status === 'draft' && (
                             <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'processed' })}>
                               Process
                             </Button>
@@ -274,7 +276,7 @@ export default function PayrollPage() {
                           <Button size="sm" variant="secondary" onClick={() => updateStatus({ id: rid(p), status: 'paid' })}>
                             Mark Paid
                           </Button>
-                          {canDelete && (
+                          {canManage && canDelete && (
                             <button
                               onClick={() => { setDeleteItem(p); setDeleteError('') }}
                               className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50"

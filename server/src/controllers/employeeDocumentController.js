@@ -52,13 +52,23 @@ export const createEmployeeDocument = asyncHandler(
   async (req, res) => {
     const instituteId = requireInstitute(req);
 
-    // The client picks a person by user publicId; documents hang off
-    // that person's Employee profile.
-    const userId = await resolveRef(
-      User,
-      req.body.employeeUserId,
-      { label: "Employee" }
-    );
+    // HR picks a person by user publicId; everyone else can only file a
+    // document for themselves, which then waits for HR review.
+    const selfService = !canManage(req.user);
+
+    if (!selfService && !req.body.employeeUserId) {
+      throw ApiError.badRequest("Choose the employee this document belongs to", {
+        code: "EMPLOYEE_REQUIRED",
+      });
+    }
+
+    const userId = selfService
+      ? req.user._id
+      : await resolveRef(
+          User,
+          req.body.employeeUserId,
+          { label: "Employee", scope: { instituteId } }
+        );
 
     const employee = await Employee.findOne({
       userId,
@@ -101,6 +111,7 @@ export const createEmployeeDocument = asyncHandler(
 
     const document = await EmployeeDocument.create({
       ...pickFields(req.body, WRITABLE),
+      ...(selfService ? { status: "submitted" } : {}),
       instituteId,
       employeeId: employee._id,
       employeeUserId: employee.userId,

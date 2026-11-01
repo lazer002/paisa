@@ -122,7 +122,8 @@ const documentFields = {
 
 export const createEmployeeDocumentSchema = Joi.object({
   ...documentFields,
-  employeeUserId: ref().required(),
+  // Required for HR; self-service uploads are always filed for the caller.
+  employeeUserId: optRef(),
   title: documentFields.title.required(),
   fileName: optStr(500),
   // Type/length only: the controller owns the http(s)-only rule and answers

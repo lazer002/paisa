@@ -40,7 +40,7 @@ const STAGE_LABEL: Record<string, string> = {
 }
 
 export default function CRMPage() {
-  const { can, canAny } = usePermission()
+  const { can, canAny, canOwn } = usePermission()
   const canManage = can('lead:create')
   const canTasks = can('crm_task:read')
   const canTimeline = canAny('crm_activity:read', 'crm_note:read', 'crm_task:read')
@@ -49,7 +49,9 @@ export default function CRMPage() {
   const canLeads = can('lead:read')
   const canDeals = can('deal:read')
   const canUpdateDeal = can('deal:update')
-  const canDeleteDeal = can('deal:delete')
+  // Creators may delete their own leads/deals; managers any (server rule).
+  const canDeleteDeal = (d: Deal) => canOwn('deal:delete', 'deal:create', d)
+  const canDeleteLead = (l: Lead) => canOwn('lead:delete', 'lead:create', l)
   const canPipelines = can('pipeline:read')
 
   // Support only holds customer:read, so the page opens on what the role may see.
@@ -201,7 +203,7 @@ export default function CRMPage() {
                 <ArrowRightCircle size={12} /> Convert
               </button>
             )}
-            {canManage && (
+            {canDeleteLead(l) && (
               <button
                 onClick={() => deleteLead(l.publicId ?? l._id)}
                 className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
@@ -305,7 +307,7 @@ export default function CRMPage() {
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-400">₹{(d.value ?? 0).toLocaleString()}</p>
-                      {(canUpdateDeal || canDeleteDeal) && !CLOSED_STAGES.includes(stage) && (
+                      {(canUpdateDeal || canDeleteDeal(d)) && !CLOSED_STAGES.includes(stage) && (
                         <div className="mt-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
                           {canUpdateDeal && STAGES.filter((s) => !CLOSED_STAGES.includes(s) && s !== stage).slice(0, 2).map((s) => (
                             <button
@@ -332,7 +334,7 @@ export default function CRMPage() {
                               </button>
                             </>
                           )}
-                          {canDeleteDeal && (
+                          {canDeleteDeal(d) && (
                             <button
                               onClick={() => deleteDeal(d.publicId ?? d._id)}
                               className="ml-auto rounded p-0.5 text-gray-300 transition hover:text-rose-500"

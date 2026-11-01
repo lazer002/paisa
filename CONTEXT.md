@@ -28,9 +28,9 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 ### Snapshot (2026-11-01, after Wave 5)
 - Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
   leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
-- Roles ~72–88% done (§8b); features 55–88% (§8c). What keeps it below 100%: the D7/D8 chat-permission decision,
-  small ownership gaps (D13–D15), payroll proration/formula components, real Razorpay/Resend runs (need keys),
-  and not-built items (2FA/session list, SMS/push, scheduled jobs, AI, i18n).
+- Roles ~77–90% done (§8b); features 55–88% (§8c). D7/D8 and D13–D15 are fixed. What keeps it below 100%:
+  payroll proration/formula components, real Razorpay/Resend runs (need keys), and not-built items
+  (2FA/session list, SMS/push, scheduled jobs, AI, i18n).
 
 ### Decisions (owner, 2026-10-29)
 | Area | Decision |
@@ -110,8 +110,8 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
   - [ ] Optional AI features (only when an API key is set).
 - **Wave 5: final pass** ✅ 2026-11-01: fresh audit (§8b/§8c), D1–D6 + D9–D12 fixed, known gaps closed (plan
   bypass, seat checks, socket kick on revoke, duplicate models, org website/logo, material type, material file
-  cleanup, G9). **Next (needs owner input):** D7/D8 chat permissions; then D13–D15, payroll proration/formula
-  components, real Razorpay/Resend runs with keys, and the not-built items in §8c.
+  cleanup, G9). D7/D8 (chat) and D13–D15 fixed after it. **Next:** payroll proration/formula components, real
+  Razorpay/Resend runs with keys, and the not-built items in §8c.
 
 ### Cleanup owed
 - Test data left in the shared demo DB by the stopped Learning agent: assignment `ass_NV53mA67ZH71onHj6-hzeA`
@@ -323,24 +323,26 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 | Role | Pages | Actions | ~Done | Left (biggest first) |
 |---|---|---|---|---|
 | super_admin | 10 | 29 | 75% | No session list / 2FA · Companies/Institutes read-only (F5) |
-| admin | 29 | 146 | 88% | CRM activity/note edit UI (D15) · Razorpay + Resend untested without keys · no restore of other soft-deleted records |
-| principal | 28 | 62 | 80% | No Billing (lacks `finance:read`, by design) · can't delete assignments/materials (D13) |
-| teacher | 19 | 52 | 82% | Can't delete own tests/questions or edit own events (D13) · no rubrics/proctoring |
+| admin | 29 | 148 | 90% | Razorpay + Resend untested without keys · no restore of other soft-deleted records |
+| principal | 28 | 66 | 84% | No Billing (lacks `finance:read`, by design) |
+| teacher | 19 | 56 | 85% | No rubrics/proctoring |
 | student | 17 | 26 | 82% | Online pay untested (no keys) |
 | hr | 15 | 55 | 80% | Payroll proration for mid-month joiners · formula salary components count as 0 |
-| accountant | 9 | 29 | 74% | Can't mark payroll paid (D14) · reports are stat cards + CSV |
-| counselor | 12 | 47 | 78% | Can't delete leads/deals (D14) · no CRM activity/note edit (D15) · no lead scoring/duplicate check |
-| support | 8 | 22 | 78% | Customers read-only (D14) · no ticket merge |
-| employee | 11 | 20 | 77% | Can't upload own documents or acknowledge a review (D14) |
+| accountant | 9 | 30 | 77% | Reports are stat cards + CSV |
+| counselor | 12 | 51 | 82% | No lead scoring/duplicate check |
+| support | 8 | 23 | 80% | No ticket merge |
+| employee | 11 | 22 | 82% | — (self-service complete for the current scope) |
 | parent | 14 | 20 | 78% | Read-mostly by design |
 
 Chat (D7/D8, owner decision 2026-11-01 "all roles, scoped"): every role may start direct/group chats, edit and
 delete its own messages, add members to and leave groups it is in (chat perms are in SELF_SERVICE_PERMISSIONS);
 **students and parents may only start or extend chats with staff** — `messageController.loadOrgUser` returns 403
 `CHAT_STAFF_ONLY` when both sides are student/parent; staff may still add students to groups.
-Open audit items: D13 owners can't edit/delete what they create in a few modules (events, achievements, own
-tests/questions, principal assignments/materials). D14 narrow per-role gaps listed above. D15 no edit UI for CRM
-activities/notes (PUT routes exist). D16 tenant-suite test accounts stay as inactive users (no hard-delete API).
+D13–D15 fixed 2026-11-01. **Owner-or-manager rule:** for events, achievements, tests, questions, leads and deals
+the update/delete routes also admit the `:create` holder and the controller calls
+`crudHelpers.assertOwnerOrPermission(req, doc, perm)` (manager perm → any record; otherwise only `createdBy` =
+caller, else 403 `NOT_OWNER`); the client mirrors it with `usePermission().canOwn(managePerm, createPerm, row)`.
+CRM activities/notes: `:manage` holders edit any, others only their own. Open: D16 tenant-suite test accounts stay as inactive users (no hard-delete API).
 Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 
 ## 8c. Feature depth (re-audited 2026-11-01, after Wave 5 fixes)
@@ -356,7 +358,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Notifications | 7/7 | 75% | No SMS/push (email via Resend, realtime bell) |
 | Classes & enrollments | 6/7 + 4/4 | 85% | — |
 | Assignments & submissions | 4/5 + 3/4 | 80% | No rubrics / peer review |
-| Tests / questions / attempts | 5/5 + 4/4 + 4/4 | 78% | Teacher can't delete own (D13) · no proctoring |
+| Tests / questions / attempts | 5/5 + 4/4 + 4/4 | 82% | No proctoring |
 | Study materials | 4/4 | 85% | Abandoned (never-attached) uploads not cleaned up |
 | Live sessions | 6/7 | 75% | No recording (Jitsi embed + attendance done) |
 | Attendance | 5/5 | 75% | Device kiosk · QR image (class registers + org records view done) |
@@ -364,16 +366,16 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
-| Payroll | 9/9 | 72% | Proration · formula components · accountant "paid" step |
-| Salary structures / reviews | 8/8 | 70% | No acknowledge · no goals/PIP |
-| Employee documents | 4/4 | 78% | No employee self-upload |
+| Payroll | 9/9 | 75% | Proration · formula components |
+| Salary structures / reviews | 9/9 | 75% | No goals/PIP |
+| Employee documents | 4/4 | 85% | — |
 | Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
 | Billing / subscriptions | 7/7 | 75% | Real checkout untested |
 | CRM leads/deals/contacts/customers | 4/5 + 4/4 + 4/4 + 4/4 | 78% | No scoring / duplicate check |
 | CRM pipelines | 3/3 | 70% | No pipeline edit route |
-| CRM activities/tasks/notes | 3/4 + 5/5 + 3/4 | 72% | No activity/note edit UI (D15) |
+| CRM activities/tasks/notes | 4/4 + 5/5 + 4/4 | 80% | — |
 | Messaging | 9/9 + 2/2 | 85% | No attachments in chat · no message search |
-| Announcements / events | 4/5 + 4/5 | 75% | D13 |
+| Announcements / events | 4/5 + 4/5 | 80% | — |
 | Tickets | 11/11 | 82% | No merge |
 | Gamification | 9/9 | 55% | Leaderboard empty for demo users · Streak/Leaderboard models unused |
 | Reports | 9/9 | 55% | Stat cards + CSV/print only |
@@ -524,6 +526,18 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — D13–D15: owners manage what they create, narrow role gaps, CRM entry edit.** New
+  `assertOwnerOrPermission` (crudHelpers) + `canOwn` (usePermission): teachers/counselors/principals edit and
+  delete their own events, achievements, tests, questions, leads and deals. Grants: principal
+  `assignment:delete` + `study_material:delete`, support `customer:update`. Accountant may set payroll status to
+  `paid` only (`finance:manage`; process/delete stay HR). Employees upload their own HR documents (status
+  `submitted`; `employeeUserId` ignored for self-service, HR without it → 400 `EMPLOYEE_REQUIRED`) and acknowledge
+  their own finished reviews (`POST /reviews/:id/acknowledge`). CRM activities/notes: inline edit in
+  ActivityTimeline, own only unless `:manage`. Also fixed: true/false questions without options were a 500 (now
+  get True/False options; editing the answer moves `isCorrect`). Verified: d13-15 live 36/36, unit 40/40,
+  client build, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), files 49/49, crm-activity 29/29,
+  leave-payroll 45/45, wave5 33/33, chat-scope 20/20.
 
 - **2026-11-01 — Chat for all roles (D7/D8, owner chose "all roles, scoped").** Chat permissions
   (conversation:create/update, message:create/update/delete) moved into SELF_SERVICE_PERMISSIONS; controllers

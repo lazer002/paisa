@@ -20,6 +20,16 @@ export interface PermissionGate {
   canAny: (...permissions: Permission[]) => boolean
   /** True when the role holds ALL of the permissions. */
   canAll: (...permissions: Permission[]) => boolean
+  /**
+   * Manager-or-owner check mirroring the server's assertOwnerOrPermission:
+   * true with `managePermission`, or with `createPermission` on a row the
+   * current user created.
+   */
+  canOwn: (
+    managePermission: Permission,
+    createPermission: Permission,
+    row: { createdBy?: string | { _id?: string } | null } | null | undefined,
+  ) => boolean
 }
 
 /**
@@ -30,6 +40,7 @@ export interface PermissionGate {
  */
 export function usePermission(): PermissionGate {
   const role = useAppSelector((s) => s.auth.user?.role ?? null)
+  const userId = useAppSelector((s) => s.auth.user?._id ?? null)
 
   const permissions = useMemo(
     () => permissionsForRole(role),
@@ -51,7 +62,17 @@ export function usePermission(): PermissionGate {
     [role],
   )
 
-  return { role, permissions, can, canAny, canAll }
+  const canOwn = useCallback<PermissionGate['canOwn']>(
+    (managePermission, createPermission, row) => {
+      if (roleCan(role, managePermission)) return true
+      if (!roleCan(role, createPermission) || !userId || !row?.createdBy) return false
+      const owner = typeof row.createdBy === 'object' ? row.createdBy._id : row.createdBy
+      return owner === userId
+    },
+    [role, userId],
+  )
+
+  return { role, permissions, can, canAny, canAll, canOwn }
 }
 
 export default usePermission

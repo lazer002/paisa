@@ -193,7 +193,7 @@ export default function AssignmentsPage() {
                         <Pencil size={15} />
                       </button>
                     )}
-                    {canCreate && (
+                    {can('assignment:delete') && (
                       <button onClick={() => deleteAssignment(rid(a))}
                         className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
                         <Trash2 size={15} />

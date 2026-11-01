@@ -1,4 +1,5 @@
 import ApiError from "./ApiError.js";
+import { hasPermission } from "./permissions.js";
 
 /**
  * Keep only the listed keys that the client actually sent.
@@ -29,6 +30,23 @@ export const tenantScope = (req, extra = {}) =>
 
 export const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Managers (holders of `permission`) may change any record; everyone else
+ * only the records they created. Routes using this admit the create
+ * permission too, so creators can edit/delete their own work.
+ */
+export const assertOwnerOrPermission = (req, doc, permission) => {
+  if (hasPermission(req.user, permission)) return;
+
+  if (String(doc?.createdBy?._id ?? doc?.createdBy) === String(req.user._id)) {
+    return;
+  }
+
+  throw ApiError.forbidden("You can only change what you created", {
+    code: "NOT_OWNER",
+  });
+};
 
 export const requireInstitute = (req) => {
   if (!req.user.instituteId) {

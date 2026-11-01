@@ -9,7 +9,7 @@ import {
   LEAD_SOURCES,
   LEAD_PRIORITIES,
 } from "../models/Lead.js";
-import { escapeRegex } from "../utils/crudHelpers.js";
+import { escapeRegex, assertOwnerOrPermission } from "../utils/crudHelpers.js";
 import { Deal } from "../models/Deal.js";
 import { Pipeline } from "../models/Pipeline.js";
 
@@ -239,6 +239,7 @@ export const deleteLead = asyncHandler(async (req, res) => {
   }
 
   assertTenant(req, lead);
+  assertOwnerOrPermission(req, lead, "lead:delete");
 
   await lead.deleteOne();
 
@@ -380,6 +381,7 @@ export const deleteDeal = asyncHandler(async (req, res) => {
   }
 
   assertTenant(req, deal);
+  assertOwnerOrPermission(req, deal, "deal:delete");
 
   await deal.deleteOne();
 

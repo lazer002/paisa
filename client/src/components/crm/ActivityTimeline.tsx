@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Phone, Mail, Users, StickyNote, Trash2, Plus, CheckCircle2, Circle, Activity } from 'lucide-react'
+import { Phone, Mail, Users, StickyNote, Trash2, Plus, CheckCircle2, Circle, Activity, Pencil } from 'lucide-react'
 
 import {
   useGetCrmActivitiesQuery,
@@ -8,6 +8,8 @@ import {
   useGetCrmNotesQuery,
   useCreateCrmNoteMutation,
   useDeleteCrmNoteMutation,
+  useUpdateCrmActivityMutation,
+  useUpdateCrmNoteMutation,
   useGetCrmTasksQuery,
   useCompleteCrmTaskMutation,
   type CrmActivity,
@@ -59,6 +61,8 @@ export default function ActivityTimeline({ parent }: { parent: CrmParentFilter }
   const [deleteActivity] = useDeleteCrmActivityMutation()
   const [createNote, { isLoading: noting }] = useCreateCrmNoteMutation()
   const [deleteNote] = useDeleteCrmNoteMutation()
+  const [updateActivity] = useUpdateCrmActivityMutation()
+  const [updateNote] = useUpdateCrmNoteMutation()
   const [completeTask] = useCompleteCrmTaskMutation()
 
   const [logKind, setLogKind] = useState<LogKind | null>(null)
@@ -117,11 +121,55 @@ export default function ActivityTimeline({ parent }: { parent: CrmParentFilter }
     }
   }
 
+  const isMine = (item: CrmActivity) => !!myId && (item.createdBy?.publicId ?? item.createdBy?._id) === myId
+
   const canDeleteItem = (item: CrmActivity) => {
     const isNote = item.type === 'note'
     if (can(isNote ? 'crm_note:delete' : 'crm_activity:delete')) return true
-    const mine = !!myId && (item.createdBy?.publicId ?? item.createdBy?._id) === myId
-    return mine && (isNote ? canNote : canLog)
+    return isMine(item) && (isNote ? canNote : canLog)
+  }
+
+  // Same rule as the server: managers edit anything, others their own entries.
+  const canEditItem = (item: CrmActivity) => {
+    const isNote = item.type === 'note'
+    if (can(isNote ? 'crm_note:manage' : 'crm_activity:manage')) return true
+    return isMine(item) && can(isNote ? 'crm_note:update' : 'crm_activity:update')
+  }
+
+  const [editing, setEditing] = useState<CrmActivity | null>(null)
+  const [editSubject, setEditSubject] = useState('')
+  const [editOutcome, setEditOutcome] = useState('')
+  const [editText, setEditText] = useState('')
+
+  const startEdit = (item: CrmActivity) => {
+    setEditing(item)
+    setEditSubject(item.subject ?? '')
+    setEditOutcome(item.outcome ?? '')
+    setEditText(item.description ?? (item.type === 'note' ? item.subject ?? '' : ''))
+  }
+
+  const saveEdit = async () => {
+    if (!editing) return
+    const id = editing.publicId ?? editing._id
+    try {
+      if (editing.type === 'note') {
+        if (!editText.trim()) return
+        await updateNote({ id, changes: { body: editText.trim() } }).unwrap()
+      } else {
+        await updateActivity({
+          id,
+          changes: {
+            subject: editSubject.trim() || editing.subject,
+            outcome: editOutcome || undefined,
+            description: editText.trim() || undefined,
+          },
+        }).unwrap()
+      }
+      setEditing(null)
+      notify('Updated')
+    } catch (e) {
+      notify(errMsg(e, 'Failed to update'), 'critical')
+    }
   }
 
   const removeItem = async (item: CrmActivity) => {
@@ -243,6 +291,30 @@ export default function ActivityTimeline({ parent }: { parent: CrmParentFilter }
                   <span className="absolute -left-[25px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-1 ring-gray-300">
                     <Icon size={10} className="text-gray-500" />
                   </span>
+                  {editing && (editing.publicId ?? editing._id) === (item.publicId ?? item._id) ? (
+                    <div className="space-y-2 rounded-lg border border-gray-200 p-2">
+                      {item.type !== 'note' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <input className={inputCls} value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="Subject" />
+                          <select className={inputCls} value={editOutcome} onChange={(e) => setEditOutcome(e.target.value)}>
+                            <option value="">No outcome</option>
+                            {OUTCOMES.map((o) => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <textarea
+                        className={inputCls}
+                        rows={3}
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        placeholder={item.type === 'note' ? 'Note' : 'Details'}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+                        <Button size="sm" onClick={saveEdit}>Save</Button>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
                       <p className="text-sm text-gray-900">
@@ -263,6 +335,15 @@ export default function ActivityTimeline({ parent }: { parent: CrmParentFilter }
                         {item.createdBy?.name ? ` · ${item.createdBy.name}` : ''} · {fmt(item.completedAt ?? item.createdAt)}
                       </p>
                     </div>
+                    {canEditItem(item) && (
+                      <button
+                        onClick={() => startEdit(item)}
+                        className="rounded p-1 text-gray-300 opacity-0 transition hover:text-gray-700 group-hover:opacity-100"
+                        title="Edit"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    )}
                     {canDeleteItem(item) && (
                       <button
                         onClick={() => removeItem(item)}
@@ -273,6 +354,7 @@ export default function ActivityTimeline({ parent }: { parent: CrmParentFilter }
                       </button>
                     )}
                   </div>
+                  )}
                 </li>
               )
             })}

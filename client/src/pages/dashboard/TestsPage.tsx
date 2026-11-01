@@ -36,7 +36,7 @@ const QUESTION_TYPES = ['single_choice', 'true_false', 'short_answer', 'numeric'
 export default function TestsPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role
-  const { can } = usePermission()
+  const { can, canOwn } = usePermission()
   const isStaff = can('test:create')
   // Principals can build tests but hold no attempt permissions, so grading stays hidden for them.
   const canGrade = can('test_attempt:read')
@@ -297,7 +297,7 @@ export default function TestsPage() {
                 <Send size={12} /> Publish
               </button>
             )}
-            {can('test:delete') && (
+            {canOwn('test:delete', 'test:create', t) && (
               <button
                 onClick={(e) => { e.stopPropagation(); remove(t) }}
                 className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
@@ -331,13 +331,15 @@ export default function TestsPage() {
               <Pencil size={14} />
             </button>
           )}
-          <button
-            onClick={() => deleteQuestion(q.publicId ?? q._id)}
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
+          {canOwn('question:delete', 'question:create', q) && (
+            <button
+              onClick={() => deleteQuestion(q.publicId ?? q._id)}
+              className="rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       ),
     },

@@ -36,7 +36,6 @@ router.use(authenticate);
 const canRead = authorize({ anyPermissions: ["payroll:read"] });
 // payroll:create / update / delete = admin, hr
 const canRun = authorize({ anyPermissions: ["payroll:create"] });
-const canUpdate = authorize({ anyPermissions: ["payroll:update"] });
 const canDelete = authorize({ anyPermissions: ["payroll:delete"] });
 
 // Get payrolls (non-viewers are scoped to their own in the controller)
@@ -61,10 +60,10 @@ router.post("/", canRun, validateCreatePayroll, createPayroll);
 // Payslip (own, or any in the org for payroll viewers)
 router.get("/:publicId", canRead, getPayslip);
 
-// Update payroll status
+// Update payroll status (finance:manage = accountant, "paid" only — controller)
 router.put(
   "/:publicId/status",
-  canUpdate,
+  authorize({ anyPermissions: ["payroll:update", "finance:manage"] }),
   validatePayrollStatus,
   updatePayrollStatus
 );

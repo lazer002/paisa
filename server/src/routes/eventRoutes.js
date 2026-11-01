@@ -50,10 +50,11 @@ router.post(
   createEvent
 );
 
+// Creators may edit/delete their own events; managers any (controller).
 router.put(
   "/:publicId",
   authorize({
-    anyPermissions: ["notification:update"],
+    anyPermissions: ["notification:update", "notification:create"],
   }),
   body(updateEventSchema),
   updateEvent
@@ -62,7 +63,7 @@ router.put(
 router.delete(
   "/:publicId",
   authorize({
-    anyPermissions: ["notification:delete"],
+    anyPermissions: ["notification:delete", "notification:create"],
   }),
   deleteEvent
 );

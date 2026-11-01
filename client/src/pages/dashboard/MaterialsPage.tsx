@@ -154,7 +154,7 @@ export default function MaterialsPage() {
                         <Pencil size={14} />
                       </button>
                     )}
-                    {canUpload && (
+                    {can('study_material:delete') && (
                       <button onClick={() => deleteMaterial(m.publicId ?? m._id)}
                         className="rounded-lg p-1.5 text-red-400 transition hover:bg-red-50" title="Delete">
                         <Trash2 size={14} />

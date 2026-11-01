@@ -59,6 +59,7 @@ export interface Lead {
   status: string
   priority: string
   estimatedValue?: number
+  createdBy?: Ref | string | null
   createdAt: string
 }
 
@@ -72,6 +73,7 @@ export interface Deal {
   stage: string
   status: string
   expectedCloseDate?: string | null
+  createdBy?: Ref | string | null
   createdAt: string
 }
 
@@ -208,6 +210,7 @@ export interface Achievement {
   icon?: string | null
   badge?: string | null
   status: string
+  createdBy?: Ref | string | null
 }
 
 export interface UserAchievement {
@@ -465,6 +468,11 @@ export const platformApi = createApi({
       query: (id) => ({ url: `/reviews/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Review', id: 'LIST' }],
     }),
+    // The reviewed employee confirms they have seen a finished review.
+    acknowledgeReview: builder.mutation<PerformanceReview, string>({
+      query: (id) => ({ url: `/reviews/${id}/acknowledge`, method: 'POST' }),
+      invalidatesTags: [{ type: 'Review', id: 'LIST' }],
+    }),
 
     // ── HR Ops: Certificates ──
     getCertificates: builder.query<Certificate[], { status?: string } | void>({
@@ -567,6 +575,7 @@ export const {
   useGetTicketTemplatesQuery, useCreateTicketTemplateMutation, useUpdateTicketTemplateMutation, useDeleteTicketTemplateMutation,
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
+  useAcknowledgeReviewMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,
   useVerifyCertificateQuery, useLazyVerifyCertificateQuery,
   useGetAchievementsQuery, useCreateAchievementMutation, useUpdateAchievementMutation, useDeleteAchievementMutation,

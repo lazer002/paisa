@@ -18,6 +18,7 @@ export interface TestQuestion {
   options?: { text: string; isCorrect?: boolean }[]
   correctAnswer?: string | null
   subject?: string | null
+  createdBy?: string | { _id: string } | null
 }
 
 export interface SchoolTest {

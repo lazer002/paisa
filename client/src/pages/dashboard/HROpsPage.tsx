@@ -10,6 +10,7 @@ import {
   useGetReviewsQuery,
   useCreateReviewMutation,
   useUpdateReviewMutation,
+  useAcknowledgeReviewMutation,
   useDeleteReviewMutation,
   useGetCertificatesQuery,
   useCreateCertificateMutation,
@@ -67,6 +68,7 @@ export default function HROpsPage() {
   const [deleteCertificate] = useDeleteCertificateMutation()
   const [createReview] = useCreateReviewMutation()
   const [updateReview] = useUpdateReviewMutation()
+  const [acknowledgeReview] = useAcknowledgeReviewMutation()
   const [createCertificate] = useCreateCertificateMutation()
   const [revokeCertificate] = useRevokeCertificateMutation()
 
@@ -222,6 +224,21 @@ export default function HROpsPage() {
               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Start
+            </button>
+          )}
+          {!canReview && ['submitted', 'under_review', 'completed'].includes(r.status) && (
+            <button
+              onClick={async () => {
+                try {
+                  await acknowledgeReview(r.publicId ?? r._id).unwrap()
+                  setToast({ msg: 'Review acknowledged', tone: 'success' })
+                } catch (e: unknown) {
+                  setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Could not acknowledge', tone: 'critical' })
+                }
+              }}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              Acknowledge
             </button>
           )}
           {canDeleteReview && (

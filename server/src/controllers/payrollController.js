@@ -9,6 +9,7 @@ import Organization from "../models/organization.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 import ApiError from "../utils/ApiError.js";
+import { hasPermission } from "../utils/permissions.js";
 
 import { User } from "../models/User.js";
 
@@ -481,19 +482,22 @@ export const getPayrolls = asyncHandler(async (req, res) => {
 
 export const updatePayrollStatus =
   asyncHandler(async (req, res) => {
-    if (
-      !PAYROLL_MANAGERS.includes(
-        req.user.role
-      )
-    ) {
-      return sendForbidden(
-        res,
-        "Only HR or Admin can update payroll status"
-      );
-    }
-
     const { status } =
       req.body;
+
+    // Finance (accountant) may only record the payment: mark as paid.
+    const isPayrollManager = PAYROLL_MANAGERS.includes(req.user.role);
+    const isFinancePayer =
+      !isPayrollManager && hasPermission(req.user, "finance:manage");
+
+    if (!isPayrollManager && !(isFinancePayer && status === "paid")) {
+      return sendForbidden(
+        res,
+        isFinancePayer
+          ? "Finance can only mark payroll as paid"
+          : "Only HR or Admin can update payroll status"
+      );
+    }
 
     const validStatuses = [
       "draft",

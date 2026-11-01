@@ -384,6 +384,52 @@ export const updateReview = asyncHandler(async (req, res) => {
   });
 });
 
+// The reviewed employee confirms they have seen a finished review.
+const ACKNOWLEDGEABLE_REVIEW_STATUSES = ["submitted", "under_review", "completed"];
+
+export const acknowledgeReview = asyncHandler(async (req, res) => {
+  const review = await PerformanceReview.findOne({
+    publicId: req.params.publicId,
+    ...scoped(req),
+  });
+
+  if (!review) {
+    return sendNotFound(res, "Review not found");
+  }
+
+  const { default: Employee } = await import("../models/Employee.js");
+
+  const own = await Employee.findOne({
+    userId: req.user._id,
+    instituteId: req.user.instituteId,
+  }).select("_id");
+
+  // Only the person reviewed; others get a 404 so reviews stay private.
+  if (!own || String(review.employeeId) !== String(own._id)) {
+    return sendNotFound(res, "Review not found");
+  }
+
+  if (!ACKNOWLEDGEABLE_REVIEW_STATUSES.includes(review.status)) {
+    return sendError(res, {
+      statusCode: 400,
+      code: "REVIEW_NOT_READY",
+      message:
+        review.status === "acknowledged"
+          ? "You have already acknowledged this review"
+          : "This review is not ready to acknowledge yet",
+    });
+  }
+
+  review.status = "acknowledged";
+  review.acknowledgedAt = new Date();
+  await review.save();
+
+  return sendSuccess(res, {
+    message: "Review acknowledged",
+    data: review,
+  });
+});
+
 export const deleteReview = asyncHandler(async (req, res) => {
   const review = await PerformanceReview.findOne({
     publicId: req.params.publicId,

@@ -52,10 +52,11 @@ router.post(
   createAchievement
 );
 
+// Creators may edit/delete their own achievements; managers any (controller).
 router.put(
   "/achievements/:publicId",
   authorize({
-    anyPermissions: ["achievement:update"],
+    anyPermissions: ["achievement:update", "achievement:create"],
   }),
   body(updateAchievementSchema),
   updateAchievement
@@ -64,7 +65,7 @@ router.put(
 router.delete(
   "/achievements/:publicId",
   authorize({
-    anyPermissions: ["achievement:delete"],
+    anyPermissions: ["achievement:delete", "achievement:create"],
   }),
   deleteAchievement
 );

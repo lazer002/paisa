@@ -75,10 +75,11 @@ router.put(
   updateTest
 );
 
+// Creators may delete their own tests; managers any (controller).
 router.delete(
   "/:publicId",
   authorize({
-    anyPermissions: ["test:delete"],
+    anyPermissions: ["test:delete", "test:create"],
   }),
   deleteTest
 );
@@ -117,10 +118,11 @@ questionRouter.put(
   updateQuestion
 );
 
+// Creators may delete their own questions; managers any (controller).
 questionRouter.delete(
   "/:publicId",
   authorize({
-    anyPermissions: ["question:delete"],
+    anyPermissions: ["question:delete", "question:create"],
   }),
   deleteQuestion
 );

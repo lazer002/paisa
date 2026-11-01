@@ -23,10 +23,11 @@ const toLocalInput = (iso?: string | null) => {
 }
 
 export default function EventsPage() {
-  const { can } = usePermission()
+  const { can, canOwn } = usePermission()
   const canCreate = can('notification:create')
-  const canUpdate = can('notification:update')
-  const canDelete = can('notification:delete')
+  // Creators may edit/delete their own events; managers any (server rule).
+  const canUpdate = (e: CalendarEvent) => canOwn('notification:update', 'notification:create', e)
+  const canDelete = (e: CalendarEvent) => canOwn('notification:delete', 'notification:create', e)
 
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -149,7 +150,7 @@ export default function EventsPage() {
         </div>
       </div>
       <StatusBadge status={e.status} />
-      {canUpdate && (
+      {canUpdate(e) && (
         <button
           onClick={() => openEdit(e)}
           className="rounded-lg p-1.5 text-gray-300 transition hover:bg-gray-100 hover:text-gray-600"
@@ -159,7 +160,7 @@ export default function EventsPage() {
           <Pencil size={14} />
         </button>
       )}
-      {canDelete && (
+      {canDelete(e) && (
         <button
           onClick={() => remove(e)}
           className="rounded-lg p-1.5 text-gray-300 transition hover:bg-rose-50 hover:text-rose-500"

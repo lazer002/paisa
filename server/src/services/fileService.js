@@ -32,7 +32,8 @@ const isSuperAdmin = (user) => user?.role === "super_admin";
 export const canUploadFor = (user, purpose) => {
   switch (purpose) {
     case "employee_document":
-      return hasPermission(user, "employee_document:create");
+      // HR files for anyone; others only for themselves (controller).
+      return hasAnyPermission(user, ["employee_document:create", "employee_document:read"]);
     case "study_material":
       return hasPermission(user, "study_material:create");
     case "submission":
