@@ -5,8 +5,10 @@ import { Class } from "../models/Class.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 import { visibleClassIdsFor } from "../utils/parentScope.js";
-import { fileDownloadPath } from "../models/File.js";
+import { File, fileDownloadPath } from "../models/File.js";
+import { getStorage } from "../services/storage/index.js";
 import { claimFile, linkFile } from "../services/fileService.js";
 
 import {
@@ -231,7 +233,7 @@ export const getStudyMaterials = asyncHandler(
     if (req.query.subject) {
       query.subject = {
         $regex:
-          req.query.subject,
+          escapeRegex(req.query.subject),
         $options: "i",
       };
     }
@@ -486,6 +488,27 @@ export const deleteStudyMaterial =
       publicId:
         req.params.publicId,
     });
+
+    // Remove the uploaded file with its material (best effort).
+    if (material.fileId) {
+      try {
+        const file = await File.findOne({
+          publicId: material.fileId,
+          instituteId: material.instituteId,
+          isDeleted: { $ne: true },
+        });
+
+        if (file) {
+          await getStorage(file.storageProvider).remove(file.storageKey);
+          file.isDeleted = true;
+          file.deletedAt = new Date();
+          file.deletedBy = req.user._id;
+          await file.save();
+        }
+      } catch {
+        /* the material is gone; a leftover file is only storage */
+      }
+    }
 
     sendSuccess(
       res,

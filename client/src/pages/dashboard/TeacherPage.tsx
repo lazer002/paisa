@@ -23,7 +23,7 @@ import {
 } from '@/features/teacher/teachersApi'
 
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
-import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
@@ -61,14 +61,9 @@ type Teacher = {
 }
 
 export default function TeachersPage() {
-  const authUser = useAppSelector((s) => s.auth.user)
-
-  const canManage = [
-    'super_admin',
-    'admin',
-    'principal',
-    'hr',
-  ].includes(authUser?.role ?? '')
+  // Same permission POST /teachers checks (hr can read but not create).
+  const { can } = usePermission()
+  const canManage = can('teacher:create')
 
   const {
     data: teachers = [],

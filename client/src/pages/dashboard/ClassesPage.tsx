@@ -15,6 +15,7 @@ import {
 } from '@/features/classes/classesApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { useAppSelector } from '@/app/store'
+import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
@@ -147,9 +148,11 @@ function ClassModal({
 export default function ClassesPage() {
   const user = useAppSelector((s) => s.auth.user)
   const role = user?.role
-  const canCreate = role === 'super_admin' || role === 'admin' || role === 'teacher'
-  const canAssignTeacher = role === 'super_admin' || role === 'admin'
-  const canDelete = role === 'super_admin' || role === 'admin'
+  // Same permissions the class routes check.
+  const { can } = usePermission()
+  const canCreate = can('class:create')
+  const canAssignTeacher = can('class:update') && role !== 'teacher'
+  const canDelete = can('class:delete')
   const isStudent = role === 'student'
 
   const { data: classes, isLoading, isError, refetch } = useGetClassesQuery()

@@ -8,7 +8,10 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  USER_MANAGER_PERMISSIONS,
 } from "../controllers/userController.js";
+import { hasAnyPermission } from "../utils/permissions.js";
+import ApiError from "../utils/ApiError.js";
 
 import { getUserDetail } from "../controllers/userDetailController.js";
 
@@ -24,6 +27,14 @@ import {
 const router = express.Router();
 
 router.use(authenticate);
+
+// A full user record is for user managers, or the user themself; everyone
+// else only gets the directory view from GET /users.
+const managerOrSelf = (req, res, next) =>
+  req.params.publicId === req.user.publicId ||
+  hasAnyPermission(req.user, USER_MANAGER_PERMISSIONS)
+    ? next()
+    : next(ApiError.forbidden("Access denied", { code: "ACCESS_DENIED" }));
 
 // ─────────────────────────────────────────────
 // CREATE USER
@@ -62,6 +73,7 @@ router.get(
   authorize({
     anyPermissions: ["user:read"],
   }),
+  managerOrSelf,
   getUserDetail
 );
 
@@ -75,6 +87,7 @@ router.get(
   authorize({
     anyPermissions: ["user:read"],
   }),
+  managerOrSelf,
   getUserById
 );
 

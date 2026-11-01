@@ -452,9 +452,11 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Billing',
         icon: Receipt,
         path: '/dashboard/billing',
+        // Subscription APIs need finance:read (principal lacks it); super_admin
+        // gets the platform view with per-org "Manage subscription".
         roles: [
+          'super_admin',
           'admin',
-          'principal',
           'accountant',
         ],
       },

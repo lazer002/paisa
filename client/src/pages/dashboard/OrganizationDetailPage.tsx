@@ -325,8 +325,8 @@ export default function OrganizationDetailPage() {
             <h3 className="mb-4 font-semibold text-gray-900">About</h3>
             <p className="text-sm text-gray-600">{org.description || 'No description provided.'}</p>
             <div className="mt-4 space-y-2 text-sm text-gray-500">
-              {org.website && (
-                <p className="flex items-center gap-2"><Globe size={14} /> {org.website}</p>
+              {(org.branding?.website || org.website) && (
+                <p className="flex items-center gap-2"><Globe size={14} /> {org.branding?.website || org.website}</p>
               )}
               {contact.email && <p className="flex items-center gap-2"><Mail size={14} /> {contact.email}</p>}
               {contact.phone && <p className="flex items-center gap-2"><Phone size={14} /> {contact.phone}</p>}

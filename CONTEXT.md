@@ -22,15 +22,15 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 - **Per-role report** → §8b: pages, actions, ~% done, and what's left per role.
 - **Per-feature report** → §8c: UI-route coverage, ~depth %, and what's missing per feature.
 - **Known bugs** → §9. **Ordered backlog** → §11. **History** → §12.
-- How these were measured: the real route gates were run for each role (195 routes), the client nav was mapped
-  to hooks and then endpoints, and the 11 demo users made 210 live GETs. The audit scripts (gates.mjs,
-  client-map.mjs, runtime.mjs) are in the session scratchpad, not the repo. Re-run them, or redo the method in §8b.
+- How these were measured (2026-11-01): route gates for 252 routes × 11 roles, client nav → hooks → endpoints,
+  and 484 live GETs as every demo user in both orgs. Method in §8b; scripts are in the session scratchpad only.
 
-### Snapshot (2026-10-29)
-- Health: all 11 roles' pages load with **0 errors** against the real DB. 17/17 server tests pass. Client lint and
-  build pass. The server boots on Atlas.
-- Roles ~50–75% done (§8b). Features: strongest are people, departments, classes, attendance, audit and CRM basics
-  (75–90%). Weakest are billing, CRM activities, payroll calculation, live sessions and reports (0–50%) (§8c).
+### Snapshot (2026-11-01, after Wave 5)
+- Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
+  leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
+- Roles ~72–88% done (§8b); features 55–88% (§8c). What keeps it below 100%: the D7/D8 chat-permission decision,
+  small ownership gaps (D13–D15), payroll proration/formula components, real Razorpay/Resend runs (need keys),
+  and not-built items (2FA/session list, SMS/push, scheduled jobs, AI, i18n).
 
 ### Decisions (owner, 2026-10-29)
 | Area | Decision |
@@ -108,7 +108,10 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
     refresh + reconnect, RTK cache sync, typing label), Vite `/socket.io` proxy. Gaps: logout-all doesn't kick live
     sockets (they drop at token expiry ≤15 min); multi-process needs a socket.io Redis adapter.
   - [ ] Optional AI features (only when an API key is set).
-- **Wave 5: final pass**: re-run the §8b/§8c audits, aim for every role at ~100% of its scope, update reports.
+- **Wave 5: final pass** ✅ 2026-11-01: fresh audit (§8b/§8c), D1–D6 + D9–D12 fixed, known gaps closed (plan
+  bypass, seat checks, socket kick on revoke, duplicate models, org website/logo, material type, material file
+  cleanup, G9). **Next (needs owner input):** D7/D8 chat permissions; then D13–D15, payroll proration/formula
+  components, real Razorpay/Resend runs with keys, and the not-built items in §8c.
 
 ### Cleanup owed
 - Test data left in the shared demo DB by the stopped Learning agent: assignment `ass_NV53mA67ZH71onHj6-hzeA`
@@ -307,78 +310,75 @@ are separate business profiles linked to a User. Do not assume Teacher === Emplo
 | Employee documents | ❌ | model + `employee_document:*` perms only |
 | Audit log viewer | ❌ | `AuditLog` written by audit middleware; no read API/UI |
 
-## 8b. Per-role completeness (re-audited 2026-10-29: static + runtime against Atlas)
+## 8b. Per-role completeness (re-audited 2026-11-01, after Wave 5 fixes)
 
-Method: the real Express routers were loaded and every gate middleware was run for each role
-(195 routes, exact allow/deny). Then client nav (`navForRole`) → page + child components → RTK
-hooks → endpoint → server verdict, honouring `skip:` options. Then a live server was started and
-each demo user called every load query on its pages (210 GETs). Result: **0 load-403s, 0 errors
-for all 11 roles.** "~Done" = judged against the role's intended scope (the original spec plus
-the role's job). It is an estimate, not a measurement.
+Method (Wave 5 audit agent, read-only): the real routers were loaded and every gate run for each role (**252
+routes × 11 roles = 2,772 cells**, none undecided); client vs server permission matrices compared (270 perms ×
+11 roles, no drift); client nav → pages → RTK hooks/axios → route → verdict (231 endpoints, none pointing at a
+missing route; 228/252 routes called by some page); then **484 live page-load GETs** as every demo user in both
+orgs (0 real failures — the 19 non-200s were queries the page skips for that role or calls with params) plus ~75
+cross-org probes (no leaks). "~Done" = judged against the role's intended scope; an estimate, not a measurement.
+Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 
 | Role | Pages | Actions | ~Done | Left (biggest first) |
 |---|---|---|---|---|
-| super_admin | 10 | 11 | 60% | No UI to **create/delete organizations** (API exists) · no user delete UI · no subscription/plan engine (F4) · no security view (sessions, lockouts, 2FA) · Companies/Institutes read-only (F5) · no report export |
-| admin | 29 | 92 | 75% | Pipelines UI (API exists) · **submission grading UI** · edit forms for assignments/materials/questions/events/salary structures/geofences (PUT APIs, no UI) · notification broadcast UI · CRM activities/tasks/notes (models only) · no payment gateway, refunds or receipts · no export · no restore of deleted records |
-| principal | 28 | 44 | 65% | **Grading attempts returns 403 (B4)** · cannot read test attempts/results · no submission grading UI · analytics are basic stat cards |
-| teacher | 18 | 35 | 60% | **Grading attempts returns 403 though the Grading tab is shown (B4)** · **no submission grading UI** · cannot edit assignments/materials/questions · cannot delete own tests/questions · no rubrics, peer review or proctoring · live sessions are link-only |
-| student | 17 | 15 | 75% | No online fee payment · no certificate download/verify · test autosave is a browser draft only · notifications only in the bell |
-| hr | 15 | 33 | 65% | Payroll is manual entry (no attendance/leave/LOP calculation) · no payslip PDF/export · no leave balances · no attendance corrections · document "upload" is a link · no lifecycle stages (onboarding/exit) · no salary-structure edit UI |
-| accountant | 8 | 11 | 50% | Billing page cannot read the org (shows a default "free" plan) · no refunds/receipts/reconciliation · no payment gateway · no finance reports or export · no payroll-payment step |
-| counselor | 10 | 24 | 60% | **Enrollment form class dropdown is always empty (B5)** · pipelines not visible · no CRM activities/tasks/notes/follow-ups (models exist, no routes) · no lead scoring/duplicate check · cannot delete leads/deals |
-| support | 6 | 8 | 55% | No ticket assignment, SLA, internal notes, templates or merge · Customers tab read-only · no response metrics beyond stat cards |
-| employee | 11 | 11 | 70% | No payslip download · no leave balance · cannot upload own documents · cannot acknowledge reviews |
-| parent | 14 | 8 | 65% | Read-only by design · no fee payment · not covered by the spec (inferred role) |
+| super_admin | 10 | 29 | 75% | No session list / 2FA · Companies/Institutes read-only (F5) |
+| admin | 29 | 146 | 88% | CRM activity/note edit UI (D15) · Razorpay + Resend untested without keys · no restore of other soft-deleted records |
+| principal | 28 | 62 | 80% | No Billing (lacks `finance:read`, by design) · can't delete assignments/materials (D13) |
+| teacher | 19 | 52 | 80% | Can't delete own tests/questions or edit own events (D13) · can't add/leave group chats (D7) · no rubrics/proctoring |
+| student | 17 | 26 | 80% | Can't start a chat (D8) · online pay untested (no keys) |
+| hr | 15 | 55 | 80% | Payroll proration for mid-month joiners · formula salary components count as 0 · D7 |
+| accountant | 9 | 29 | 72% | Can't mark payroll paid (D14) · reports are stat cards + CSV · can't start a chat (D8) |
+| counselor | 12 | 47 | 78% | Can't delete leads/deals (D14) · no CRM activity/note edit (D15) · no lead scoring/duplicate check |
+| support | 8 | 22 | 78% | Customers read-only (D14) · no ticket merge |
+| employee | 11 | 20 | 75% | Can't upload own documents or acknowledge a review (D14) · can't start a chat (D8) |
+| parent | 14 | 20 | 75% | Can't start a chat (D8) · read-mostly by design |
 
-Cross-role:
-- 44 server routes have no client UI (mostly `GET /:id` detail routes, which are fine). The ones that matter: org create/delete,
-  user delete, submission grade, pipelines, `PUT` on assignments/materials/questions/events/salary-structures/geofences,
-  notification broadcast, and conversation participants/leave.
-- Demo seed is thin: most lists return empty for every role, so a UI walk-through mostly shows empty states.
-- Not built anywhere: payment gateway, email/SMS sending, file storage, scheduled jobs, realtime (sockets), AI, i18n,
-  public certificate verification.
-- Audit scripts (2026-10-29) are in the session scratchpad, not in the repo: gates.mjs (route × role matrix),
-  client-map.mjs (nav→hooks→verdict), runtime.mjs (live GETs).
+Open audit items (2026-11-01): **D7/D8 need an owner decision** — who may start chats / edit own messages /
+add-leave groups (today only admin, counselor, support; students, parents, employees and accountants have no
+New Chat). D13 owners can't edit/delete what they create in a few modules (events, achievements, own
+tests/questions, principal assignments/materials). D14 narrow per-role gaps listed above. D15 no edit UI for CRM
+activities/notes (PUT routes exist). D16 tenant-suite test accounts stay as inactive users (no hard-delete API).
+Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 
-## 8c. Feature depth (2026-10-29)
+## 8c. Feature depth (re-audited 2026-11-01, after Wave 5 fixes)
 
-"UI routes" = server routes some client page calls / routes in that module (from the gate matrix). ~Depth is
-judged against the spec's description of the feature. It is an estimate.
+"UI routes" = routes some client page calls / routes in that module. ~Depth is judged against the spec; an estimate.
 
 | Feature | UI routes | ~Depth | Missing |
 |---|---|---|---|
-| Auth & sessions | 6/6 | 75% | **B6: profile/password change call `PUT /auth/profile`, which doesn't exist** · no forgot/reset password · 2FA fields only · no lockout UI |
-| Organizations / tenancy | 2/5 | 60% | create/delete UI · limits & feature flags · Companies/Institutes read-only |
-| Users & RBAC | 3/6 | 80% | delete UI · H1 mixed gating |
-| Audit log | 1/1 | 85% | integrity hashes, export |
-| Notifications | bell + prefs | 50% | broadcast UI · no email/SMS/push delivery |
-| Classes & enrollments | 10/11 | 85% | B5 counselor class picker |
-| Assignments & submissions | 5/9 | 55% | **no submission grading UI** · no edit · no rubric/group/peer review |
-| Tests / questions / attempts | 12/13 | 70% | B4 manual grading 403 · no question edit · no sections/proctoring/rank |
-| Study materials | 3/4 | 65% | link only (no upload) · no edit |
-| Live sessions | 4/5 | 50% | link only: no video provider, chat, recording or attendance |
-| Attendance | 10/12 | 75% | device/biometric kiosk · QR image · corrections · GPS anti-spoof · AttendanceEvent model unused |
-| Certificates | 3/4 | 60% | no PDF, public verification or templates |
-| People (employees/HR/teachers/students) | 14/17 | 85% | lifecycle stages (onboarding → exit) |
-| Departments | 4/4 | 90% | — |
-| Leaves | 4/4 | 75% | balances, policies, attendance sync |
-| Payroll | 3/4 | 45% | no calculation (attendance/leave/LOP) · no payslip/export · no payment step |
-| Salary structures / reviews | 6/8 | 60% | no edit UI · no versioning · no goals/PIP/acknowledge |
-| Employee documents | 4/4 | 60% | link only (no storage) · no verification/expiry |
-| Invoices & payments | 5/6 | 60% | no gateway, refunds, receipt PDFs or reconciliation |
-| Billing / subscriptions | — | 20% | plan field only (F4) |
-| CRM leads/deals/contacts/customers | 16/17 | 75% | lead scoring, duplicate check |
-| CRM pipelines | 0/3 | 30% | API only, no UI |
-| CRM activities/tasks/notes | — | 0% | models only (CRMActivity, CRMTask, CRMNote) |
-| Messaging | 6/11 | 65% | message edit/delete · participants · no realtime |
-| Announcements / events | 7/10 | 70% | event/announcement edit UI |
-| Tickets | 5/6 | 55% | assignment, SLA, internal notes, templates |
-| Gamification | 7/9 | 55% | achievement edit · Streak & Leaderboard models unused |
-| Reports | 9/9 | 45% | stat cards only · no export (H5) |
+| Auth & sessions | 3/9 + login/forgot/reset pages | 80% | No 2FA or session list |
+| Organizations / tenancy | 6/6 | 80% | Companies/Institutes read-only (F5) |
+| Users & RBAC | 5/6 | 85% | Non-managers get a directory view only (D1 fixed) |
+| Audit log | 1/1 | 85% | Integrity hashes |
+| Notifications | 7/7 | 75% | No SMS/push (email via Resend, realtime bell) |
+| Classes & enrollments | 6/7 + 4/4 | 85% | — |
+| Assignments & submissions | 4/5 + 3/4 | 80% | No rubrics / peer review |
+| Tests / questions / attempts | 5/5 + 4/4 + 4/4 | 78% | Teacher can't delete own (D13) · no proctoring |
+| Study materials | 4/4 | 85% | Abandoned (never-attached) uploads not cleaned up |
+| Live sessions | 6/7 | 75% | No recording (Jitsi embed + attendance done) |
+| Attendance | 5/5 | 75% | Device kiosk · QR image (class registers + org records view done) |
+| Certificates | 4/4 + public verify | 80% | Templates |
+| People | 17/20 | 88% | — |
+| Departments | 4/4 | 88% | — |
+| Leaves | 11/11 | 85% | Attendance sync not verified |
+| Payroll | 9/9 | 72% | Proration · formula components · accountant "paid" step |
+| Salary structures / reviews | 8/8 | 70% | No acknowledge · no goals/PIP |
+| Employee documents | 4/4 | 78% | No employee self-upload |
+| Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
+| Billing / subscriptions | 7/7 | 75% | Real checkout untested |
+| CRM leads/deals/contacts/customers | 4/5 + 4/4 + 4/4 + 4/4 | 78% | No scoring / duplicate check |
+| CRM pipelines | 3/3 | 70% | No pipeline edit route |
+| CRM activities/tasks/notes | 3/4 + 5/5 + 3/4 | 72% | No activity/note edit UI (D15) |
+| Messaging | 8/9 + 2/2 | 70% | D7/D8 (owner decision) |
+| Announcements / events | 4/5 + 4/5 | 75% | D13 |
+| Tickets | 11/11 | 82% | No merge |
+| Gamification | 9/9 | 55% | Leaderboard empty for demo users · Streak/Leaderboard models unused |
+| Reports | 9/9 | 55% | Stat cards + CSV/print only |
+| Files | 3/3 | 78% | S3 adapter is a stub |
 
-Not built anywhere: scheduled jobs, email/SMS, file storage, payment gateway, realtime, AI, i18n, public
-certificate verification. Unused/duplicate models: `models/Invoice.js` (the real one is in Payment.js),
-Device, AttendanceEvent, Streak, Leaderboard, CRMActivity/Task/Note.
+Not built anywhere: scheduled jobs, SMS/push, i18n, QR image, AI features. Unused models: Device,
+AttendanceEvent, Streak, Leaderboard (CRMNote.js and the stray Invoice.js were deleted 2026-11-01).
 
 ### Previous audit (2026-10-27, superseded)
 
@@ -446,10 +446,10 @@ Cross-role defects (fix once, helps many roles):
   filter. Fix: `resolveRef(Class, …)` + visibility `institute` when no class.
 - **B9 (fixed 2026-10-29, uncommitted)** Manual payments never stored history (`invoice.payments` isn't in the
   schema) and partial payments set the invalid status `"partial"`. Replaced by the Payment model + paymentService.
-- **G8** `server/src/models/Invoice.js` is a stray duplicate of the EmployeeDocument model (the real Invoice is in
-  `Payment.js`). Delete it. Unused models: Device, AttendanceEvent, Streak, Leaderboard, CRMActivity/Task/Note.
-- **G9** `ApiError.xxx(msg, "CODE")` is used everywhere, but the factories take `{ code }` objects, so most error
-  codes silently become BAD_REQUEST/FORBIDDEN etc. New code uses `{ code: "..." }`.
+- ~~**G8**~~ (fixed 2026-11-01: stray `models/Invoice.js` and the duplicate `models/CRMNote.js` deleted.) Unused
+  models remain: Device, AttendanceEvent, Streak, Leaderboard.
+- ~~**G9**~~ (fixed 2026-11-01: ApiError factories accept a bare string as the code, so `ApiError.notFound(msg,
+  "CODE")` keeps "CODE"; `sendError` derives a code from the status when none is given.)
 - **G10** Client typecheck: use `npx tsc -p tsconfig.json --noEmit`. `tsconfig.app.json` lacks the `@/*` alias and
   gives bogus "Cannot find module" errors.
 - **G3** Two gating styles (§7) can drift. Long-term: migrate to permission-based.
@@ -522,6 +522,23 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Wave 5: audit + final fixes.** One read-only audit agent (gates for 252 routes × 11 roles, client
+  map, 484 live GETs, cross-org probes) while known gaps were fixed in this session. Fixed: **D1 (high) every role
+  could read every org user's full record** (phone, address, DOB, employment, last-login IP) — `GET /users` now
+  returns a directory view (publicId, name, email, role, userCode, status, avatar) unless the caller holds
+  `user:update|user:manage`, and `GET /users/:id[/detail]` is manager-or-self; D2 unescaped search regex → 500 on
+  9 lists (escaped everywhere); D3 Teachers "Add" shown to hr (now `teacher:create`); D4 parents see children's
+  submissions and the by-id submission route now checks student/parent/teacher-owner/grader (it was open to any
+  same-org user); D5 HR/principal get an org attendance records view; D6 the mark sheet picks a register (class
+  roster or staff), sends `classId` and prefills saved marks; D9 Classes page uses permissions, principal may
+  reassign a teacher; D10/D11 Billing nav: super_admin added, principal removed; D12/G9 error codes. Known gaps:
+  `PUT /organizations` refuses plan changes (use the subscription), website/logo saved under `branding`, HR
+  creation seat-checked, logout-all / password reset / account disable kick live sockets (`emit.disconnectUser`),
+  deleted duplicate models, material `type: ""` on update → 422, deleting a material removes its stored file.
+  Verified: wave5 live 33/33, unit 39/39, client lint + build, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks),
+  subscriptions 45/45, realtime 31/31, files 49/49, email 24/24, part-2 18/18, leave/payroll 45/45, CRM 29/29,
+  tickets/certs 21/21, invoices 6/6. Still open: D7/D8 (owner decision), D13–D15, payroll proration/formula.
 
 - **2026-11-01 — Wave 4 round 2: subscriptions + Jitsi, realtime.** Two agents. Verified on the combined tree:
   39/39 unit tests (plans + realtime emitter tests added), client lint + build, e2e:smoke 171/171, e2e:flows 39/39

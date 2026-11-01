@@ -8,6 +8,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { hasAnyPermission } from "../utils/permissions.js";
+import { childUserIdsFor } from "../utils/parentScope.js";
 import { fileDownloadPath } from "../models/File.js";
 import { claimFile, linkFile } from "../services/fileService.js";
 
@@ -282,6 +283,21 @@ export const getSubmissions =
         }
       }
 
+      // Parents see their linked children's submissions (and grades).
+      else if (
+        req.user.role ===
+        "parent"
+      ) {
+        query.studentId = {
+          $in: await childUserIdsFor(req.user),
+        };
+
+        if (assignmentId) {
+          query.assignmentId =
+            assignmentId;
+        }
+      }
+
       // Teachers see only submissions
       // belonging to their assignments
       else if (
@@ -432,19 +448,31 @@ export const getSubmission =
         );
       }
 
-      // Students can only view
-      // their own submission
-      if (
-        req.user.role ===
-          "student" &&
-        String(
-          submission.studentId?._id ||
-            submission.studentId
-        ) !==
-          String(
-            req.user._id
-          )
-      ) {
+      // Same audience as the list: the student, their parents, the
+      // assignment's teacher, or a grader.
+      const studentId = String(
+        submission.studentId?._id || submission.studentId
+      );
+
+      const allowed =
+        hasAnyPermission(req.user, [
+          "submission:update",
+          "submission:manage",
+        ]) &&
+        req.user.role !== "teacher"
+          ? true
+          : req.user.role === "student"
+            ? studentId === String(req.user._id)
+            : req.user.role === "parent"
+              ? (await childUserIdsFor(req.user)).some(
+                  (id) => String(id) === studentId
+                )
+              : req.user.role === "teacher"
+                ? String(submission.assignmentId?.createdBy) ===
+                  String(req.user._id)
+                : false;
+
+      if (!allowed) {
         return sendForbidden(
           res,
           "Access denied"

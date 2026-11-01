@@ -47,6 +47,7 @@ export interface Organization {
   description?: string
   logo?: string
   website?: string
+  branding?: { logo?: string | null; website?: string | null }
   orgCode: string
   contact: OrgContact
   owner: string | { _id: string; name: string; email: string }

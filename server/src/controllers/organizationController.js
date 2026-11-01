@@ -112,8 +112,11 @@ export const createOrganization = async (req, res) => {
         ...contact,
         email: adminEmail,
       },
-      website,
-      logo,
+      // The model keeps these under branding; top-level keys were dropped.
+      branding: {
+        website: website || null,
+        logo: logo || null,
+      },
       meta,
       owner: userId,
       createdBy: userId,
@@ -569,28 +572,37 @@ export const updateOrganization = async (
       });
     }
 
+    // plan/planExpiresAt are owned by the Subscription record
+    // (POST /subscriptions/override); website/logo live under branding.
     const SUPER_ADMIN_FIELDS = [
       "name",
       "description",
       "contact",
-      "website",
-      "logo",
       "meta",
       "settings",
       "status",
       "type",
-      "plan",
-      "planExpiresAt",
     ];
 
     const ADMIN_FIELDS = [
       "description",
       "contact",
-      "website",
-      "logo",
       "meta",
       "settings",
     ];
+
+    if (
+      req.user.role === "super_admin" &&
+      req.body.plan !== undefined &&
+      req.body.plan !== org.plan
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "PLAN_CHANGE_VIA_SUBSCRIPTION",
+        message:
+          "Change the plan through the organization's subscription (Billing → Manage subscription)",
+      });
+    }
 
     const allowedFields =
       req.user.role ===
@@ -634,6 +646,12 @@ export const updateOrganization = async (
       ) {
         org[field] =
           req.body[field];
+      }
+    }
+
+    for (const field of ["website", "logo"]) {
+      if (req.body[field] !== undefined) {
+        org.set(`branding.${field}`, req.body[field] || null);
       }
     }
 

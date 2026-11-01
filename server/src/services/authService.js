@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 
 import { User } from "../models/User.js";
 import RefreshSession from "../models/RefreshSession.js";
+import { emit } from "../realtime/emitter.js";
 
 import ApiError from "../utils/ApiError.js";
 
@@ -796,6 +797,8 @@ const logoutAll = async ({
     userId,
     "logout"
   );
+
+  emit.disconnectUser(userId);
 
   const sessions =
     await RefreshSession.find({

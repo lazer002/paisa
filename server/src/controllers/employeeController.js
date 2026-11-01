@@ -25,6 +25,7 @@ import Employee, {
 } from "../models/Employee.js";
 
 import RefreshSession from "../models/RefreshSession.js";
+import { emit } from "../realtime/emitter.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 import ApiError from "../utils/ApiError.js";
@@ -703,6 +704,7 @@ export const changeEmployeeStage = asyncHandler(async (req, res) => {
     user.deactivationReason = `Employee exited (${exitType})`;
     await user.save();
     await RefreshSession.revokeUserSessions(user._id, "account_disabled");
+    emit.disconnectUser(user._id, "ACCOUNT_DISABLED");
   }
 
   if (from === "exited" && reactivateUser === true && user.status !== "active") {

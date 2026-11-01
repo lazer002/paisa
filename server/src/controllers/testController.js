@@ -15,6 +15,7 @@ import { Class } from "../models/Class.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -234,7 +235,7 @@ export const getTests = asyncHandler(async (req, res) => {
 
   if (search) {
     query.title = {
-      $regex: search,
+      $regex: escapeRegex(search),
       $options: "i",
     };
   }
@@ -628,7 +629,7 @@ export const getQuestions = asyncHandler(async (req, res) => {
   if (subject) query.subject = subject;
 
   if (search) {
-    query.text = { $regex: search, $options: "i" };
+    query.text = { $regex: escapeRegex(search), $options: "i" };
   }
 
   const questions = await Question.find(query)

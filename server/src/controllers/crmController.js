@@ -320,7 +320,7 @@ export const getDeals = asyncHandler(async (req, res) => {
 
   if (search) {
     query.title = {
-      $regex: search,
+      $regex: escapeRegex(search),
       $options: "i",
     };
   }

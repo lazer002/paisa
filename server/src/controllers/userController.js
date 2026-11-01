@@ -20,6 +20,7 @@ import {
 import { scopedQuery } from "../utils/peopleHelpers.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 import { Department } from "../models/Department.js";
 
 import {
@@ -31,7 +32,12 @@ import {
 } from "../config/userRoleConfig.js";
 
 import  {ROLES }  from "../config/constants.js";
-import { canManageRole } from "../utils/permissions.js";
+import { canManageRole, hasAnyPermission } from "../utils/permissions.js";
+
+export const USER_MANAGER_PERMISSIONS = ["user:update", "user:manage"];
+
+const USER_DIRECTORY_FIELDS =
+  "publicId name email role userCode status profile.avatarUrl instituteId";
 import { sendInBackground } from "../services/emailService.js";
 import { sendWelcomeEmail } from "../services/passwordResetService.js";
 import { checkSeatLimit } from "../services/subscriptionService.js";
@@ -696,7 +702,7 @@ export const getUsers = async (
 
     if (search) {
       const searchRegex = {
-        $regex: search,
+        $regex: escapeRegex(search),
         $options: "i",
       };
 
@@ -713,11 +719,15 @@ export const getUsers = async (
       ];
     }
 
+    // Everyone with user:read needs a directory (chat, pickers); only user
+    // managers see full records (contact, HR, statutory, login data).
+    const projection = hasAnyPermission(req.user, USER_MANAGER_PERMISSIONS)
+      ? "-passwordHash -failedAttempts -lockedUntil"
+      : USER_DIRECTORY_FIELDS;
+
     const users =
       await User.find(query)
-        .select(
-          "-passwordHash -failedAttempts -lockedUntil"
-        )
+        .select(projection)
         .populate(
           "instituteId",
           "name type"

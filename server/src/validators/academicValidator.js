@@ -180,6 +180,8 @@ export const createStudyMaterialSchema = Joi.object({
 
 export const updateStudyMaterialSchema = Joi.object({
   ...materialFields,
+  // On update a blank type would overwrite the stored one (model rejects "").
+  type: oneOf(MATERIAL_TYPES),
   title: str(200),
   url: str(2048),
 });

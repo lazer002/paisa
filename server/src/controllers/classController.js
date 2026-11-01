@@ -10,6 +10,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 
 import {
   sendSuccess,
@@ -133,13 +134,13 @@ export const getClasses = asyncHandler(async (req, res) => {
     query.$or = [
       {
         name: {
-          $regex: search,
+          $regex: escapeRegex(search),
           $options: "i",
         },
       },
       {
         subject: {
-          $regex: search,
+          $regex: escapeRegex(search),
           $options: "i",
         },
       },
@@ -282,10 +283,9 @@ export const updateClass = asyncHandler(async (req, res) => {
     "status",
   ];
 
-  if (
-    req.user.role === "admin" ||
-    req.user.role === "super_admin"
-  ) {
+  // Any class manager except the teacher may reassign the teacher
+  // (the route already requires class:update).
+  if (req.user.role !== "teacher") {
     allowedUpdates.push("teacherId");
   }
 

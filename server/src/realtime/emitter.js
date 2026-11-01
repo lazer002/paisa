@@ -79,6 +79,17 @@ export const emit = {
     );
   },
 
+  // Signs out every open socket of a user (sessions revoked). The client
+  // treats auth_error as "refresh"; the revoked refresh fails and it logs out.
+  disconnectUser(userId, code = "SESSION_REVOKED") {
+    if (!userId) return;
+
+    safely((server) => {
+      server.in(userRoom(userId)).emit("auth_error", { code });
+      server.in(userRoom(userId)).disconnectSockets(true);
+    });
+  },
+
   // Removes every socket of a user from a conversation room (after they
   // leave the conversation), so they stop receiving its pushes at once.
   removeUserFromConversation(userId, conversationId) {

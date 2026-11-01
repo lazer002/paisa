@@ -13,6 +13,7 @@ import logger from "../config/logger.js";
 import { User } from "../models/User.js";
 import RefreshSession from "../models/RefreshSession.js";
 import Organization from "../models/organization.js";
+import { emit } from "../realtime/emitter.js";
 import ApiError from "../utils/ApiError.js";
 import {
   createPasswordResetToken,
@@ -151,6 +152,8 @@ export const resetPasswordWithToken = async ({ token, password }) => {
   }
 
   await RefreshSession.revokeUserSessions(user._id, "password_change");
+
+  emit.disconnectUser(user._id);
 
   logger.info("Password reset completed", { userId: String(user._id) });
 

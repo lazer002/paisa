@@ -4,6 +4,7 @@ import { Department } from "../models/Department.js";
 import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 import ApiError from "../utils/ApiError.js";
 
 import {
@@ -193,13 +194,13 @@ export const getDepartments = asyncHandler(async (req, res) => {
     query.$or = [
       {
         name: {
-          $regex: search,
+          $regex: escapeRegex(search),
           $options: "i",
         },
       },
       {
         code: {
-          $regex: search,
+          $regex: escapeRegex(search),
           $options: "i",
         },
       },

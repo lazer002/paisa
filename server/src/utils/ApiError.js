@@ -2,6 +2,10 @@
 
 import { AppError } from "./errorHandler.js";
 
+// Many call sites pass the code as a bare string: ApiError.notFound(msg, "CODE").
+const asOptions = (options) =>
+  typeof options === "string" ? { code: options } : options ?? {};
+
 class ApiError extends AppError {
   constructor(
     message = "An unexpected error occurred",
@@ -39,6 +43,7 @@ class ApiError extends AppError {
   }
 
   static badRequest(message = "Bad request", options = {}) {
+    options = asOptions(options);
     return new ApiError(message, 400, {
       ...options,
       code: options.code || "BAD_REQUEST",
@@ -49,6 +54,7 @@ class ApiError extends AppError {
     message = "Authentication required",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 401, {
       ...options,
       code: options.code || "AUTHENTICATION_REQUIRED",
@@ -56,6 +62,7 @@ class ApiError extends AppError {
   }
 
   static forbidden(message = "Access denied", options = {}) {
+    options = asOptions(options);
     return new ApiError(message, 403, {
       ...options,
       code: options.code || "ACCESS_DENIED",
@@ -66,6 +73,7 @@ class ApiError extends AppError {
     message = "Resource not found",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 404, {
       ...options,
       code: options.code || "RESOURCE_NOT_FOUND",
@@ -76,6 +84,7 @@ class ApiError extends AppError {
     message = "Resource already exists",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 409, {
       ...options,
       code: options.code || "RESOURCE_EXISTS",
@@ -86,6 +95,7 @@ class ApiError extends AppError {
     message = "Request could not be processed",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 422, {
       ...options,
       code: options.code || "VALIDATION_ERROR",
@@ -96,6 +106,7 @@ class ApiError extends AppError {
     message = "Too many requests",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 429, {
       ...options,
       code: options.code || "RATE_LIMIT_EXCEEDED",
@@ -106,6 +117,7 @@ class ApiError extends AppError {
     message = "Internal server error",
     options = {}
   ) {
+    options = asOptions(options);
     return new ApiError(message, 500, {
       ...options,
       code: options.code || "INTERNAL_ERROR",

@@ -189,6 +189,16 @@ const sendPaginated = (
     .json(response.toJSON());
 };
 
+const DEFAULT_ERROR_CODES = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+  422: "VALIDATION_ERROR",
+  429: "TOO_MANY_REQUESTS",
+};
+
 const sendError = (
   res,
   optionsOrMessage,
@@ -235,14 +245,16 @@ const sendError = (
     };
   }
 
+  const statusCode = options.statusCode ?? 500;
+
   const body = {
     success: false,
 
-    statusCode:
-      options.statusCode ?? 500,
+    statusCode,
 
+    // Without an explicit code, name the status (a 403 is not a server error).
     code:
-      options.code ?? "INTERNAL_SERVER_ERROR",
+      options.code ?? DEFAULT_ERROR_CODES[statusCode] ?? (statusCode < 500 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR"),
 
     message:
       options.message ?? "Request failed",

@@ -37,7 +37,9 @@ export default function AssignmentsPage() {
 
   const { data: assignments, isLoading, isError, refetch } = useGetAssignmentsQuery()
   const { data: classes } = useGetClassesQuery(undefined, { skip: !canCreate })
-  const { data: submissions } = useGetSubmissionsQuery(undefined, { skip: !isStudent })
+  // Parents get their linked children's submissions from the same endpoint.
+  const isParent = role === 'parent'
+  const { data: submissions } = useGetSubmissionsQuery(undefined, { skip: !isStudent && !isParent })
 
   const [createAssignment, { isLoading: createPending }] = useCreateAssignmentMutation()
   const [updateAssignment, { isLoading: updatePending }] = useUpdateAssignmentMutation()
@@ -59,10 +61,11 @@ export default function AssignmentsPage() {
   const [submissionFile, setSubmissionFile] = useState<StoredFile | null>(null)
   const [uploadingSubmission, setUploadingSubmission] = useState(false)
 
-  const mySubmissionFor = (assignment: Assignment) =>
-    (submissions ?? []).find((s: Submission) =>
+  const submissionsFor = (assignment: Assignment) =>
+    (submissions ?? []).filter((s: Submission) =>
       (typeof s.assignmentId === 'object' ? s.assignmentId?.publicId ?? s.assignmentId?._id : s.assignmentId) === rid(assignment),
     )
+  const mySubmissionFor = (assignment: Assignment) => submissionsFor(assignment)[0]
 
   const resetForm = () => {
     setClassId(''); setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100'); setError('')
@@ -166,6 +169,19 @@ export default function AssignmentsPage() {
                         </Button>
                       )
                     )}
+                    {isParent && (() => {
+                      const childSubs = submissionsFor(a)
+                      return childSubs.length === 0 ? (
+                        <Badge color="gray">No submission yet</Badge>
+                      ) : (
+                        childSubs.map((s: Submission) => (
+                          <Badge key={rid(s)} color={s.status === 'graded' ? 'green' : 'blue'}>
+                            {typeof s.studentId === 'object' && s.studentId?.name ? `${s.studentId.name}: ` : ''}
+                            {s.status === 'graded' ? `Graded ${s.score}/${a.maxScore ?? 100}` : 'Submitted'}
+                          </Badge>
+                        ))
+                      )
+                    })()}
                     {canGrade && !isStudent && (
                       <Button size="sm" variant="secondary" onClick={() => setGradingFor(a)}>
                         <ClipboardCheck size={13} /> Submissions

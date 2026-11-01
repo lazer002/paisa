@@ -16,6 +16,7 @@ import {
 } from "../utils/response.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { checkSeatLimit } from "../services/subscriptionService.js";
 import { sendInBackground } from "../services/emailService.js";
 import { sendWelcomeEmail } from "../services/passwordResetService.js";
 
@@ -83,6 +84,20 @@ export const createHR = async (req, res) => {
         400,
         "Invalid instituteId"
       );
+    }
+
+    const planLimit = await checkSeatLimit(
+      resolvedInstitute,
+      Roles.HR
+    );
+
+    if (planLimit) {
+      return sendError(res, {
+        statusCode: 403,
+        code: "PLAN_LIMIT_REACHED",
+        message: planLimit.message,
+        details: planLimit,
+      });
     }
 
     const hr =

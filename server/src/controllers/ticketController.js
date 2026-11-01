@@ -9,6 +9,7 @@ import { TicketMessage } from "../models/TicketMessage.js";
 import { TicketTemplate } from "../models/TicketTemplate.js";
 import { User } from "../models/User.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -206,7 +207,7 @@ export const getTickets = asyncHandler(async (req, res) => {
 
   if (search) {
     query.subject = {
-      $regex: search,
+      $regex: escapeRegex(search),
       $options: "i",
     };
   }

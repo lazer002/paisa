@@ -4,10 +4,9 @@
 // a lead / deal / contact / customer. Tenant-scoped, soft-deleted,
 // whitelisted fields only.
 //
-// Notes are stored as CRMActivity documents with type "note": the
-// models/CRMNote.js file is a copy of CRMTask.js (it registers the CRMTask
-// model, not a note model), so it cannot be used. The /crm-notes routes are
-// gated by crm_note:* and the /crm-activities routes never touch notes.
+// Notes are stored as CRMActivity documents with type "note" (there is no
+// separate note model). The /crm-notes routes are gated by crm_note:* and
+// the /crm-activities routes never touch notes.
 
 import { CRMActivity } from "../models/CRMActivity.js";
 import { CRMTask } from "../models/CRMTask.js";

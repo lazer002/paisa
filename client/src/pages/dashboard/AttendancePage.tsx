@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CalendarCheck, Check } from 'lucide-react'
 
 import {
+  useGetAttendanceQuery,
   useGetMyAttendanceQuery,
   useMarkAttendanceMutation,
   type AttendanceStatus,
@@ -34,15 +35,42 @@ const STATUS_STYLE: Record<AttendanceStatus, string> = {
   late: 'bg-yellow-500 text-white',
 }
 
-function MarkPanel() {
+type ClassOption = { _id: string; publicId?: string; name: string; studentIds?: (string | { _id: string })[] }
+
+const idOf = (v: string | { _id: string }) => (typeof v === 'string' ? v : v._id)
+
+function MarkPanel({ classes }: { classes: ClassOption[] }) {
   const today = new Date().toISOString().slice(0, 10)
   const [date, setDate] = useState(today)
+  // '' = staff / general register; otherwise a class publicId.
+  const [classRef, setClassRef] = useState('')
   const { data: users } = useGetUsersQuery()
   const [markAttendance, { isLoading }] = useMarkAttendanceMutation()
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({})
   const [saved, setSaved] = useState(false)
 
-  const people = (users ?? []).filter((u) => u.status !== 'inactive')
+  const cls = classes.find((c) => rid(c) === classRef)
+  const memberIds = new Set((cls?.studentIds ?? []).map(idOf))
+  const people = (users ?? []).filter(
+    (u) => u.status !== 'inactive' && (cls ? memberIds.has(u._id) : u.role !== 'student'),
+  )
+
+  // Prefill with what is already saved for this register and date.
+  const { data: existing } = useGetAttendanceQuery({ date, classId: classRef || undefined })
+  const [loadedKey, setLoadedKey] = useState('')
+  const key = `${date}|${classRef}`
+  if (existing && loadedKey !== key) {
+    const next: Record<string, AttendanceStatus> = {}
+    for (const r of existing) {
+      const recordClassId = typeof r.classId === 'object' && r.classId ? r.classId._id : r.classId ?? null
+      if ((cls ? recordClassId === cls._id : !recordClassId) && typeof r.userId === 'object') {
+        const person = (users ?? []).find((u) => u._id === (r.userId as { _id: string })._id)
+        if (person) next[rid(person)] = r.status
+      }
+    }
+    setRecords(next)
+    setLoadedKey(key)
+  }
 
   type SheetRow = (typeof people)[number]
   const sheetColumns: ExportColumn<SheetRow>[] = [
@@ -62,7 +90,7 @@ function MarkPanel() {
   const handleSave = async () => {
     const payload = Object.entries(records).map(([userId, status]) => ({ userId, status }))
     if (!payload.length) return
-    await markAttendance({ date, records: payload }).unwrap()
+    await markAttendance({ date, classId: classRef || null, records: payload }).unwrap()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -79,6 +107,17 @@ function MarkPanel() {
             onChange={(e) => setDate(e.target.value)}
             className="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
           />
+          <label className="ml-2 text-sm font-medium text-gray-700">Register:</label>
+          <select
+            value={classRef}
+            onChange={(e) => setClassRef(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+          >
+            <option value="">Staff (general)</option>
+            {classes.map((c) => (
+              <option key={rid(c)} value={rid(c)}>{c.name}</option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-2">
           <ExportMenu
@@ -99,7 +138,7 @@ function MarkPanel() {
       <div className="overflow-hidden rounded-xl border border-gray-100">
         {people.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-400">
-            No users in your organization yet — create accounts on the Users page first.
+            {cls ? 'No students enrolled in this class yet.' : 'No staff accounts in your organization yet.'}
           </p>
         ) : (
           people.map((p) => (
@@ -237,12 +276,66 @@ function MyAttendancePanel({ isParent }: { isParent: boolean }) {
   )
 }
 
+// Org-wide records for one day: for roles that may list attendance
+// (GET /attendance needs attendance:update) but don't mark registers.
+function RecordsPanel() {
+  const today = new Date().toISOString().slice(0, 10)
+  const [date, setDate] = useState(today)
+  const { data, isLoading, isError, refetch } = useGetAttendanceQuery({ date })
+  const records = data ?? []
+
+  const columns: ExportColumn<AttendanceRecord>[] = [
+    { header: 'Name', value: (r) => recordPerson(r) },
+    { header: 'Register', value: (r) => recordClass(r) },
+    { header: 'Date', value: (r) => fmtDate(r.date) },
+    { header: 'Status', value: (r) => humanize(r.status) },
+  ]
+
+  return (
+    <div className="space-y-4 rounded-2xl bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-800">Organization attendance</h3>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+          />
+        </div>
+        <ExportMenu title={`Attendance ${date}`} subtitle={`Date: ${fmtDate(date)}`} columns={columns} rows={records} />
+      </div>
+      {isLoading ? (
+        <LoadingList rows={4} />
+      ) : isError ? (
+        <ErrorState onRetry={() => refetch()} />
+      ) : records.length === 0 ? (
+        <p className="py-6 text-center text-sm text-gray-400">No attendance recorded for this day</p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-gray-100">
+          {records.map((r) => (
+            <div key={r.publicId ?? r._id} className="flex items-center justify-between border-b border-gray-50 px-4 py-2.5 last:border-0">
+              <div>
+                <p className="text-sm font-medium text-gray-800">{recordPerson(r) || '—'}</p>
+                <p className="text-xs text-gray-400">{recordClass(r)}</p>
+              </div>
+              <Badge color={r.status === 'present' ? 'green' : r.status === 'late' ? 'yellow' : 'red'}>{r.status}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AttendancePage() {
   const user = useAppSelector((s) => s.auth.user)
-  const canMark = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'teacher'
-  const { data: classes } = useGetClassesQuery(undefined, { skip: !canMark })
-
   const { can } = usePermission()
+  // Same permissions as POST /attendance (mark) and GET /attendance (list).
+  const canMark = can('attendance:mark')
+  const canViewRecords = !canMark && can('attendance:update')
+  const { data: classes } = useGetClassesQuery(undefined, { skip: !canMark })
   const canOpenSession = can('qr_session:create')
   const canSelfCheck = can('attendance:create') && user?.role !== 'super_admin'
   const isStudent = user?.role === 'student'
@@ -260,16 +353,12 @@ export default function AttendancePage() {
       {can('geofence:create') && <GeofencePanel />}
 
       {canMark ? (
-        <>
-          <MarkPanel />
-          {(classes?.length ?? 0) > 0 && (
-            <p className="text-xs text-gray-400">
-              Tip: pick a class from the Classes page context — currently marking general (org-wide) attendance for {classes?.length} classes.
-            </p>
-          )}
-        </>
+        <MarkPanel classes={(classes ?? []) as ClassOption[]} />
       ) : (
-        <MyAttendancePanel isParent={user?.role === 'parent'} />
+        <>
+          {canViewRecords && <RecordsPanel />}
+          <MyAttendancePanel isParent={user?.role === 'parent'} />
+        </>
       )}
     </div>
   )
