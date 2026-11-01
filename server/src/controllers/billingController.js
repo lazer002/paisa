@@ -13,6 +13,8 @@ import { PAYMENT_METHODS } from "../models/PaymentTransaction.js";
 import { recordInvoicePayment } from "../services/paymentService.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
 import { User } from "../models/User.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendInvoiceIssuedEmails } from "../services/transactionalEmails.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -294,14 +296,23 @@ export const updateInvoiceStatus = asyncHandler(
       return sendForbidden(res, "Access denied");
     }
 
+    const previousStatus = invoice.status;
+
     invoice.status = status;
 
     await invoice.save();
 
-    return sendSuccess(res, {
+    sendSuccess(res, {
       message: "Invoice updated",
       data: invoice,
     });
+
+    // Email the billed people once, when the invoice becomes issued.
+    if (status === "issued" && previousStatus !== "issued") {
+      sendInBackground("invoice-issued", () =>
+        sendInvoiceIssuedEmails(invoice)
+      );
+    }
   }
 );
 

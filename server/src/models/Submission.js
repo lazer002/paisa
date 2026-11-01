@@ -34,6 +34,14 @@ const attachmentSchema = new mongoose.Schema(
       maxlength: 150,
       default: null,
     },
+
+    // publicId of the stored File for uploaded attachments.
+    fileId: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
   }
 );
 

@@ -131,6 +131,15 @@ publicId: {
       default: "external",
     },
 
+    // publicId of the stored File when the material is an upload
+    // (url then points at /api/files/:id/download).
+    fileId: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+
     fileMeta: {
       sizeBytes: {
         type: Number,

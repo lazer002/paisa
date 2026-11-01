@@ -568,6 +568,26 @@ const env = Object.freeze({
 
   RAZORPAY_WEBHOOK_SECRET:
     getEnv("RAZORPAY_WEBHOOK_SECRET"),
+
+  // Used when STORAGE_PROVIDER=s3 (any S3-compatible endpoint).
+  S3_BUCKET:
+    getEnv("S3_BUCKET"),
+
+  S3_REGION:
+    getEnv("S3_REGION", "ap-south-1"),
+
+  S3_ENDPOINT:
+    getEnv("S3_ENDPOINT"),
+
+  S3_ACCESS_KEY_ID:
+    getEnv("S3_ACCESS_KEY_ID"),
+
+  S3_SECRET_ACCESS_KEY:
+    getEnv("S3_SECRET_ACCESS_KEY"),
+
+  // Live sessions get Jitsi meeting links on this domain (no key needed).
+  JITSI_DOMAIN:
+    getEnv("JITSI_DOMAIN", "meet.jit.si"),
 });
 
 export {

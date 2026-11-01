@@ -20,6 +20,10 @@ import { asyncHandler } from "../utils/errorHandler.js";
 
 import ApiError from "../utils/ApiError.js";
 
+import { sendInBackground } from "../services/emailService.js";
+
+import { sendNotificationEmails } from "../services/transactionalEmails.js";
+
 import {
   sendSuccess,
   sendCreated,
@@ -237,7 +241,14 @@ export const broadcastNotification =
       type,
       link,
       targetRoles,
+      channels,
+      sendEmail,
     } = req.body;
+
+    const withEmail =
+      sendEmail === true ||
+      (Array.isArray(channels) &&
+        channels.includes("email"));
 
     if (!title) {
       throw ApiError.badRequest(
@@ -300,7 +311,9 @@ export const broadcastNotification =
 
       actorName: req.user.name,
 
-      channels: ["in_app"],
+      channels: withEmail
+        ? ["in_app", "email"]
+        : ["in_app"],
 
       status: "unread",
     }));
@@ -308,9 +321,27 @@ export const broadcastNotification =
     const created =
       await NotificationLog.insertMany(docs);
 
-    return sendCreated(res, {
+    sendCreated(res, {
       message: `Notification sent to ${created.length} users`,
 
-      data: { delivered: created.length },
+      data: {
+        delivered: created.length,
+        email: withEmail,
+      },
     });
+
+    // Email copy for users whose preferences allow email (fire and forget).
+    if (withEmail) {
+      sendInBackground("notification-broadcast", () =>
+        sendNotificationEmails({
+          instituteId: req.user.instituteId,
+          userIds: users.map((user) => user._id),
+          type: type || "announcement",
+          title,
+          body: body || null,
+          link: link || null,
+          actorName: req.user.name,
+        })
+      );
+    }
   });

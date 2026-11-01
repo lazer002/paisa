@@ -13,6 +13,8 @@ import ApiError from "../utils/ApiError.js";
 import { User } from "../models/User.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendPayslipReadyEmail } from "../services/transactionalEmails.js";
 
 import {
   computeAttendanceBreakdown,
@@ -598,6 +600,12 @@ export const updatePayrollStatus =
       "Payroll status updated",
       updated
     );
+
+    if (status === "paid" && updated) {
+      sendInBackground("payslip-ready", () =>
+        sendPayslipReadyEmail(updated)
+      );
+    }
   });
 
 /* =========================================================

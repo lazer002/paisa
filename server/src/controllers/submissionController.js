@@ -8,6 +8,8 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { hasAnyPermission } from "../utils/permissions.js";
+import { fileDownloadPath } from "../models/File.js";
+import { claimFile, linkFile } from "../services/fileService.js";
 
 import {
   sendSuccess,
@@ -29,6 +31,63 @@ const resolveAssignmentId = (req, reference) =>
     label: "Assignment",
     scope: tenantScope(req),
   });
+
+// Attachments are web links (kept as sent) or files the student uploaded
+// via POST /files (purpose "submission"), which are described from the
+// stored File so the client cannot fake name/size/type.
+const resolveAttachments = async (
+  req,
+  attachments,
+  submissionId
+) => {
+  const resolved = [];
+  const files = [];
+
+  for (const attachment of attachments || []) {
+    if (!attachment?.fileId) {
+      resolved.push(attachment);
+      continue;
+    }
+
+    const file = await claimFile(
+      req,
+      attachment.fileId,
+      {
+        purpose: "submission",
+        kind: "submission",
+        resourceId: submissionId,
+      }
+    );
+
+    files.push(file);
+
+    resolved.push({
+      name: file.originalName,
+      url: fileDownloadPath(
+        file.publicId
+      ),
+      fileId: file.publicId,
+      sizeBytes: file.size,
+      mimeType: file.mimeType,
+    });
+  }
+
+  return {
+    attachments: resolved,
+    files,
+  };
+};
+
+const linkFiles = (files, submissionId) =>
+  Promise.all(
+    files.map((file) =>
+      linkFile(
+        file,
+        "submission",
+        submissionId
+      )
+    )
+  );
 
 // Submit assignment
 export const submitAssignment = asyncHandler(
@@ -115,23 +174,32 @@ export const submitAssignment = asyncHandler(
           req.user._id,
       });
 
-    if (existing) {
-      if (
-        existing.status ===
-        "graded"
-      ) {
-        return sendError(
-          res,
-          400,
-          "This submission has already been graded"
-        );
-      }
+    if (
+      existing?.status ===
+      "graded"
+    ) {
+      return sendError(
+        res,
+        400,
+        "This submission has already been graded"
+      );
+    }
 
+    const {
+      attachments: resolvedAttachments,
+      files,
+    } = await resolveAttachments(
+      req,
+      attachments,
+      existing?._id
+    );
+
+    if (existing) {
       existing.content =
         content;
 
       existing.attachments =
-        attachments || [];
+        resolvedAttachments;
 
       existing.status =
         "submitted";
@@ -140,6 +208,11 @@ export const submitAssignment = asyncHandler(
         new Date();
 
       await existing.save();
+
+      await linkFiles(
+        files,
+        existing._id
+      );
 
       return sendSuccess(
         res,
@@ -159,11 +232,16 @@ export const submitAssignment = asyncHandler(
           req.user._id,
         content,
         attachments:
-          attachments || [],
+          resolvedAttachments,
         status: "submitted",
         submittedAt:
           new Date(),
       });
+
+    await linkFiles(
+      files,
+      submission._id
+    );
 
     sendCreated(
       res,

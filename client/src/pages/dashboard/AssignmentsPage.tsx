@@ -22,6 +22,8 @@ import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
 import SubmissionsGradingModal from '@/components/learning/SubmissionsGradingModal'
+import FileUpload from '@/components/ui/FileUpload'
+import type { StoredFile } from '@/lib/api/files'
 
 export default function AssignmentsPage() {
   const user = useAppSelector((s) => s.auth.user)
@@ -54,6 +56,8 @@ export default function AssignmentsPage() {
 
   const [submitFor, setSubmitFor] = useState<Assignment | null>(null)
   const [submissionText, setSubmissionText] = useState('')
+  const [submissionFile, setSubmissionFile] = useState<StoredFile | null>(null)
+  const [uploadingSubmission, setUploadingSubmission] = useState(false)
 
   const mySubmissionFor = (assignment: Assignment) =>
     (submissions ?? []).find((s: Submission) =>
@@ -157,7 +161,7 @@ export default function AssignmentsPage() {
                           {sub.status === 'graded' ? `Graded: ${sub.score}/${a.maxScore ?? 100}` : 'Submitted'}
                         </Badge>
                       ) : (
-                        <Button size="sm" onClick={() => { setSubmitFor(a); setSubmissionText('') }}>
+                        <Button size="sm" onClick={() => { setSubmitFor(a); setSubmissionText(''); setSubmissionFile(null) }}>
                           <Send size={13} /> Submit
                         </Button>
                       )
@@ -249,7 +253,12 @@ export default function AssignmentsPage() {
           e.preventDefault()
           if (!submitFor) return
           try {
-            await submitAssignment({ assignmentId: rid(submitFor), content: submissionText }).unwrap()
+            await submitAssignment({
+              assignmentId: rid(submitFor),
+              content: submissionText,
+              ...(submissionFile ? { attachments: [{ fileId: submissionFile.publicId }] } : {}),
+            }).unwrap()
+            setSubmissionFile(null)
             setSubmitFor(null)
           } catch (e) {
             alert((e as { data?: { message?: string } })?.data?.message ?? 'Failed to submit')
@@ -261,9 +270,14 @@ export default function AssignmentsPage() {
               placeholder="Paste your answer or describe your work..."
               className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
           </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Attachment (optional)</label>
+            <FileUpload purpose="submission" value={submissionFile} onChange={setSubmissionFile}
+              onBusyChange={setUploadingSubmission} />
+          </div>
           <div className="flex justify-end gap-3 border-t pt-4">
             <Button variant="secondary" type="button" onClick={() => setSubmitFor(null)}>Cancel</Button>
-            <Button type="submit" loading={submitPending}><Send size={14} /> Submit Work</Button>
+            <Button type="submit" loading={submitPending} disabled={uploadingSubmission}><Send size={14} /> Submit Work</Button>
           </div>
         </form>
       </Modal>

@@ -65,6 +65,8 @@ export interface StudyMaterial {
   subject?: string
   type?: string
   url: string
+  /** Stored file publicId when the material is an upload (url is then its download path). */
+  fileId?: string | null
   visibility?: 'class_only' | 'institute' | 'public'
   uploadedBy?: { _id: string; name: string } | string
   createdAt: string
@@ -83,11 +85,11 @@ export const materialsApi = createApi({
       transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as StudyMaterial[],
       providesTags: [{ type: 'Material', id: 'LIST' }],
     }),
-    createMaterial: builder.mutation<StudyMaterial, { title: string; url: string; description?: string; classId?: string; subject?: string; type?: string }>({
+    createMaterial: builder.mutation<StudyMaterial, { title: string; url?: string; fileId?: string; description?: string; classId?: string; subject?: string; type?: string }>({
       query: (payload) => ({ url: '/study-materials', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Material', id: 'LIST' }],
     }),
-    updateMaterial: builder.mutation<StudyMaterial, { id: string; payload: { title?: string; url?: string; description?: string; classId?: string | null; subject?: string; type?: string } }>({
+    updateMaterial: builder.mutation<StudyMaterial, { id: string; payload: { title?: string; url?: string; fileId?: string; description?: string; classId?: string | null; subject?: string; type?: string } }>({
       query: ({ id, payload }) => ({ url: `/study-materials/${id}`, method: 'PUT', body: payload }),
       invalidatesTags: [{ type: 'Material', id: 'LIST' }],
     }),
@@ -107,6 +109,15 @@ export const {
 
 // ─── Submissions ─────────────────────────────────────────────────────────────
 
+export interface SubmissionAttachment {
+  name?: string | null
+  /** External link, or /api/files/:id/download for an uploaded file. */
+  url: string
+  fileId?: string | null
+  sizeBytes?: number
+  mimeType?: string | null
+}
+
 export interface Submission {
   _id: string
   /** Opaque external identifier — used in ALL client-facing URLs. */
@@ -116,6 +127,7 @@ export interface Submission {
     | string
   studentId: { _id: string; publicId?: string; name: string; email: string; userCode?: string } | string
   content?: string
+  attachments?: SubmissionAttachment[]
   status: 'submitted' | 'graded'
   score?: number
   feedback?: string
@@ -137,7 +149,7 @@ export const submissionsApi = createApi({
       transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Submission[],
       providesTags: [{ type: 'Submission', id: 'LIST' }],
     }),
-    submitAssignment: builder.mutation<Submission, { assignmentId: string; content: string }>({
+    submitAssignment: builder.mutation<Submission, { assignmentId: string; content: string; attachments?: { fileId?: string; url?: string; name?: string }[] }>({
       query: (payload) => ({ url: '/submissions', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Submission', id: 'LIST' }],
     }),

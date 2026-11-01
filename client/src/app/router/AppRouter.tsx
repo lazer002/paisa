@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthGuard from '@/components/auth/AuthGuard'
 import RoleGuard from '@/components/auth/RoleGuard'
 import LoginPage from '@/pages/LoginPage'
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
+import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import VerifyCertificatePage from '@/pages/VerifyCertificatePage'
 import DashboardLayout from '@/app/layouts/DashboardLayout'
@@ -47,6 +49,9 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        {/* Password reset: public, outside AuthGuard on purpose. */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         {/* Public certificate verification: outside AuthGuard on purpose. */}
         <Route path="/verify" element={<VerifyCertificatePage />} />
         <Route path="/verify/:code" element={<VerifyCertificatePage />} />

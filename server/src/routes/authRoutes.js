@@ -10,6 +10,8 @@ import {
   logoutAll,
   me,
   updateProfile,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/authController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -21,11 +23,14 @@ import {
   loginSchema,
   refreshSchema,
   logoutSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "../validators/authValidator.js";
 
 import {
   authRateLimiter,
   loginRateLimiter,
+  passwordResetRateLimiter,
 } from "../middleware/rateLimiter.js";
 
 import { auditMiddleware } from "../middleware/audit.js";
@@ -66,6 +71,24 @@ router.post(
       "User login attempt",
   }),
   login
+);
+
+// ─────────────────────────────────────────────
+// FORGOT / RESET PASSWORD (public)
+// ─────────────────────────────────────────────
+
+router.post(
+  "/forgot-password",
+  passwordResetRateLimiter,
+  validateBody(forgotPasswordSchema),
+  forgotPassword
+);
+
+router.post(
+  "/reset-password",
+  authRateLimiter,
+  validateBody(resetPasswordSchema),
+  resetPassword
 );
 
 // ─────────────────────────────────────────────

@@ -11,12 +11,15 @@ import {
   url,
 } from "./common.js";
 
+// Either a web link (url) or a file uploaded via POST /files with purpose
+// "submission" (fileId); the controller fills in the rest for uploads.
 const attachment = Joi.object({
   name: optStr(255),
-  url: url().invalid("", null).required(),
+  url: url().invalid("", null),
+  fileId: ref(),
   sizeBytes: int(0).max(100 * 1024 * 1024).allow(null),
   mimeType: optStr(150),
-});
+}).or("url", "fileId");
 
 // submitAssignment: assignmentId + content are required (controller 400s
 // without them); attachments are optional.

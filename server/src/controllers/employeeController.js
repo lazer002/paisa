@@ -29,6 +29,8 @@ import RefreshSession from "../models/RefreshSession.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import ApiError from "../utils/ApiError.js";
 import { getNextSequence } from "../utils/sequence.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendWelcomeEmail } from "../services/passwordResetService.js";
 
 // Create Employee
 export const createEmployee = async (req, res) => {
@@ -107,11 +109,24 @@ export const createEmployee = async (req, res) => {
       employee.toObject();
 
     delete safe.passwordHash;
+    delete safe.resetTokenHash;
+    delete safe.resetTokenExpiresAt;
+    delete safe.resetTokenRequestedAt;
 
     sendCreated(
       res,
       "Employee created successfully",
       safe
+    );
+
+    sendInBackground("welcome:employee", () =>
+      sendWelcomeEmail({
+        userId: employee._id,
+        name: employee.name,
+        email: employee.email,
+        role: employee.role,
+        instituteId: employee.instituteId,
+      })
     );
   } catch (err) {
     console.error(

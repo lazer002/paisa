@@ -90,6 +90,9 @@ export const broadcastNotificationSchema = Joi.object({
   type: optOneOf(NOTIFICATION_TYPES),
   link: optStr(500),
   targetRoles: Joi.array().items(oneOf(ROLE_VALUES)).max(20).allow(null),
+  // Delivery channels; "email" also emails users whose preferences allow it.
+  channels: Joi.array().items(oneOf(["in_app", "email"])).max(2).allow(null),
+  sendEmail: bool(),
 });
 
 /* ── Conversations & messages ──────────────────── */

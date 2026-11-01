@@ -166,13 +166,17 @@ const materialFields = {
   type: optOneOf(MATERIAL_TYPES),
   fileSize: optNum(0),
   visibility: oneOf(MATERIAL_VISIBILITIES),
+  // publicId of a file uploaded via POST /files (purpose study_material);
+  // the controller then sets url to the file's download path.
+  fileId: optRef(),
 };
 
+// A material needs a link (url) or an uploaded file (fileId).
 export const createStudyMaterialSchema = Joi.object({
   ...materialFields,
   title: str(200).required(),
-  url: str(2048).required(),
-});
+  url: str(2048),
+}).or("url", "fileId");
 
 export const updateStudyMaterialSchema = Joi.object({
   ...materialFields,

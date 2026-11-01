@@ -16,6 +16,8 @@ import {
 } from "../utils/response.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendWelcomeEmail } from "../services/passwordResetService.js";
 
 // resolveRef throws a 404 for unknown ids; keep client errors as they are.
 const sendFailure = (res, err, label) => {
@@ -104,11 +106,24 @@ export const createHR = async (req, res) => {
       hr.toObject();
 
     delete safe.passwordHash;
+    delete safe.resetTokenHash;
+    delete safe.resetTokenExpiresAt;
+    delete safe.resetTokenRequestedAt;
 
     sendCreated(
       res,
       "HR created successfully",
       safe
+    );
+
+    sendInBackground("welcome:hr", () =>
+      sendWelcomeEmail({
+        userId: hr._id,
+        name: hr.name,
+        email: hr.email,
+        role: hr.role,
+        instituteId: hr.instituteId,
+      })
     );
   } catch (err) {
     console.error(

@@ -6,6 +6,8 @@ import { Class } from "../models/Class.js";
 import { asyncHandler } from "../utils/errorHandler.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { visibleClassIdsFor } from "../utils/parentScope.js";
+import { fileDownloadPath } from "../models/File.js";
+import { claimFile, linkFile } from "../services/fileService.js";
 
 import {
   sendSuccess,
@@ -63,6 +65,29 @@ const pickVisibility = (
   return requested;
 };
 
+// Material type implied by an uploaded file when the client sent none.
+const materialTypeFor = (file) => {
+  if (file.extension === "pdf") return "pdf";
+  if (file.mimeType.startsWith("image/")) return "image";
+  if (["ppt", "pptx"].includes(file.extension)) return "presentation";
+  if (["doc", "docx", "xls", "xlsx", "txt", "csv"].includes(file.extension)) {
+    return "document";
+  }
+  return "other";
+};
+
+// Material fields that point at a stored file instead of a link.
+const storedFileFields = (file) => ({
+  url: fileDownloadPath(file.publicId),
+  fileId: file.publicId,
+  storageProvider: file.storageProvider,
+  fileSize: file.size,
+  fileMeta: {
+    sizeBytes: file.size,
+    mimeType: file.mimeType,
+  },
+});
+
 export const createStudyMaterial = asyncHandler(
   async (req, res) => {
     const {
@@ -74,15 +99,24 @@ export const createStudyMaterial = asyncHandler(
       url,
       fileSize,
       visibility,
+      fileId,
     } = req.body;
 
-    if (!title || !url) {
+    if (!title || (!url && !fileId)) {
       return sendError(
         res,
         400,
-        "Title and URL are required"
+        "Title and a URL or uploaded file are required"
       );
     }
+
+    // An uploaded file (POST /files, purpose study_material) wins over a link.
+    const storedFile = fileId
+      ? await claimFile(req, fileId, {
+          purpose: "study_material",
+          kind: "study_material",
+        })
+      : null;
 
     const resolvedClassId =
       await resolveClassId(
@@ -123,11 +157,26 @@ export const createStudyMaterial = asyncHandler(
         subject,
 
         type:
-          type || "other",
+          type ||
+          (storedFile
+            ? materialTypeFor(storedFile)
+            : "other"),
 
         url,
         fileSize,
+
+        ...(storedFile
+          ? storedFileFields(storedFile)
+          : {}),
       });
+
+    if (storedFile) {
+      await linkFile(
+        storedFile,
+        "study_material",
+        material._id
+      );
+    }
 
     sendCreated(
       res,
@@ -286,6 +335,32 @@ export const updateStudyMaterial =
       }
     }
 
+    // A newly uploaded file replaces the link; a changed link drops the file.
+    let storedFile = null;
+
+    if (req.body.fileId) {
+      storedFile = await claimFile(
+        req,
+        req.body.fileId,
+        {
+          purpose: "study_material",
+          kind: "study_material",
+          resourceId: material._id,
+        }
+      );
+
+      Object.assign(
+        updates,
+        storedFileFields(storedFile)
+      );
+    } else if (
+      req.body.url !== undefined &&
+      req.body.url !== material.url
+    ) {
+      updates.fileId = null;
+      updates.storageProvider = "external";
+    }
+
     // Class and visibility move together: the model's
     // class-only rule runs on save, not on findOneAndUpdate.
     if (
@@ -344,6 +419,14 @@ export const updateStudyMaterial =
           "classId",
           "publicId name subject"
         );
+
+    if (storedFile) {
+      await linkFile(
+        storedFile,
+        "study_material",
+        material._id
+      );
+    }
 
     sendSuccess(
       res,

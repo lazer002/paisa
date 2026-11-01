@@ -81,8 +81,18 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
   - [x] Payments module (committed separately 2026-10-29, verified live; see §12): Payment model, manual payments with receipts,
     refunds, Razorpay order/verify/webhook, client Pay online + payment history + printable receipts.
   - [ ] Billing subscriptions (F4): org plan purchase through Razorpay.
-  - [ ] Email via Resend: forgot/reset password, invoice issued, welcome, notification delivery.
-  - [ ] File uploads: storage adapter + `/api/files`; documents, materials and submissions use real files.
+  - [x] Email via Resend (2026-11-01): `services/emailService.js` (fetch to Resend; logs instead of sending when
+    `RESEND_API_KEY` is unset; never throws), templates, forgot/reset password (`/auth/forgot-password` always
+    200 + same message; sha256 single-use token, `PASSWORD_RESET_TTL_SECONDS` default 15 min; reset revokes all
+    sessions), welcome email with a set-password link (passwords are never emailed), invoice issued (student +
+    linked parents / employee), leave decision, payslip ready, notification broadcast `channels: ["email"]` —
+    all respect notification preferences. Client: `/forgot-password`, `/reset-password`.
+  - [x] File uploads (2026-11-01): `services/storage/` (local disk under `STORAGE_PATH`, per-tenant folders, random
+    names, allow-listed types + magic-byte check, `MAX_FILE_SIZE_MB`; S3 adapter is a documented stub), `File`
+    model, `/api/files` (multer memory, upload → `fileId`; download streams as attachment + nosniff, authorised by
+    the linked record's rules; delete removes bytes). Employee documents, study materials and submissions accept
+    `fileId` (links still work). Client `components/ui/FileUpload.tsx` + `lib/api/files.ts`. Gaps: orphaned uploads
+    and files of deleted materials are not cleaned up; S3 not implemented.
   - [ ] Live video (Jitsi links) · realtime messaging and notifications (socket.io) · optional AI features.
 - **Wave 5: final pass**: re-run the §8b/§8c audits, aim for every role at ~100% of its scope, update reports.
 
@@ -496,6 +506,15 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-01 — Wave 4 round 1: email + file uploads.** Two agents in parallel (cap of 2 to stay under usage
+  limits). Env keys for S3 and `JITSI_DOMAIN` added up front so agents didn't share env.js. Verified on the
+  combined tree: 30/30 unit tests (5 new storage tests), client lint + build, e2e:smoke 171/171, e2e:tenant
+  671/671 (0 leaks), files live 49/49 (owner/manager download, cross-class/cross-org 403/404, .exe/MIME/magic/
+  oversize rejected, traversal names sanitised, delete removes bytes), email live 24/24 (no enumeration, token
+  single-use, sessions revoked, demo password restored; leave/invoice/broadcast emails logged). `multer@2.0.2`
+  added (lockfile format upgraded). Leftover demo rows: two test submissions (no delete API). Not tested: real
+  Resend delivery (no key), browser UI.
 
 - **2026-11-01 — Wave 3 part 2 (hardening).** Four agents (people routes H1+H3 · ops routes H1+H3+perms ·
   validators for all other routes · tenant suite + seed); one usage-limit stop, resumed. Then fixed directly:

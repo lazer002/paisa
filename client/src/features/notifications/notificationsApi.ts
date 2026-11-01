@@ -73,8 +73,15 @@ export const notificationsApi = createApi({
       invalidatesTags: [{ type: 'NotificationPrefs', id: 'SELF' }],
     }),
     broadcastNotification: builder.mutation<
-      { delivered: number },
-      { title: string; body?: string; type?: string; targetRoles?: string[] }
+      { delivered: number; email?: boolean },
+      {
+        title: string
+        body?: string
+        type?: string
+        targetRoles?: string[]
+        /** "email" also emails users whose notification preferences allow it. */
+        channels?: Array<'in_app' | 'email'>
+      }
     >({
       query: (body) => ({ url: '/notifications/broadcast', method: 'POST', body }),
       invalidatesTags: [{ type: 'Notification', id: 'FEED' }],

@@ -10,6 +10,7 @@ import {
   optStr,
   text,
   ref,
+  optRef,
   num,
   optNum,
   optDate,
@@ -127,6 +128,8 @@ export const createEmployeeDocumentSchema = Joi.object({
   // Type/length only: the controller owns the http(s)-only rule and answers
   // 400 for other schemes (e2e-flows checks that contract).
   fileUrl: optStr(2048),
+  // publicId of a file uploaded via POST /files (purpose employee_document).
+  fileId: optRef(),
 });
 
 export const updateEmployeeDocumentSchema = Joi.object(documentFields);

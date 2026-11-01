@@ -14,6 +14,8 @@ import Button from '@/components/ui/button'
 import {
   DataTable, Toolbar, StatusBadge, ModalShell, Field, inputCls, Toast, type Column,
 } from '@/components/ui/kit'
+import FileUpload, { FileLink } from '@/components/ui/FileUpload'
+import type { StoredFile } from '@/lib/api/files'
 
 const DOC_TYPES = [
   'identity', 'address', 'education', 'experience', 'employment', 'joining', 'contract',
@@ -45,13 +47,15 @@ export default function EmployeeDocumentsPanel() {
   const [documentNumber, setDocumentNumber] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [fileUrl, setFileUrl] = useState('')
+  const [storedFile, setStoredFile] = useState<StoredFile | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const rows = (data ?? []).filter(
     (d) => !search || d.title.toLowerCase().includes(search.toLowerCase()),
   )
 
   const submit = async () => {
-    if (!employee || !title.trim()) return
+    if (!employee || !title.trim() || uploading) return
     try {
       await createDocument({
         employeeUserId: employee,
@@ -60,10 +64,14 @@ export default function EmployeeDocumentsPanel() {
         documentNumber: documentNumber.trim() || undefined,
         expiryDate: expiryDate || undefined,
         status: 'submitted',
-        ...(fileUrl.trim() ? { fileUrl: fileUrl.trim(), fileName: title.trim() } : {}),
+        // An uploaded file wins over a pasted link (the server does the same).
+        ...(storedFile
+          ? { fileId: storedFile.publicId }
+          : fileUrl.trim() ? { fileUrl: fileUrl.trim(), fileName: title.trim() } : {}),
       }).unwrap()
       setOpen(false)
       setEmployee(''); setTitle(''); setType('identity'); setDocumentNumber(''); setExpiryDate(''); setFileUrl('')
+      setStoredFile(null)
       setToast({ msg: 'Document recorded', tone: 'success' })
     } catch (e) {
       setToast({ msg: errorMessage(e, 'Could not save document'), tone: 'critical' })
@@ -118,14 +126,11 @@ export default function EmployeeDocumentsPanel() {
       header: 'File',
       render: (d) =>
         d.versions?.length ? (
-          <a
-            href={d.versions[d.versions.length - 1].fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <FileLink
+            url={d.versions[d.versions.length - 1].fileUrl}
+            fileName={d.versions[d.versions.length - 1].fileName}
             className="text-sm text-gray-700 underline"
-          >
-            Open
-          </a>
+          />
         ) : (
           <span className="text-gray-400">—</span>
         ),
@@ -197,7 +202,7 @@ export default function EmployeeDocumentsPanel() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={submit}>Save</Button>
+            <Button onClick={submit} disabled={uploading}>Save</Button>
           </>
         }
       >
@@ -227,15 +232,27 @@ export default function EmployeeDocumentsPanel() {
             <input className={inputCls} type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
           </Field>
           <div className="col-span-2">
-            <Field label="File link (optional)">
-              <input
-                className={inputCls}
-                placeholder="https://..."
-                value={fileUrl}
-                onChange={(e) => setFileUrl(e.target.value)}
+            <Field label="Upload file (optional)">
+              <FileUpload
+                purpose="employee_document"
+                value={storedFile}
+                onChange={setStoredFile}
+                onBusyChange={setUploading}
               />
             </Field>
           </div>
+          {!storedFile && (
+            <div className="col-span-2">
+              <Field label="…or file link (optional)">
+                <input
+                  className={inputCls}
+                  placeholder="https://..."
+                  value={fileUrl}
+                  onChange={(e) => setFileUrl(e.target.value)}
+                />
+              </Field>
+            </div>
+          )}
         </div>
       </ModalShell>
 

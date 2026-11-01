@@ -30,6 +30,7 @@ export default function BroadcastNotificationModal({
   const [type, setType] = useState('announcement')
   const [everyone, setEveryone] = useState(true)
   const [roles, setRoles] = useState<Role[]>([])
+  const [alsoEmail, setAlsoEmail] = useState(false)
   const [error, setError] = useState('')
 
   const toggleRole = (role: Role) =>
@@ -46,8 +47,9 @@ export default function BroadcastNotificationModal({
         body: body.trim() || undefined,
         type,
         targetRoles: everyone ? undefined : roles,
+        channels: alsoEmail ? ['in_app', 'email'] : ['in_app'],
       }).unwrap()
-      setTitle(''); setBody(''); setRoles([]); setEveryone(true)
+      setTitle(''); setBody(''); setRoles([]); setEveryone(true); setAlsoEmail(false)
       onSent(res?.delivered ?? 0)
       onClose()
     } catch (e) {
@@ -118,6 +120,20 @@ export default function BroadcastNotificationModal({
             })}
           </div>
         </Field>
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={alsoEmail}
+            onChange={(e) => setAlsoEmail(e.target.checked)}
+          />
+          <span>
+            Also send by email
+            <span className="block text-xs text-gray-400">
+              Only to people whose notification preferences allow email.
+            </span>
+          </span>
+        </label>
         {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
       </div>
     </ModalShell>

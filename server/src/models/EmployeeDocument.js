@@ -209,6 +209,14 @@ const versionSchema = new mongoose.Schema(
       default: null,
     },
 
+    // publicId of the stored File (fileUrl is then /api/files/:id/download).
+    fileId: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+
     mimeType: {
       type: String,
       trim: true,

@@ -7,4 +7,7 @@
 # env files (can opt-in for committing if needed)
 .env*
 
+# uploaded files (STORAGE_PATH for STORAGE_PROVIDER=local)
+/uploads
+
 

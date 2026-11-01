@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookMarked, Plus, Trash2, ExternalLink, FileVideo, FileText, Link2, Pencil } from 'lucide-react'
+import { BookMarked, Plus, Trash2, FileVideo, FileText, Link2, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   useGetMaterialsQuery,
@@ -16,6 +16,8 @@ import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
+import FileUpload, { FileLink } from '@/components/ui/FileUpload'
+import type { StoredFile } from '@/lib/api/files'
 
 const TYPE_ICON: Record<string, LucideIcon> = {
   pdf: FileText, video: FileVideo, link: Link2, other: BookMarked,
@@ -42,9 +44,14 @@ export default function MaterialsPage() {
   const [type, setType] = useState('link')
   const [classId, setClassId] = useState('')
   const [description, setDescription] = useState('')
+  // 'link' = paste a URL; 'file' = upload through /api/files.
+  const [source, setSource] = useState<'link' | 'file'>('link')
+  const [storedFile, setStoredFile] = useState<StoredFile | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const resetForm = () => {
     setTitle(''); setUrl(''); setSubject(''); setType('link'); setClassId(''); setDescription(''); setError('')
+    setSource('link'); setStoredFile(null)
   }
 
   const openCreate = () => {
@@ -57,11 +64,14 @@ export default function MaterialsPage() {
     setError('')
     setEditing(m)
     setTitle(m.title)
-    setUrl(m.url)
+    // An uploaded material's url is its download path, not something to edit.
+    setUrl(m.fileId ? '' : m.url)
     setSubject(m.subject ?? '')
     setType(m.type ?? 'other')
     setClassId(m.classId && typeof m.classId === 'object' ? m.classId.publicId ?? m.classId._id : m.classId ?? '')
     setDescription(m.description ?? '')
+    setSource(m.fileId ? 'file' : 'link')
+    setStoredFile(null)
     setShowCreate(true)
   }
 
@@ -73,20 +83,32 @@ export default function MaterialsPage() {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const keepsCurrentFile = !!editing?.fileId && source === 'file' && !storedFile
+    if (source === 'file' && !storedFile && !keepsCurrentFile) {
+      setError('Choose a file to upload')
+      return
+    }
+    // With an upload and no explicit type, the server infers one from the file.
+    const sentType = source === 'file' && type === 'link' ? undefined : type
+    const fileOrUrl = source === 'file'
+      ? (storedFile ? { fileId: storedFile.publicId } : {})
+      : { url }
     try {
       if (editing) {
         await updateMaterial({
           id: editing.publicId ?? editing._id,
           // An empty class clears it; the server then makes the material institute-wide.
-          payload: { title, url, subject, type, description, classId: classId || null },
+          payload: { title, ...fileOrUrl, subject, type: sentType, description, classId: classId || null },
         }).unwrap()
       } else {
         await createMaterial({
-          title, url, subject: subject || undefined, type,
+          title, ...fileOrUrl, subject: subject || undefined, type: sentType,
           description: description || undefined,
           classId: classId || undefined,
         }).unwrap()
       }
+      // The material now owns the upload; don't let a reset delete it.
+      setStoredFile(null)
       closeForm()
       resetForm()
     } catch (e) {
@@ -147,10 +169,8 @@ export default function MaterialsPage() {
                     <Badge color="blue">{m.type ?? 'link'}</Badge>
                     {clsName && <Badge color="gray">{clsName}</Badge>}
                   </div>
-                  <a href={m.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs font-medium text-black hover:underline">
-                    Open <ExternalLink size={11} />
-                  </a>
+                  <FileLink url={m.url} fileName={m.title}
+                    className="text-xs font-medium text-black hover:underline" />
                 </div>
               </div>
             )
@@ -166,9 +186,29 @@ export default function MaterialsPage() {
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">URL *</label>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} required type="url" placeholder="https://..."
-              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">{source === 'file' ? 'File *' : 'URL *'}</label>
+              <div className="flex gap-1 text-xs">
+                {(['link', 'file'] as const).map((s) => (
+                  <button key={s} type="button" onClick={() => setSource(s)}
+                    className={`rounded-lg px-2 py-0.5 ${source === s ? 'bg-black text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                    {s === 'link' ? 'Link' : 'Upload file'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {source === 'link' ? (
+              <input value={url} onChange={(e) => setUrl(e.target.value)}
+                required type="url" placeholder="https://..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+            ) : (
+              <>
+                {editing?.fileId && !storedFile && (
+                  <p className="mb-1 text-xs text-gray-500">A file is attached. Choose another to replace it.</p>
+                )}
+                <FileUpload purpose="study_material" value={storedFile} onChange={setStoredFile} onBusyChange={setUploading} />
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -207,7 +247,7 @@ export default function MaterialsPage() {
           {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
           <div className="flex justify-end gap-3 border-t pt-4">
             <Button variant="secondary" type="button" onClick={closeForm}>Cancel</Button>
-            <Button type="submit" loading={createPending || updatePending}>{editing ? 'Save changes' : 'Add'}</Button>
+            <Button type="submit" loading={createPending || updatePending} disabled={uploading}>{editing ? 'Save changes' : 'Add'}</Button>
           </div>
         </form>
       </Modal>

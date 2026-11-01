@@ -32,6 +32,8 @@ import {
 
 import  {ROLES }  from "../config/constants.js";
 import { canManageRole } from "../utils/permissions.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendWelcomeEmail } from "../services/passwordResetService.js";
 
 
 export const createUser = async (req, res) => {
@@ -527,6 +529,17 @@ export const createUser = async (req, res) => {
 
     await organization.save();
 
+    // Welcome email with a set-password link (fire and forget).
+    sendInBackground("welcome:user", () =>
+      sendWelcomeEmail({
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: normalizedRole,
+        organizationName: organization.name,
+      })
+    );
+
 
     /* ---------------------------------------------------------------------- */
     /* SAFE RESPONSE                                                          */
@@ -536,6 +549,9 @@ export const createUser = async (req, res) => {
       user.toObject();
 
     delete safeUser.passwordHash;
+    delete safeUser.resetTokenHash;
+    delete safeUser.resetTokenExpiresAt;
+    delete safeUser.resetTokenRequestedAt;
 
     return sendCreated(
       res,

@@ -323,6 +323,27 @@ publicId: {
       },
     },
 
+    // Password reset / set-password link (services/passwordResetService.js).
+    // Only the sha256 of the emailed token is stored; single use.
+    resetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+      index: { sparse: true },
+    },
+
+    resetTokenExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    resetTokenRequestedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
     emailVerified: {
       type: Boolean,
       default: false,

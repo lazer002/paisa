@@ -12,6 +12,8 @@ import {
 import { asyncHandler } from "../utils/errorHandler.js";
 import { hasAnyPermission } from "../utils/permissions.js";
 import { resolveRef } from "../utils/resolveRef.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendLeaveDecisionEmail } from "../services/transactionalEmails.js";
 
 import {
   sendSuccess,
@@ -373,6 +375,10 @@ export const updateLeaveStatus =
       res,
       `Leave ${status}`,
       updated
+    );
+
+    sendInBackground("leave-decision", () =>
+      sendLeaveDecisionEmail(leave)
     );
   });
 

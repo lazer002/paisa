@@ -7,6 +7,8 @@ import Organization from "../models/organization.js";
 import { User } from "../models/User.js";
 import { ROLES } from "../config/constants.js";
 import { hashPassword } from "../utils/password.js";
+import { sendInBackground } from "../services/emailService.js";
+import { sendWelcomeEmail } from "../services/passwordResetService.js";
 
 export const createOrganization = async (req, res) => {
   try {
@@ -151,6 +153,18 @@ export const createOrganization = async (req, res) => {
       org.updatedBy = userId;
 
       await org.save();
+
+      // The temporary password is shown once to the creator only; the
+      // new admin gets a set-password link instead of a password.
+      sendInBackground("welcome:org-admin", () =>
+        sendWelcomeEmail({
+          userId: organizationAdmin._id,
+          name: organizationAdmin.name,
+          email: organizationAdmin.email,
+          role: organizationAdmin.role,
+          organizationName: org.name,
+        })
+      );
 
       return res.status(201).json({
         success: true,

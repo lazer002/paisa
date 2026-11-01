@@ -29,6 +29,9 @@ import {
 
 import { hasPermission } from "../utils/permissions.js";
 
+import { fileDownloadPath } from "../models/File.js";
+import { claimFile, linkFile } from "../services/fileService.js";
+
 const WRITABLE = [
   "title",
   "description",
@@ -69,11 +72,20 @@ export const createEmployeeDocument = asyncHandler(
       );
     }
 
-    const { fileName, fileUrl } = req.body;
+    const { fileName, fileUrl, fileId } = req.body;
+
+    // An uploaded file (POST /files, purpose employee_document) wins over
+    // a pasted link.
+    const storedFile = fileId
+      ? await claimFile(req, fileId, {
+          purpose: "employee_document",
+          kind: "employee_document",
+        })
+      : null;
 
     // The link is rendered as <a href> in the UI, so only plain web
     // links are accepted (no javascript: / data: URLs).
-    if (fileUrl) {
+    if (fileUrl && !storedFile) {
       let protocol = null;
 
       try {
@@ -93,15 +105,31 @@ export const createEmployeeDocument = asyncHandler(
       employeeId: employee._id,
       employeeUserId: employee.userId,
       departmentId: employee.departmentId ?? undefined,
-      // A document without a stored file is just a checklist entry.
-      versions:
-        fileName && fileUrl
+      // A document without a file or link is just a checklist entry.
+      versions: storedFile
+        ? [
+            {
+              version: 1,
+              fileName: storedFile.originalName,
+              fileUrl: fileDownloadPath(storedFile.publicId),
+              fileId: storedFile.publicId,
+              mimeType: storedFile.mimeType,
+              fileSize: storedFile.size,
+              checksum: storedFile.checksum,
+              uploadedBy: req.user._id,
+            },
+          ]
+        : fileName && fileUrl
           ? [{ version: 1, fileName, fileUrl }]
           : [],
       uploadedBy: req.user._id,
       uploadedAt: new Date(),
       createdBy: req.user._id,
     });
+
+    if (storedFile) {
+      await linkFile(storedFile, "employee_document", document._id);
+    }
 
     return sendCreated(res, {
       message: "Employee document created",

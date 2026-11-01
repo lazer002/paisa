@@ -60,6 +60,7 @@ import crmActivityRoutes, {
   taskRouter as crmTaskRouter,
   noteRouter as crmNoteRouter,
 } from "./crmActivityRoutes.js";
+import fileRoutes from "./fileRoutes.js";
 
 const router = express.Router();
 
@@ -109,6 +110,7 @@ const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
   notifications: "communication",
   conversations: "communication",
   messages: "communication",
+  files: "content",
 });
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -434,6 +436,15 @@ router.use(
 router.use(
   "/crm-notes",
   crmNoteRouter
+);
+
+// ─────────────────────────────────────────────
+// FILES (uploads; never served as a static folder)
+// ─────────────────────────────────────────────
+
+router.use(
+  "/files",
+  fileRoutes
 );
 
 // ─────────────────────────────────────────────

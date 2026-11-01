@@ -5,6 +5,13 @@ import ApiError from "../utils/ApiError.js";
 import env from "../config/env.js";
 import { User } from "../models/User.js";
 import RefreshSession from "../models/RefreshSession.js";
+import logger from "../config/logger.js";
+import {
+  FORGOT_PASSWORD_MESSAGE,
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from "../services/passwordResetService.js";
+import { sendInBackground } from "../services/emailService.js";
 import {
   hashPassword,
   comparePassword,
@@ -589,6 +596,65 @@ const updateProfile = async (req, res, next) => {
 };
 
 /* =========================================================
+   FORGOT PASSWORD (public)
+   Always the same 200 response: never reveals whether
+   the email belongs to an account.
+========================================================= */
+
+const forgotPassword = async (req, res, next) => {
+  try {
+    const email = req.body?.email;
+
+    // Runs after the response so known and unknown emails take the
+    // same time; failures are logged, never surfaced.
+    sendInBackground("forgot-password", () =>
+      requestPasswordReset(email).catch((error) => {
+        logger.error("Forgot password failed", {
+          error: error?.message,
+          requestId: req.requestId,
+        });
+      })
+    );
+
+    return sendSuccess(res, {
+      message: FORGOT_PASSWORD_MESSAGE,
+      data: null,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
+   RESET PASSWORD (public, single-use token)
+========================================================= */
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    await resetPasswordWithToken({
+      token,
+      password,
+    });
+
+    // Any cookies on this browser belong to now-revoked sessions.
+    clearAccessTokenCookie(res);
+    clearRefreshTokenCookie(res);
+
+    return sendSuccess(res, {
+      message:
+        "Your password has been reset. You can now sign in with the new password.",
+      data: null,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
    EXPORTS
 ========================================================= */
 
@@ -600,6 +666,8 @@ export {
   logoutAll,
   me,
   updateProfile,
+  forgotPassword,
+  resetPassword,
 };
 
 export default {
@@ -610,4 +678,6 @@ export default {
   logoutAll,
   me,
   updateProfile,
+  forgotPassword,
+  resetPassword,
 };

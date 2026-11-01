@@ -105,17 +105,17 @@ const resetPasswordSchema =
     password:
       strongPassword.required(),
 
+    // Optional (the API contract is { token, password }); when sent it
+    // must match.
     confirmPassword:
       Joi.any()
         .valid(
           Joi.ref("password")
         )
-        .required()
+        .optional()
         .messages({
           "any.only":
             "Passwords do not match",
-          "any.required":
-            "Password confirmation is required",
         }),
   });
 

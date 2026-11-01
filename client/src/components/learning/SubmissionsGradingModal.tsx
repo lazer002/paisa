@@ -8,6 +8,7 @@ import {
 } from '@/features/assignments/assignmentsApi'
 import { rid } from '@/features/users/usersApi'
 import Modal from '@/components/ui/Modal'
+import { FileLink } from '@/components/ui/FileUpload'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import { LoadingList, ErrorState, EmptyState } from '@/components/ui/StateViews'
@@ -134,6 +135,17 @@ export default function SubmissionsGradingModal({ assignment, onClose }: Submiss
                 <p className="mt-3 whitespace-pre-wrap rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
                   {s.content || 'No text submitted'}
                 </p>
+                {!!s.attachments?.length && (
+                  <ul className="mt-2 space-y-1">
+                    {s.attachments.map((att, i) => (
+                      <li key={`${att.url}-${i}`} className="flex items-center gap-2 text-xs text-gray-600">
+                        <span className="truncate">{att.name || 'Attachment'}</span>
+                        <FileLink url={att.url} fileName={att.name ?? undefined}
+                          className="font-medium text-black hover:underline" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {s.status === 'graded' && s.feedback && (
                   <p className="mt-2 text-xs text-gray-500">Feedback: {s.feedback}</p>
                 )}
