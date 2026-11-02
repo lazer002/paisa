@@ -324,7 +324,7 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 
 | Role | Pages | Actions | ~Done | Left (biggest first) |
 |---|---|---|---|---|
-| super_admin | 10 | 29 | 75% | No session list / 2FA · Companies/Institutes read-only (F5) |
+| super_admin | 10 | 29 | 82% | No session list / 2FA (F5 Companies/Institutes done 2026-11-02) |
 | admin | 29 | 149 | 91% | Razorpay + Resend untested without keys · no restore of other soft-deleted records |
 | principal | 28 | 66 | 84% | No Billing (lacks `finance:read`, by design) |
 | teacher | 19 | 56 | 85% | No rubrics/proctoring |
@@ -354,7 +354,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Feature | UI routes | ~Depth | Missing |
 |---|---|---|---|
 | Auth & sessions | 3/9 + login/forgot/reset pages | 80% | No 2FA or session list |
-| Organizations / tenancy | 6/6 | 80% | Companies/Institutes read-only (F5) |
+| Organizations / tenancy | 6/6 | 88% | — (Companies/Institutes = filtered org list with full management, 2026-11-02) |
 | Users & RBAC | 5/6 | 85% | Non-managers get a directory view only (D1 fixed) |
 | Audit log | 1/1 | 85% | Integrity hashes |
 | Notifications | 7/7 | 75% | No SMS/push (email via Resend, realtime bell) |
@@ -507,8 +507,8 @@ Cross-role defects (fix once, helps many roles):
 - [x] O1. (done 2026-10-29) Org list total excludes deleted; super_admin "Deleted" view + `POST /organizations/:id/restore`; detail page fetches `GET /organizations/:id`. Users are intentionally NOT deactivated on org delete: `authenticate` rejects members of a deleted org on every request, so restore brings them straight back.
 - [x] T1. (done 2026-10-29) Ticket assignee picker in the ticket drawer + "Assigned to" column; `GET /tickets/:id/assignees` (admin/hr/support of the ticket's org); assigning a non-staff user → 400.
 - [~] P1. (payments module done 2026-10-29, uncommitted) Razorpay payments, receipts, refunds. Needs live keys to test checkout.
-- [ ] F4. Billing: real subscription/payment flow (decided: Razorpay, see §0).
-- [ ] F5. Companies/Institutes: proper management views, or fold them into Organizations filters.
+- [x] F4. (done 2026-11-01, see §0 Wave 4; real checkout still untested without keys) Billing: real subscription/payment flow (decided: Razorpay, see §0).
+- [x] F5. (done 2026-11-02: folded into the platform Organizations list — same search/create/delete/restore, limited to company+startup / school+college+coaching+institute; `GET /organizations?type=a,b`) Companies/Institutes: proper management views, or fold them into Organizations filters.
 
 **P2 — models + permissions with zero implementation**
 - [x] M1. (done 2026-10-28: /api/employee-documents + Documents tab in HR Ops; metadata + optional file link, no binary upload) Employee documents.
@@ -528,6 +528,15 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 7b: F5 Companies/Institutes.** `PlatformOrganizationsList` takes an optional `group`
+  (title + allowed types); CompaniesPage (company, startup) and InstitutesPage (school, college, coaching, institute)
+  are thin wrappers, so they get search, type filter, create (type preselected), delete, restore and detail links.
+  `GET /organizations?type=` accepts a comma-separated list (non-super_admin stays scoped to its own org). Verified:
+  F5 live 6/6, client lint + build, smoke 171/171, tenant 671/671 (0 leaks), unit 59/59, screenshots. **Open,
+  needs an owner decision:** deals in custom pipelines — `Deal.stage` is a fixed enum of global stages that won/lost
+  logic and reports rely on, so storing `pipelineId` + custom stage keys is a model change, not a cleanup. Demo DB
+  drift noticed: the super_admin demo user's name is now "uofhwuaf" (changed by an earlier profile test).
 
 - **2026-11-02 — Wave 7a: Reports trends + Gamification.** Reports: `GET /stats/trends?from&to` (`report:read`;
   `controllers/reportController.js`) returns a per-role report — time series bucketed by day (≤62 days) or month in

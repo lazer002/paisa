@@ -4,7 +4,7 @@ import { Building2, ChevronLeft, ChevronRight, Plus, RefreshCw, RotateCcw, Searc
 
 import { useGetOrganizationsQuery, useRestoreOrganizationMutation } from '@/features/organizations/organizationsApi'
 import { apiErrorMessage } from './apiError'
-import type { Organization } from '@/features/organizations/types'
+import type { Organization, OrgType } from '@/features/organizations/types'
 import CreateOrganizationModal from './CreateOrganizationModal'
 import DeleteOrganizationDialog from './DeleteOrganizationDialog'
 import { useCanManageOrganizations } from './useCanManageOrganizations'
@@ -23,10 +23,21 @@ function titleCase(value?: string) {
   return String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
-/** Platform-wide organization list for super admins: search, create, delete. */
-export default function PlatformOrganizationsList() {
+/** A slice of the platform list, e.g. Companies = company + startup. */
+export interface OrganizationGroup {
+  title: string
+  subtitle: string
+  types: OrgType[]
+}
+
+/**
+ * Platform-wide organization list for super admins: search, create, delete,
+ * restore. With `group` it shows only those types (Companies / Institutes).
+ */
+export default function PlatformOrganizationsList({ group }: { group?: OrganizationGroup } = {}) {
   const navigate = useNavigate()
   const canManage = useCanManageOrganizations()
+  const typeOptions = group?.types ?? TYPE_FILTERS
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
@@ -41,7 +52,7 @@ export default function PlatformOrganizationsList() {
     page,
     limit: PAGE_SIZE,
     search: search.trim() || undefined,
-    type: type || undefined,
+    type: type || group?.types.join(',') || undefined,
     deleted: showDeleted || undefined,
   })
 
@@ -70,8 +81,10 @@ export default function PlatformOrganizationsList() {
           <p className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-gray-400">
             <Building2 size={14} /> Platform
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Organizations</h1>
-          <p className="mt-1 text-sm text-gray-500">Every tenant on the platform. {total} total.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{group?.title ?? 'Organizations'}</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {group?.subtitle ?? 'Every tenant on the platform.'} {total} total.
+          </p>
         </div>
         {canManage && (
           <button
@@ -101,7 +114,7 @@ export default function PlatformOrganizationsList() {
             className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-900"
           >
             <option value="">All types</option>
-            {TYPE_FILTERS.map((t) => (
+            {typeOptions.map((t) => (
               <option key={t} value={t}>{titleCase(t)}</option>
             ))}
           </select>
@@ -269,7 +282,7 @@ export default function PlatformOrganizationsList() {
         )}
       </div>
 
-      {creating && <CreateOrganizationModal onClose={() => setCreating(false)} />}
+      {creating && <CreateOrganizationModal onClose={() => setCreating(false)} defaultType={group?.types[0]} />}
       {deleting && (
         <DeleteOrganizationDialog
           organization={deleting}

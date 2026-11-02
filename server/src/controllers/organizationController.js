@@ -264,8 +264,10 @@ export const getOrganizations = async (req, res) => {
       query.isDeleted = false;
     }
 
+    // One type or a comma-separated group (e.g. "company,startup").
     if (type) {
-      query.type = type;
+      const types = String(type).split(",").map((t) => t.trim()).filter(Boolean);
+      query.type = types.length > 1 ? { $in: types } : types[0];
     }
 
     if (status) {

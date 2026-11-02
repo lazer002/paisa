@@ -147,9 +147,16 @@ function CreatedPanel({ result, onClose }: { result: CreateOrgResult; onClose: (
  * "New organization" form for super admins (POST /organizations).
  * Render conditionally so the form resets each time it opens.
  */
-export default function CreateOrganizationModal({ onClose }: { onClose: () => void }) {
+export default function CreateOrganizationModal({
+  onClose,
+  defaultType = '',
+}: {
+  onClose: () => void
+  /** Preselected organization type (e.g. "company" from the Companies page). */
+  defaultType?: OrgType | ''
+}) {
   const [addOrganization, { isLoading }] = useAddOrganizationMutation()
-  const [form, setForm] = useState<FormState>(EMPTY)
+  const [form, setForm] = useState<FormState>({ ...EMPTY, type: defaultType })
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateOrgResult | null>(null)
 
