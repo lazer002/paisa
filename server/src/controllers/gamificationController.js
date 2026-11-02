@@ -11,6 +11,12 @@ import { User } from "../models/User.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
+import { ROLES } from "../config/constants.js";
+import {
+  getLeaderboard as getRankedLeaderboard,
+  getMySummary,
+} from "../services/gamificationService.js";
+
 import { resolveRef } from "../utils/resolveRef.js";
 import { assertOwnerOrPermission } from "../utils/crudHelpers.js";
 
@@ -21,6 +27,8 @@ import {
   sendForbidden,
   sendError,
 } from "../utils/response.js";
+
+const ROLES_LIST = Object.values(ROLES);
 
 const scoped = (req, extra = {}) => {
   if (req.user.role === "super_admin") {
@@ -276,10 +284,8 @@ export const awardAchievement = asyncHandler(
         balanceAfter:
           balanceBefore + achievement.points,
 
-        reference: {
-          type: "achievement",
-          id: achievement._id,
-        },
+        referenceType: "Achievement",
+        referenceId: achievement._id,
 
         description: `Achievement: ${achievement.name}`,
       });
@@ -421,69 +427,42 @@ export const getPointsLedger = asyncHandler(
    LEADERBOARD (computed from ledger balances)
 ========================================================= */
 
+const LEADERBOARD_PERIODS = ["week", "month", "all"];
+
 export const getLeaderboard = asyncHandler(
   async (req, res) => {
-    const match = scoped(req);
+    const period = LEADERBOARD_PERIODS.includes(req.query.period)
+      ? req.query.period
+      : "all";
 
-    const leaderboard = await PointLedger.aggregate([
-      { $match: match },
+    const role = ROLES_LIST.includes(req.query.role)
+      ? req.query.role
+      : undefined;
 
-      // Latest balance per user.
-      { $sort: { createdAt: -1 } },
-
-      {
-        $group: {
-          _id: "$userId",
-
-          points: { $first: "$balanceAfter" },
-        },
-      },
-
-      { $sort: { points: -1 } },
-
-      { $limit: 50 },
-
-      {
-        $lookup: {
-          from: "users",
-
-          localField: "_id",
-
-          foreignField: "_id",
-
-          as: "user",
-        },
-      },
-
-      { $unwind: "$user" },
-
-      {
-        $project: {
-          _id: 0,
-
-          userId: "$_id",
-
-          publicId: "$user.publicId",
-
-          name: "$user.name",
-
-          userCode: "$user.userCode",
-
-          points: 1,
-        },
-      },
-    ]);
-
-    const ranked = leaderboard.map(
-      (row, index) => ({
-        rank: index + 1,
-        ...row,
-      })
-    );
+    const board = await getRankedLeaderboard({
+      instituteId: scoped(req).instituteId,
+      period,
+      role,
+      meId: req.user._id,
+    });
 
     return sendSuccess(res, {
       message: "Leaderboard fetched",
-      data: ranked,
+      data: board.rows,
+      meta: { period: board.period, role: role ?? null, me: board.me },
+    });
+  }
+);
+
+/* =========================================================
+   MY SUMMARY (balance, rank, streak)
+========================================================= */
+
+export const getMyGamification = asyncHandler(
+  async (req, res) => {
+    return sendSuccess(res, {
+      message: "Gamification summary fetched",
+      data: await getMySummary(req.user),
     });
   }
 );

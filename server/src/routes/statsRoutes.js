@@ -13,6 +13,7 @@ import {
   getCounselorStats,
   getSupportStats,
 } from "../controllers/statsController.js";
+import { getReportTrends } from "../controllers/reportController.js";
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -52,5 +53,12 @@ router.get("/counselor", dashboard("counselor"), getCounselorStats);
 
 // Support statistics
 router.get("/support", dashboard("support"), getSupportStats);
+
+// Reports page trends; the controller picks the report for the caller's role.
+router.get(
+  "/trends",
+  authorize({ anyPermissions: ["report:read"] }),
+  getReportTrends
+);
 
 export default router;

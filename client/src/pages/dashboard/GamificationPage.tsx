@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trophy, Award, Zap, Medal, Pencil } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { Plus, Trophy, Award, Zap, Medal, Pencil, Flame, TrendingUp } from 'lucide-react'
 
 import {
   useGetAchievementsQuery,
@@ -10,11 +10,14 @@ import {
   useGetUserAchievementsQuery,
   useAwardPointsMutation,
   useGetLeaderboardQuery,
+  useGetMyGamificationQuery,
   useGetPointsLedgerQuery,
   type Achievement,
   type UserAchievement,
   type PointEntry,
+  type LeaderboardPeriod,
 } from '@/features/platform/platformApi'
+import { ROLE_LABEL, type Role } from '@/config/roles'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
@@ -34,6 +37,27 @@ const RARITY_RING: Record<string, string> = {
   legendary: 'ring-amber-300',
 }
 
+const PERIOD_LABEL: Record<LeaderboardPeriod, string> = { week: 'This week', month: 'This month', all: 'All time' }
+const PERIOD_SHORT: Record<LeaderboardPeriod, string> = { week: 'Week', month: 'Month', all: 'All' }
+const LEADERBOARD_ROLES: Role[] = ['student', 'teacher', 'employee', 'counselor', 'support', 'hr', 'accountant']
+const POINT_RULE_LABEL: Record<string, string> = {
+  assignment: 'assignment submitted',
+  test: 'test submitted',
+  attendance: 'check-in / class attendance',
+}
+
+function MyStat({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5">
+      <p className="flex items-center gap-1.5 text-xs text-gray-500">
+        <span className="text-amber-600">{icon}</span> {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-gray-900">{value}</p>
+      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+    </div>
+  )
+}
+
 export default function GamificationPage() {
   const { can, canAny, canOwn } = usePermission()
   const canManage = canAny('achievement:create', 'point_ledger:create')
@@ -49,7 +73,13 @@ export default function GamificationPage() {
 
   const { data: achievements } = useGetAchievementsQuery()
   const { data: awards } = useGetUserAchievementsQuery()
-  const { data: leaderboard } = useGetLeaderboardQuery()
+  const [period, setPeriod] = useState<LeaderboardPeriod>('all')
+  const [roleFilter, setRoleFilter] = useState('')
+  const { data: board } = useGetLeaderboardQuery({ period, role: roleFilter || undefined })
+  const { data: mine } = useGetMyGamificationQuery()
+  const boardRows = board?.rows ?? []
+  // Pin the caller's own row under the list when they are outside the top 20.
+  const meOutsideTop = !!board?.me && board.me.rank > 20
   const { data: users } = useGetUsersQuery(undefined, { skip: !canManage })
   const { data: ledger, isLoading: ledgerLoading, isError: ledgerError, refetch: refetchLedger } =
     useGetPointsLedgerQuery(undefined, { skip: !canReadLedger || tab !== 'ledger' })
@@ -281,16 +311,71 @@ export default function GamificationPage() {
         onChange={setTab}
       />
 
+      {tab === 'leaderboard' && mine && (
+        <SectionCard title="My progress">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <MyStat icon={<Zap size={16} />} label="Points" value={mine.points} />
+            <MyStat icon={<Trophy size={16} />} label="Rank" value={mine.rank ? `#${mine.rank}` : '—'} />
+            <MyStat icon={<TrendingUp size={16} />} label="This week" value={`+${mine.pointsThisWeek}`} />
+            <MyStat
+              icon={<Flame size={16} />}
+              label="Day streak"
+              value={mine.streak.current}
+              hint={`Best ${mine.streak.longest}`}
+            />
+            <MyStat icon={<Award size={16} />} label="Badges" value={mine.achievements} />
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Earn points automatically: {Object.entries(mine.pointRules).map(([source, pts]) => `${POINT_RULE_LABEL[source] ?? source} +${pts}`).join(' · ')}.
+            Showing up on consecutive days builds your streak.
+          </p>
+        </SectionCard>
+      )}
+
       {tab === 'leaderboard' && (
         <div className="grid gap-5 lg:grid-cols-3">
-          <SectionCard title="Top 50 by points">
+          <div className={canManage ? 'lg:col-span-2' : 'lg:col-span-3'}>
+          <SectionCard
+            title={`Top ${PERIOD_LABEL[period].toLowerCase()}`}
+            actions={
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label="Filter by role"
+                  className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                >
+                  <option value="">All roles</option>
+                  {LEADERBOARD_ROLES.map((r) => (
+                    <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                  ))}
+                </select>
+                <div className="flex rounded-lg border border-gray-200 p-0.5" role="group" aria-label="Period">
+                  {(Object.keys(PERIOD_LABEL) as LeaderboardPeriod[]).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPeriod(p)}
+                      aria-pressed={period === p}
+                      className={`rounded-md px-2 py-0.5 text-xs font-medium transition ${
+                        period === p ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {PERIOD_SHORT[p]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
+          >
             <div className="space-y-1.5">
-              {(leaderboard ?? []).slice(0, 20).map((row) => (
+              {[...boardRows.slice(0, 20), ...(meOutsideTop ? [board!.me!] : [])].map((row) => (
                 <div
                   key={row.userId}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-                    row.rank <= 3 ? 'bg-amber-50/70' : 'hover:bg-gray-50'
-                  }`}
+                    row.userId === board?.me?.userId
+                      ? 'bg-sky-50 ring-1 ring-sky-200'
+                      : row.rank <= 3 ? 'bg-amber-50/70' : 'hover:bg-gray-50'
+                  } ${row === board?.me && meOutsideTop ? 'mt-3' : ''}`}
                 >
                   <span
                     className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
@@ -306,19 +391,29 @@ export default function GamificationPage() {
                     {row.rank}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-800">{row.name}</p>
-                    <p className="text-xs text-gray-400">{row.userCode ?? ''}</p>
+                    <p className="truncate text-sm font-medium text-gray-800">
+                      {row.name}
+                      {row.userId === board?.me?.userId && <span className="ml-1.5 text-xs font-normal text-sky-700">(you)</span>}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {[row.userCode, row.role ? ROLE_LABEL[row.role as Role] ?? row.role : null].filter(Boolean).join(' · ')}
+                    </p>
                   </div>
                   <span className="flex items-center gap-1 text-sm font-semibold text-amber-600">
                     <Zap size={13} /> {row.points}
                   </span>
                 </div>
               ))}
-              {(leaderboard ?? []).length === 0 && (
-                <p className="py-10 text-center text-sm text-gray-400">No points recorded yet — award some to start the race</p>
+              {boardRows.length === 0 && (
+                <p className="py-10 text-center text-sm text-gray-400">
+                  {period === 'all' && !roleFilter
+                    ? 'No points recorded yet — submit work or check in to start the race'
+                    : 'No points in this view yet'}
+                </p>
               )}
             </div>
           </SectionCard>
+          </div>
 
           {canManage && (
             <SectionCard title="Quick award points">

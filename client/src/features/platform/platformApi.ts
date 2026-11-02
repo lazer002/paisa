@@ -258,7 +258,25 @@ export interface LeaderRow {
   publicId?: string
   name?: string
   userCode?: string
+  role?: string
   points: number
+}
+
+export type LeaderboardPeriod = 'week' | 'month' | 'all'
+
+export interface Leaderboard {
+  rows: LeaderRow[]
+  /** The caller's own row, also when outside the top rows; null without points. */
+  me: LeaderRow | null
+}
+
+export interface GamificationSummary {
+  points: number
+  rank: number | null
+  pointsThisWeek: number
+  streak: { current: number; longest: number; lastActiveDay: string | null }
+  achievements: number
+  pointRules: Record<string, number>
 }
 
 export interface CalendarEvent {
@@ -551,7 +569,10 @@ export const platformApi = createApi({
     }),
     awardAchievement: builder.mutation<UserAchievement, { userId: string; achievementId: string; reason?: string }>({
       query: (body) => ({ url: '/gamification/award', method: 'POST', body }),
-      invalidatesTags: [{ type: 'Achievement', id: 'LIST' }, { type: 'Points', id: 'LIST' }],
+      invalidatesTags: [
+        { type: 'Achievement', id: 'LIST' }, { type: 'Achievement', id: 'AWARDS' },
+        { type: 'Points', id: 'LIST' }, { type: 'Points', id: 'BOARD' }, { type: 'Points', id: 'ME' },
+      ],
     }),
     getUserAchievements: builder.query<UserAchievement[], void>({
       query: () => '/gamification/user-achievements',
@@ -560,17 +581,28 @@ export const platformApi = createApi({
     }),
     awardPoints: builder.mutation<PointEntry, { userId: string; points: number; reason?: string }>({
       query: (body) => ({ url: '/gamification/points', method: 'POST', body }),
-      invalidatesTags: [{ type: 'Points', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Points', id: 'LIST' }, { type: 'Points', id: 'BOARD' }, { type: 'Points', id: 'ME' }],
     }),
     getPointsLedger: builder.query<PointEntry[], void>({
       query: () => '/gamification/points',
       transformResponse: list,
       providesTags: [{ type: 'Points', id: 'LIST' }],
     }),
-    getLeaderboard: builder.query<LeaderRow[], void>({
-      query: () => '/gamification/leaderboard',
-      transformResponse: unwrap<LeaderRow[]>,
+    getLeaderboard: builder.query<Leaderboard, { period?: LeaderboardPeriod; role?: string } | void>({
+      query: (args) => ({
+        url: '/gamification/leaderboard',
+        params: { period: args?.period, role: args?.role || undefined },
+      }),
+      transformResponse: (res: { data?: LeaderRow[]; meta?: { me?: LeaderRow | null } }) => ({
+        rows: res?.data ?? [],
+        me: res?.meta?.me ?? null,
+      }),
       providesTags: [{ type: 'Points', id: 'BOARD' }],
+    }),
+    getMyGamification: builder.query<GamificationSummary, void>({
+      query: () => '/gamification/me',
+      transformResponse: unwrap<GamificationSummary>,
+      providesTags: [{ type: 'Points', id: 'ME' }],
     }),
 
     // ── Events ──
@@ -611,6 +643,6 @@ export const {
   useVerifyCertificateQuery, useLazyVerifyCertificateQuery,
   useGetAchievementsQuery, useCreateAchievementMutation, useUpdateAchievementMutation, useDeleteAchievementMutation,
   useAwardAchievementMutation, useGetUserAchievementsQuery,
-  useAwardPointsMutation, useGetPointsLedgerQuery, useGetLeaderboardQuery,
+  useAwardPointsMutation, useGetPointsLedgerQuery, useGetLeaderboardQuery, useGetMyGamificationQuery,
   useGetEventsQuery, useCreateEventMutation, useUpdateEventMutation, useDeleteEventMutation,
 } = platformApi

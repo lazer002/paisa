@@ -70,6 +70,30 @@ export interface SupportStats {
   resolvedTickets: number
 }
 
+/** How a report value is shown: a count, rupees, a percentage or hours. */
+export type ReportFormat = 'count' | 'currency' | 'percent' | 'hours'
+
+export interface ReportSeries {
+  key: string
+  title: string
+  format: ReportFormat
+  /** One value per bucket in `range.buckets`; null = no data (rates/averages only). */
+  datasets: { label: string; data: (number | null)[] }[]
+}
+
+export interface ReportBreakdown {
+  key: string
+  title: string
+  format: ReportFormat
+  items: { label: string; value: number }[]
+}
+
+export interface ReportTrends {
+  range: { from: string; to: string; unit: 'day' | 'month'; timeZone: string; buckets: string[] }
+  series: ReportSeries[]
+  breakdowns: ReportBreakdown[]
+}
+
 export const statsApi = createApi({
   reducerPath: 'statsApi',
   baseQuery: axiosBaseQuery,
@@ -120,6 +144,11 @@ export const statsApi = createApi({
       transformResponse: (res: { data?: unknown }) => res?.data as SupportStats,
       providesTags: ['Stats'],
     }),
+    getReportTrends: builder.query<ReportTrends, { from: string; to: string }>({
+      query: (params) => ({ url: '/stats/trends', params }),
+      transformResponse: (res: { data?: unknown }) => res?.data as ReportTrends,
+      providesTags: ['Stats'],
+    }),
   }),
 })
 
@@ -133,4 +162,5 @@ export const {
   useGetAccountantStatsQuery,
   useGetCounselorStatsQuery,
   useGetSupportStatsQuery,
+  useGetReportTrendsQuery,
 } = statsApi

@@ -11,6 +11,7 @@ import { hasAnyPermission } from "../utils/permissions.js";
 import { childUserIdsFor } from "../utils/parentScope.js";
 import { fileDownloadPath } from "../models/File.js";
 import { claimFile, linkFile } from "../services/fileService.js";
+import { awardActivityPoints } from "../services/gamificationService.js";
 
 import {
   sendSuccess,
@@ -243,6 +244,15 @@ export const submitAssignment = asyncHandler(
       files,
       submission._id
     );
+
+    await awardActivityPoints({
+      instituteId: assignment.instituteId,
+      userId: req.user._id,
+      source: "assignment",
+      referenceType: "Assignment",
+      referenceId: assignment._id,
+      description: `Submitted: ${assignment.title}`,
+    });
 
     sendCreated(
       res,

@@ -8,7 +8,7 @@
 > and client/README.md (2026-10-27). They are still in git history if needed
 > (`git show 60cb432:"kya vishye.md"` = the 5,270-line aspirational product spec).
 
-Last updated: 2026-10-29
+Last updated: 2026-11-02
 
 ---
 
@@ -28,9 +28,9 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 ### Snapshot (2026-11-01, after Wave 5)
 - Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
   leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
-- Roles ~77–91% done (§8b); features 55–90% (§8c). D7/D8, D13–D15, payroll proration/formulas and the
+- Roles ~77–91% done (§8b); features 75–90% (§8c). D7/D8, D13–D15, payroll proration/formulas, the
   2026-11-02 small-gaps wave (pipeline edit, lead duplicates, ticket merge, chat search/attachments, per-unit pay)
-  are done.
+  and Wave 7a (Reports trends, Gamification points/streaks/leaderboard) are done.
   What keeps it below 100%: real Razorpay/Resend runs (need keys), and not-built items (2FA/session list,
   SMS/push, scheduled jobs, AI, i18n).
 
@@ -379,8 +379,8 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Messaging | 9/9 + 3/3 | 90% | No reactions / read receipts per message |
 | Announcements / events | 4/5 + 4/5 | 80% | — |
 | Tickets | 12/12 | 86% | Merge needs the same requester (by design) |
-| Gamification | 9/9 | 55% | Leaderboard empty for demo users · Streak/Leaderboard models unused |
-| Reports | 9/9 | 55% | Stat cards + CSV/print only |
+| Gamification | 10/10 | 80% | Auto points (assignment/test/attendance), streaks, week/month/all + role leaderboard, "My progress" (2026-11-02). No redeemable rewards / auto-awarded badges |
+| Reports | 10/10 | 80% | Per-role trend charts + breakdowns with date range and CSV/print of every chart (2026-11-02). No scheduled/emailed reports |
 | Files | 3/3 | 78% | S3 adapter is a stub |
 
 Not built anywhere: scheduled jobs, SMS/push, i18n, QR image, AI features. Unused models: Device,
@@ -528,6 +528,24 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 7a: Reports trends + Gamification.** Reports: `GET /stats/trends?from&to` (`report:read`;
+  `controllers/reportController.js`) returns a per-role report — time series bucketed by day (≤62 days) or month in
+  `DEFAULT_TIMEZONE`, plus breakdowns; org-scoped (super_admin platform-wide); billing series only with `invoice:read`
+  (admin, principal); rates/averages are `null` where there is no data (chart gaps, not 0%); bad/reversed/>2-year
+  ranges → 400 `INVALID_RANGE`. Client: range presets + custom dates, dependency-free SVG line charts with crosshair
+  tooltip and ranked bars (`components/reports/`), Export includes every chart as a table. Gamification:
+  `services/gamificationService.js` — `awardActivityPoints` (once per referenced record, never throws) hooked into
+  assignment submit (+10), test submit (+10 once per test), staff check-in and class-code scan (+5); streak = run of
+  activity days (live until end of the next day); leaderboard = sum of balance moves in week/month/all, active users
+  only, optional role, plus the caller's own row (`meta.me`); `GET /gamification/me` (points, rank, week, streak,
+  badges). Achievement awards now store `referenceType/referenceId` (the old `reference` object was silently
+  dropped). Award mutations now refresh leaderboard/awards. Seed: 70 demo point entries (`seed/gamification.js`,
+  idempotent). Verified: unit 59/59 (10 new), live wave 102/102 (all 8 report roles, 403 for employee/parent/student,
+  tenant isolation, hooks +5 once), client lint + build, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks),
+  screenshots of admin/support Reports and admin/student Gamification. Not used: the mislabeled `models/Streak.js`
+  (actually a Leaderboard model) and `models/Leaderboard.js` (a UserAchievement copy) — streaks are derived from the
+  ledger instead.
 
 - **2026-11-02 — Small-gaps wave: pipeline edit, lead duplicates, ticket merge, chat search + attachments,
   per-unit pay.** `PUT /pipelines/:id` (pipeline:update; stages sent back with their `key` keep it, so renames

@@ -16,6 +16,7 @@ import { asyncHandler } from "../utils/errorHandler.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
 import { escapeRegex, assertOwnerOrPermission } from "../utils/crudHelpers.js";
+import { awardActivityPoints } from "../services/gamificationService.js";
 
 import {
   sendSuccess,
@@ -989,6 +990,16 @@ export const submitAttempt = asyncHandler(async (req, res) => {
   attempt.submittedAt = new Date();
 
   await attempt.save();
+
+  // Once per test, however many attempts it allows.
+  await awardActivityPoints({
+    instituteId: attempt.instituteId,
+    userId: req.user._id,
+    source: "test",
+    referenceType: "Test",
+    referenceId: test._id,
+    description: `Test submitted: ${test.title}`,
+  });
 
   return sendSuccess(res, {
     message: "Attempt submitted",

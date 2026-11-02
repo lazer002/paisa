@@ -11,13 +11,20 @@ import {
   useGetAccountantStatsQuery,
   useGetCounselorStatsQuery,
   useGetSupportStatsQuery,
+  useGetReportTrendsQuery,
+  type ReportSeries,
+  type ReportTrends,
 } from '@/features/stats/statsApi'
+import { useState } from 'react'
 import { useAppSelector } from '@/app/store'
 import PageHeader from '@/components/ui/PageHeader'
 import StatCard from '@/components/ui/StatCard'
 import { LoadingGrid, ErrorState, EmptyState } from '@/components/ui/StateViews'
 import ExportMenu from '@/components/ui/ExportMenu'
-import { fmtDateTime, type ExportColumn } from '@/lib/export'
+import { SectionCard } from '@/components/ui/kit'
+import { TrendChart, BreakdownBars } from '@/components/reports/charts'
+import { formatValue } from '@/components/reports/format'
+import { fmtDateTime, type ExportColumn, type ExportSection } from '@/lib/export'
 
 type Stat = {
   label: string
@@ -37,6 +44,63 @@ const REPORT_EXPORT_COLUMNS: ExportColumn<Stat>[] = [
   },
 ]
 
+// Roles the server builds a trends report for (reportController REPORTS).
+const TREND_ROLES = {
+  super_admin: true, admin: true, principal: true, teacher: true,
+  hr: true, accountant: true, counselor: true, support: true,
+}
+
+const PRESETS = [
+  { id: '7d', label: '7 days', days: 7 },
+  { id: '30d', label: '30 days', days: 30 },
+  { id: '90d', label: '90 days', days: 90 },
+  { id: '12m', label: '12 months', days: 365 },
+]
+
+/** Local calendar date as YYYY-MM-DD. */
+const dateKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const today = () => dateKey(new Date())
+
+/** The last `days` days, today included. */
+function presetRange(days: number) {
+  const from = new Date()
+  from.setDate(from.getDate() - (days - 1))
+  return { from: dateKey(from), to: today() }
+}
+
+/** "Total 1,240" for counts and money; rates and hours have no meaningful total. */
+function seriesTotal(s: ReportSeries): string | undefined {
+  if (s.format !== 'count' && s.format !== 'currency') return undefined
+  return s.datasets
+    .map((d) => `${d.label} ${formatValue(d.data.reduce<number>((a, b) => a + (b ?? 0), 0), s.format)}`)
+    .join(' · ')
+}
+
+/** One export table per chart: bucket rows × dataset columns, and label/value rows for breakdowns. */
+function trendExportSections(trends: ReportTrends): ExportSection<unknown>[] {
+  const seriesSections = trends.series.map((s) => ({
+    title: s.title,
+    columns: [
+      { header: trends.range.unit === 'day' ? 'Date' : 'Month', value: (i: number) => trends.range.buckets[i] },
+      ...s.datasets.map((d) => ({ header: d.label, value: (i: number) => d.data[i] })),
+    ],
+    rows: trends.range.buckets.map((_, i) => i),
+  }))
+
+  const breakdownSections = trends.breakdowns.map((b) => ({
+    title: b.title,
+    columns: [
+      { header: 'Item', value: (row: { label: string }) => row.label },
+      { header: b.format === 'currency' ? 'Value (INR)' : 'Value', value: (row: { value: number }) => row.value },
+    ],
+    rows: b.items,
+  }))
+
+  return [...seriesSections, ...breakdownSections] as ExportSection<unknown>[]
+}
+
 /**
  * One variant per role that the Reports nav entry is granted to
  * (see PATH_PERMISSION['/dashboard/reports'] = 'report:read').
@@ -51,6 +115,10 @@ export default function ReportsPage() {
   const accountantQ = useGetAccountantStatsQuery(undefined, { skip: role !== 'accountant' })
   const counselorQ = useGetCounselorStatsQuery(undefined, { skip: role !== 'counselor' })
   const supportQ = useGetSupportStatsQuery(undefined, { skip: role !== 'support' })
+
+  const [range, setRange] = useState(() => presetRange(30))
+  const trendsQ = useGetReportTrendsQuery(range, { skip: !role || !(role in TREND_ROLES) })
+  const trends = trendsQ.data
 
   const query = {
     'super_admin': superQ,
@@ -145,6 +213,11 @@ export default function ReportsPage() {
   const statsFor = stats[role === 'principal' ? 'admin' : role ?? ''] ?? (() => [])
   const shown: Stat[] = data ? statsFor(data as unknown as Record<string, number>) : []
 
+  const exportSections: ExportSection<unknown>[] = [
+    { title: 'Summary', columns: REPORT_EXPORT_COLUMNS, rows: shown } as ExportSection<unknown>,
+    ...(trends ? trendExportSections(trends) : []),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -153,9 +226,8 @@ export default function ReportsPage() {
         actions={
           <ExportMenu
             title={h.title}
-            subtitle={`${h.subtitle} · as of ${fmtDateTime(new Date())}`}
-            columns={REPORT_EXPORT_COLUMNS}
-            rows={shown}
+            subtitle={`${h.subtitle} · ${trends ? `${trends.range.from} to ${trends.range.to} · ` : ''}as of ${fmtDateTime(new Date())}`}
+            sections={exportSections}
             disabled={!data}
           />
         }
@@ -171,6 +243,77 @@ export default function ReportsPage() {
           ))}
         </div>
       ) : null}
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Trends</h2>
+            <p className="text-xs text-gray-500">
+              {trends
+                ? `${trends.range.from} to ${trends.range.to} · by ${trends.range.unit}`
+                : 'Pick a period'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-gray-200 bg-white p-0.5" role="group" aria-label="Period">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setRange(presetRange(p.days))}
+                  aria-pressed={range.from === presetRange(p.days).from && range.to === today()}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    range.from === presetRange(p.days).from && range.to === today()
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="date"
+              aria-label="From"
+              className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              value={range.from}
+              max={range.to}
+              onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })}
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              aria-label="To"
+              className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700"
+              value={range.to}
+              min={range.from}
+              max={today()}
+              onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {trendsQ.isLoading || (trendsQ.isFetching && !trends) ? (
+          <LoadingGrid cards={2} height="h-64" />
+        ) : trendsQ.isError ? (
+          <ErrorState
+            message={(trendsQ.error as { data?: { message?: string } })?.data?.message ?? 'Could not load trends'}
+            onRetry={() => trendsQ.refetch()}
+          />
+        ) : trends ? (
+          <div className={`grid gap-4 lg:grid-cols-2 ${trendsQ.isFetching ? 'opacity-60' : ''}`}>
+            {trends.series.map((s) => (
+              <SectionCard key={s.key} title={s.title} subtitle={seriesTotal(s)}>
+                <TrendChart series={s} buckets={trends.range.buckets} />
+              </SectionCard>
+            ))}
+            {trends.breakdowns.map((b) => (
+              <SectionCard key={b.key} title={b.title}>
+                <BreakdownBars breakdown={b} />
+              </SectionCard>
+            ))}
+          </div>
+        ) : null}
+      </section>
     </div>
   )
 }

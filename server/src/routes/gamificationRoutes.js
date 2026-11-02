@@ -12,6 +12,7 @@ import {
   awardPoints,
   getPointsLedger,
   getLeaderboard,
+  getMyGamification,
 } from "../controllers/gamificationController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -121,6 +122,12 @@ router.get(
 router.get(
   "/leaderboard",
   getLeaderboard
+);
+
+// The caller's own balance, rank and streak.
+router.get(
+  "/me",
+  getMyGamification
 );
 
 export default router;

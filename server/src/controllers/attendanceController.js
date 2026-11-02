@@ -12,6 +12,7 @@ import { QRSession } from "../models/QRSession.js";
 import ApiError from "../utils/ApiError.js";
 import { distanceMeters, isValidCoordinate } from "../utils/geo.js";
 import { hashCode } from "./qrSessionController.js";
+import { awardActivityPoints } from "../services/gamificationService.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -324,6 +325,15 @@ export const selfCheck = asyncHandler(async (req, res) => {
       { upsert: true, new: true, runValidators: true }
     );
 
+    await awardActivityPoints({
+      instituteId,
+      userId: req.user._id,
+      source: "attendance",
+      referenceType: "Attendance",
+      referenceId: record._id,
+      description: "Checked in",
+    });
+
     return sendSuccess(res, {
       message: zone ? `Checked in at ${zone.name}` : "Checked in",
       data: record,
@@ -432,6 +442,15 @@ export const scanQr = asyncHandler(async (req, res) => {
     },
     { upsert: true, new: true, runValidators: true }
   );
+
+  await awardActivityPoints({
+    instituteId: req.user.instituteId,
+    userId: req.user._id,
+    source: "attendance",
+    referenceType: "Attendance",
+    referenceId: record._id,
+    description: "Class attendance marked",
+  });
 
   return sendSuccess(res, {
     message: "Attendance marked present",

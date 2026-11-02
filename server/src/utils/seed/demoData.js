@@ -25,6 +25,7 @@ import { findRaw } from "./helpers.js";
 import { seedLearning } from "./learning.js";
 import { seedHrFinance } from "./hrFinance.js";
 import { seedCrmComms } from "./crmComms.js";
+import { seedGamification } from "./gamification.js";
 
 const EXTRA_STUDENTS = [
   { first: "Aarav", last: "Sharma", parent: "sunita.sharma" },
@@ -190,4 +191,5 @@ export const seedDemoData = async (seeder, base) => {
   await runArea("learning", () => seedLearning(seeder, ctx));
   await runArea("hr-finance", () => seedHrFinance(seeder, ctx));
   await runArea("crm-comms", () => seedCrmComms(seeder, ctx));
+  await runArea("gamification", () => seedGamification(seeder, ctx));
 };
