@@ -16,6 +16,7 @@ import {
   useCreateCertificateMutation,
   useRevokeCertificateMutation,
   useDeleteCertificateMutation,
+  useGetCertificateTemplatesQuery,
   type SalaryStructure,
   type SalaryComponent,
   type PerformanceReview,
@@ -24,6 +25,7 @@ import {
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import EmployeeDocumentsPanel from '@/components/hr/EmployeeDocumentsPanel'
+import CertificateTemplatesPanel from '@/components/certificates/CertificateTemplatesPanel'
 import SalaryComponentsEditor from '@/components/hr-payroll/SalaryComponentsEditor'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
@@ -93,6 +95,8 @@ export default function HROpsPage() {
   const [certTitle, setCertTitle] = useState('')
   const [certDescription, setCertDescription] = useState('')
   const [certValidUntil, setCertValidUntil] = useState('')
+  const [certTemplateId, setCertTemplateId] = useState('')
+  const { data: certTemplates } = useGetCertificateTemplatesQuery(undefined, { skip: !canCertificate })
 
   const copyVerifyLink = async (c: Certificate) => {
     const code = c.verification?.verificationCode
@@ -199,9 +203,10 @@ export default function HROpsPage() {
         title: certTitle,
         description: certDescription.trim() || undefined,
         validUntil: certValidUntil || undefined,
+        templateId: certTemplateId || undefined,
       }).unwrap()
       setShowCertificate(false)
-      setCertUserId(''); setCertTitle(''); setCertDescription(''); setCertValidUntil('')
+      setCertUserId(''); setCertTitle(''); setCertDescription(''); setCertValidUntil(''); setCertTemplateId('')
       setToast({ msg: 'Certificate issued', tone: 'success' })
     } catch (e) {
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to issue', tone: 'critical' })
@@ -439,14 +444,17 @@ export default function HROpsPage() {
       {tab === 'documents' && <EmployeeDocumentsPanel />}
 
       {tab === 'certificates' && (
-        <DataTable
-          columns={certificateColumns}
-          rows={certificates}
-          keyOf={(c) => c.publicId ?? c._id}
-          emptyTitle="No certificates"
-          emptyHint="Issue certificates for completions and achievements"
-          emptyAction={canCertificate ? <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button> : undefined}
-        />
+        <div className="space-y-5">
+          {canCertificate && <CertificateTemplatesPanel canEdit={canCertificate} onToast={setToast} />}
+          <DataTable
+            columns={certificateColumns}
+            rows={certificates}
+            keyOf={(c) => c.publicId ?? c._id}
+            emptyTitle="No certificates"
+            emptyHint="Issue certificates for completions and achievements"
+            emptyAction={canCertificate ? <Button onClick={() => setShowCertificate(true)}><Plus size={15} /> Certificate</Button> : undefined}
+          />
+        </div>
       )}
 
       {/* Structure modal */}
@@ -548,6 +556,16 @@ export default function HROpsPage() {
           <Field label="Valid until">
             <input type="date" className={inputCls} value={certValidUntil} onChange={(e) => setCertValidUntil(e.target.value)} />
           </Field>
+          {(certTemplates ?? []).length > 0 && (
+            <Field label="Template">
+              <select className={inputCls} value={certTemplateId} onChange={(e) => setCertTemplateId(e.target.value)}>
+                <option value="">Organization default</option>
+                {(certTemplates ?? []).map((t) => (
+                  <option key={t.publicId} value={t.publicId}>{t.name}{t.isDefault ? ' (default)' : ''}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <p className="text-xs text-gray-400">A certificate number and a public verification code are generated automatically.</p>
         </div>
       </ModalShell>

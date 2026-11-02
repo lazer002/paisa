@@ -197,8 +197,30 @@ export interface Certificate {
   recipientSnapshot?: { name?: string | null }
   issuer?: { name?: string | null; organizationName?: string | null }
   verification?: { status?: string; verificationCode?: string | null; verificationUrl?: string | null }
+  /** Design copied from a template when the certificate was issued. */
+  template?: { templateId?: string | null; name?: string | null; configuration?: CertificateDesign | null }
   createdAt: string
 }
+
+export interface CertificateDesign {
+  heading?: string | null
+  intro?: string | null
+  awardLine?: string | null
+  footerNote?: string | null
+  signatoryName?: string | null
+  signatoryTitle?: string | null
+  accentColor?: string | null
+  style?: 'classic' | 'modern'
+}
+
+export interface CertificateTemplate extends CertificateDesign {
+  _id: string
+  publicId: string
+  name: string
+  isDefault: boolean
+}
+
+export type CertificateTemplateInput = Partial<Omit<CertificateTemplate, '_id' | 'publicId'>> & { name: string }
 
 /** GET /public/certificates/:code — minimal, unauthenticated. */
 export interface CertificateVerification {
@@ -530,10 +552,26 @@ export const platformApi = createApi({
     }),
     createCertificate: builder.mutation<
       Certificate,
-      { userId: string; title: string; type?: string; description?: string; issueDate?: string; validUntil?: string }
+      { userId: string; title: string; type?: string; description?: string; issueDate?: string; validUntil?: string; templateId?: string }
     >({
       query: (body) => ({ url: '/certificates', method: 'POST', body }),
       invalidatesTags: [{ type: 'Certificate', id: 'LIST' }],
+    }),
+    getCertificateTemplates: builder.query<CertificateTemplate[], void>({
+      query: () => '/certificates/templates',
+      transformResponse: list,
+      providesTags: [{ type: 'Certificate', id: 'TEMPLATES' }],
+    }),
+    saveCertificateTemplate: builder.mutation<CertificateTemplate, { id?: string; payload: CertificateTemplateInput }>({
+      query: ({ id, payload }) =>
+        id
+          ? { url: `/certificates/templates/${id}`, method: 'PUT', body: payload }
+          : { url: '/certificates/templates', method: 'POST', body: payload },
+      invalidatesTags: [{ type: 'Certificate', id: 'TEMPLATES' }],
+    }),
+    deleteCertificateTemplate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/certificates/templates/${id}`, method: 'DELETE' }),
+      invalidatesTags: [{ type: 'Certificate', id: 'TEMPLATES' }],
     }),
     // Unauthenticated public lookup (also used by the /verify page while signed out).
     verifyCertificate: builder.query<CertificateVerification, string>({
@@ -640,6 +678,7 @@ export const {
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
   useAcknowledgeReviewMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,
+  useGetCertificateTemplatesQuery, useSaveCertificateTemplateMutation, useDeleteCertificateTemplateMutation,
   useVerifyCertificateQuery, useLazyVerifyCertificateQuery,
   useGetAchievementsQuery, useCreateAchievementMutation, useUpdateAchievementMutation, useDeleteAchievementMutation,
   useAwardAchievementMutation, useGetUserAchievementsQuery,

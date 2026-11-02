@@ -4,6 +4,7 @@ import {
   useGetSubmissionsQuery,
   useGradeSubmissionMutation,
   type Assignment,
+  type RubricCriterion,
   type Submission,
 } from '@/features/assignments/assignmentsApi'
 import { rid } from '@/features/users/usersApi'
@@ -19,27 +20,60 @@ const errorMessage = (e: unknown, fallback: string) =>
 interface GradeFormProps {
   submission: Submission
   maxScore: number
+  rubric: RubricCriterion[]
 }
 
-/** Score + feedback for one submission. Re-grading an already graded one is allowed. */
-function GradeForm({ submission, maxScore }: GradeFormProps) {
+const fieldCls = 'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black'
+
+/**
+ * Score + feedback for one submission (re-grading allowed). With a rubric the
+ * grader scores each criterion and the total is their sum.
+ */
+function GradeForm({ submission, maxScore, rubric }: GradeFormProps) {
   const [gradeSubmission, { isLoading }] = useGradeSubmissionMutation()
   const [score, setScore] = useState(submission.score != null ? String(submission.score) : '')
+  const [points, setPoints] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      rubric.map((c) => [
+        c.criterion,
+        String(submission.rubricScores?.find((s) => s.criterion === c.criterion)?.points ?? ''),
+      ]),
+    ),
+  )
   const [feedback, setFeedback] = useState(submission.feedback ?? '')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+  const rubricTotal = rubric.reduce((sum, c) => sum + (Number(points[c.criterion]) || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSaved(false)
-    const value = Number(score)
-    if (score.trim() === '' || !Number.isFinite(value) || value < 0 || value > maxScore) {
-      setError(`Score must be between 0 and ${maxScore}`)
-      return
-    }
+
     try {
-      await gradeSubmission({ id: rid(submission), score: value, feedback: feedback.trim() || undefined }).unwrap()
+      if (rubric.length) {
+        const bad = rubric.find((c) => {
+          const v = Number(points[c.criterion])
+          return points[c.criterion]?.trim() === '' || !Number.isFinite(v) || v < 0 || v > c.maxPoints
+        })
+        if (bad) {
+          setError(`"${bad.criterion}" must be between 0 and ${bad.maxPoints}`)
+          return
+        }
+        await gradeSubmission({
+          id: rid(submission),
+          rubricScores: rubric.map((c) => ({ criterion: c.criterion, points: Number(points[c.criterion]) })),
+          feedback: feedback.trim() || undefined,
+        }).unwrap()
+      } else {
+        const value = Number(score)
+        if (score.trim() === '' || !Number.isFinite(value) || value < 0 || value > maxScore) {
+          setError(`Score must be between 0 and ${maxScore}`)
+          return
+        }
+        await gradeSubmission({ id: rid(submission), score: value, feedback: feedback.trim() || undefined }).unwrap()
+      }
       setSaved(true)
     } catch (err) {
       setError(errorMessage(err, 'Failed to save grade'))
@@ -48,20 +82,48 @@ function GradeForm({ submission, maxScore }: GradeFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-      <div className="grid grid-cols-[8rem_1fr] gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Score (max {maxScore})</label>
-          <input
-            type="number"
-            min={0}
-            max={maxScore}
-            step="any"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-            required
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-          />
+      {rubric.length > 0 && (
+        <div className="space-y-1.5">
+          {rubric.map((c) => (
+            <div key={c.criterion} className="grid grid-cols-[1fr_6rem] items-center gap-3">
+              <span className="text-sm text-gray-700">
+                {c.criterion}
+                {c.description && <span className="block text-xs text-gray-400">{c.description}</span>}
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={c.maxPoints}
+                step="any"
+                aria-label={`${c.criterion} points`}
+                placeholder={`/ ${c.maxPoints}`}
+                value={points[c.criterion] ?? ''}
+                onChange={(e) => setPoints({ ...points, [c.criterion]: e.target.value })}
+                className={fieldCls}
+              />
+            </div>
+          ))}
+          <p className="text-right text-xs font-medium text-gray-600">
+            Total {rubricTotal} / {maxScore}
+          </p>
         </div>
+      )}
+      <div className={rubric.length ? '' : 'grid grid-cols-[8rem_1fr] gap-3'}>
+        {!rubric.length && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Score (max {maxScore})</label>
+            <input
+              type="number"
+              min={0}
+              max={maxScore}
+              step="any"
+              value={score}
+              onChange={(e) => setScore(e.target.value)}
+              required
+              className={fieldCls}
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Feedback</label>
           <textarea
@@ -153,6 +215,7 @@ export default function SubmissionsGradingModal({ assignment, onClose }: Submiss
                   key={rid(s)}
                   submission={s}
                   maxScore={maxScore}
+                  rubric={assignment?.rubric ?? []}
                 />
               </div>
             )

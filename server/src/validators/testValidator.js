@@ -112,6 +112,12 @@ export const updateQuestionSchema = Joi.object({
 /* Attempts                                                            */
 /* ------------------------------------------------------------------ */
 
+// Integrity signals from the test-taker's browser (testController.INTEGRITY_EVENTS).
+export const attemptEventSchema = Joi.object({
+  type: oneOf(["tab_switch", "window_blur", "fullscreen_exit", "copy", "paste", "right_click"]).required(),
+  durationSeconds: optNum(0),
+});
+
 export const submitAttemptSchema = Joi.object({
   answers: Joi.array()
     .items(

@@ -29,9 +29,20 @@ export const submitAssignmentSchema = Joi.object({
   attachments: Joi.array().items(attachment).max(20).allow(null),
 });
 
-// gradeSubmission: score is required; the controller caps it at the
-// assignment's maxScore.
+// gradeSubmission: a score, or points per rubric criterion (the controller
+// checks them against the assignment's rubric and sums the score). The
+// score is capped at the assignment's maxScore.
 export const gradeSubmissionSchema = Joi.object({
-  score: Joi.number().min(0).required(),
+  score: Joi.number().min(0),
+  rubricScores: Joi.array()
+    .items(
+      Joi.object({
+        criterion: Joi.string().trim().min(1).max(200).required(),
+        points: Joi.number().min(0).required(),
+        comment: optStr(2000),
+      })
+    )
+    .min(1)
+    .max(30),
   feedback: text(2000),
-});
+}).or("score", "rubricScores");

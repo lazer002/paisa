@@ -16,6 +16,7 @@ import {
   getAttempts,
   submitAttempt,
   gradeAttempt,
+  recordAttemptEvent,
 } from "../controllers/testController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -31,6 +32,7 @@ import {
   updateQuestionSchema,
   submitAttemptSchema,
   gradeAttemptSchema,
+  attemptEventSchema,
 } from "../validators/testValidator.js";
 
 const router = express.Router();
@@ -162,6 +164,16 @@ attemptRouter.put(
   }),
   body(submitAttemptSchema),
   submitAttempt
+);
+
+// The test-taker's browser reports tab switches, copy/paste… (owner only).
+attemptRouter.post(
+  "/:publicId/events",
+  authorize({
+    anyPermissions: ["test_attempt:update"],
+  }),
+  body(attemptEventSchema),
+  recordAttemptEvent
 );
 
 attemptRouter.put(

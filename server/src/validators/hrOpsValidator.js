@@ -99,6 +99,32 @@ export const createCertificateSchema = Joi.object({
   issueDate: optDate(),
   expiresAt: optDate(),
   validUntil: optDate(),
+  // A CertificateTemplate publicId; omitted = the organization's default.
+  templateId: optRef(),
+});
+
+const templateFields = {
+  heading: optStr(120),
+  intro: optStr(200),
+  awardLine: optStr(200),
+  footerNote: optStr(300),
+  signatoryName: optStr(120),
+  signatoryTitle: optStr(120),
+  accentColor: Joi.string().trim().pattern(/^#[0-9a-fA-F]{6}$/).messages({
+    "string.pattern.base": "Colour must look like #1e3a5f",
+  }),
+  style: Joi.string().valid("classic", "modern"),
+  isDefault: Joi.boolean(),
+};
+
+export const createCertificateTemplateSchema = Joi.object({
+  name: str(120).required(),
+  ...templateFields,
+});
+
+export const updateCertificateTemplateSchema = Joi.object({
+  name: str(120),
+  ...templateFields,
 });
 
 export const revokeCertificateSchema = Joi.object({

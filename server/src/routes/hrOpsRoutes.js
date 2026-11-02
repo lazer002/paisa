@@ -17,6 +17,12 @@ import {
   revokeCertificate,
   deleteCertificate,
 } from "../controllers/hrOpsController.js";
+import {
+  getCertificateTemplates,
+  createCertificateTemplate,
+  updateCertificateTemplate,
+  deleteCertificateTemplate,
+} from "../controllers/certificateTemplateController.js";
 
 import authenticate from "../middleware/authenticate.js";
 
@@ -30,6 +36,8 @@ import {
   createReviewSchema,
   updateReviewSchema,
   createCertificateSchema,
+  createCertificateTemplateSchema,
+  updateCertificateTemplateSchema,
   revokeCertificateSchema,
 } from "../validators/hrOpsValidator.js";
 
@@ -153,6 +161,33 @@ certificateRouter.post(
   }),
   body(createCertificateSchema),
   createCertificate
+);
+
+// Designs (declared before /:publicId routes).
+certificateRouter.get(
+  "/templates",
+  authorize({ anyPermissions: ["certificate:read"] }),
+  getCertificateTemplates
+);
+
+certificateRouter.post(
+  "/templates",
+  authorize({ anyPermissions: ["certificate:create"] }),
+  body(createCertificateTemplateSchema),
+  createCertificateTemplate
+);
+
+certificateRouter.put(
+  "/templates/:publicId",
+  authorize({ anyPermissions: ["certificate:create", "certificate:update"] }),
+  body(updateCertificateTemplateSchema),
+  updateCertificateTemplate
+);
+
+certificateRouter.delete(
+  "/templates/:publicId",
+  authorize({ anyPermissions: ["certificate:create", "certificate:delete"] }),
+  deleteCertificateTemplate
 );
 
 certificateRouter.put(

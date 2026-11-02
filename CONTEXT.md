@@ -359,12 +359,12 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Audit log | 1/1 | 85% | Integrity hashes |
 | Notifications | 7/7 | 75% | No SMS/push (email via Resend, realtime bell) |
 | Classes & enrollments | 6/7 + 4/4 | 85% | — |
-| Assignments & submissions | 4/5 + 3/4 | 80% | No rubrics / peer review |
-| Tests / questions / attempts | 5/5 + 4/4 + 4/4 | 82% | No proctoring |
+| Assignments & submissions | 4/5 + 3/4 | 90% | Rubrics + graded notification done 2026-11-02 · no peer review |
+| Tests / questions / attempts | 5/5 + 4/4 + 5/5 | 90% | Server time limit + integrity events done 2026-11-02 · no camera proctoring |
 | Study materials | 4/4 | 85% | Abandoned (never-attached) uploads not cleaned up |
 | Live sessions | 6/7 | 75% | No recording (Jitsi embed + attendance done) |
 | Attendance | 5/5 | 88% | Device kiosk (QR image + camera scan + scan-link done 2026-11-02) |
-| Certificates | 4/4 + public verify | 80% | Templates |
+| Certificates | 8/8 + public verify | 92% | Templates done 2026-11-02 |
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
@@ -528,6 +528,23 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 11: rubrics, test time limits + integrity, certificate templates.** Assignments take
+  `rubric: [{criterion, maxPoints, description}]` (≤30; `maxScore` = total; `normalizeRubric` in
+  assignmentController because findOneAndUpdate skips the save hook). Grading accepts `rubricScores` instead of
+  `score`: every rubric criterion exactly once (case-insensitive), each ≤ its max, score = sum; a plain score
+  clears the breakdown. Students are notified once per submission (`assignment_graded`). Tests: starting an
+  attempt sets `startedAt`, `timeLimitSeconds` (test `scheduling.durationMinutes`) and `deadlineAt`; submit after
+  deadline + 2 min grace → 400 `TIME_UP` and the attempt becomes `terminated` (counts as used, so no fresh time
+  after seeing the questions; the old filter used a non-existent "expired" status). `POST /attempts/:id/events`
+  (owner, while started, ≤500) records tab_switch / window_blur / copy / paste / right_click / fullscreen_exit;
+  attempts carry `integrity` {events, usedSeconds, timeLimitSeconds} for graders. Client: rubric editor + per-
+  criterion grading + student breakdown; test countdown with auto-submit at 0 and integrity listeners; Integrity
+  column for graders. Certificates: `CertificateTemplate` model + `/certificates/templates` CRUD (read
+  `certificate:read`, write `certificate:create`), one default per org, design copied into
+  `certificate.template.configuration` at issue (edits/deletes never change issued certificates); print uses it
+  (classic/modern, accent colour, signatory, footer); template manager with preview in HR Ops → Certificates.
+  Verified: wave11 live 34/34, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), unit 69/69, client lint + build.
 
 - **2026-11-02 — Wave 10: attendance QR.** The opened class code is also a QR (`qrcode`) encoding
   `<origin>/dashboard/attendance?code=XXXX`, with a full-screen view for projecting. Students: any phone camera

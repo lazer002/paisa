@@ -46,9 +46,21 @@ export interface TestAttempt {
   status: string
   attemptNumber: number
   score?: { earned?: number; total?: number; percentage?: number; passed?: boolean | null }
+  startedAt?: string | null
+  /** Submissions after this (plus a short grace) are refused with TIME_UP. */
+  deadlineAt?: string | null
   submittedAt?: string | null
+  /** Grader view: integrity event counts and time used. */
+  integrity?: {
+    events: Record<string, number>
+    totalEvents: number
+    usedSeconds: number | null
+    timeLimitSeconds: number | null
+  }
   createdAt: string
 }
+
+export type AttemptEventType = 'tab_switch' | 'window_blur' | 'fullscreen_exit' | 'copy' | 'paste' | 'right_click'
 
 const list = (res: { data?: unknown }) => (res?.data ?? []) as never
 
@@ -130,6 +142,9 @@ export const assessmentApi = createApi({
       query: ({ id, answers }) => ({ url: `/attempts/${id}/submit`, method: 'PUT', body: { answers } }),
       invalidatesTags: [{ type: 'Attempt', id: 'LIST' }],
     }),
+    recordAttemptEvent: builder.mutation<void, { id: string; type: AttemptEventType; durationSeconds?: number }>({
+      query: ({ id, ...body }) => ({ url: `/attempts/${id}/events`, method: 'POST', body }),
+    }),
     gradeAttempt: builder.mutation<TestAttempt, { id: string; score?: number; feedback?: string }>({
       query: ({ id, ...payload }) => ({ url: `/attempts/${id}/grade`, method: 'PUT', body: payload }),
       invalidatesTags: [{ type: 'Attempt', id: 'LIST' }],
@@ -150,5 +165,6 @@ export const {
   useGetAttemptsQuery,
   useStartAttemptMutation,
   useSubmitAttemptMutation,
+  useRecordAttemptEventMutation,
   useGradeAttemptMutation,
 } = assessmentApi

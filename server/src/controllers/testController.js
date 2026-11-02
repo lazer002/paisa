@@ -546,6 +546,87 @@ const isAnswerCorrect = (question, given) => {
 
 // The model stores score, maxScore, percentage and passed as flat fields;
 // the client reads one score object.
+/* ---------- Time limit + integrity ---------- */
+
+// Network slack after the deadline before a submission is refused.
+export const SUBMIT_GRACE_MS = 2 * 60 * 1000;
+
+export const isPastDeadline = (attempt, now = Date.now()) =>
+  Boolean(attempt.deadlineAt) &&
+  now > new Date(attempt.deadlineAt).getTime() + SUBMIT_GRACE_MS;
+
+const timeUp = () =>
+  ApiError.badRequest(
+    "Time is up for this attempt. Answers sent after the time limit are not accepted",
+    "TIME_UP"
+  );
+
+const terminateForTime = async (attempt) => {
+  attempt.status = "terminated";
+  attempt.submittedAt = attempt.submittedAt ?? new Date();
+  await attempt.save();
+};
+
+// Browser signals a student can raise during an attempt.
+export const INTEGRITY_EVENTS = [
+  "tab_switch",
+  "window_blur",
+  "fullscreen_exit",
+  "copy",
+  "paste",
+  "right_click",
+];
+
+const MAX_EVENTS_PER_ATTEMPT = 500;
+
+/** POST /attempts/:id/events — the owner's browser reports focus loss, copy/paste… */
+export const recordAttemptEvent = asyncHandler(async (req, res) => {
+  const attempt = await TestAttempt.findOne({
+    publicId: req.params.publicId,
+    ...scoped(req),
+  });
+
+  if (!attempt || String(attempt.studentId) !== String(req.user._id)) {
+    return sendNotFound(res, "Attempt not found");
+  }
+
+  // Events only count while the attempt is running; late ones are ignored.
+  if (attempt.status !== "started" || (attempt.proctoring?.events?.length ?? 0) >= MAX_EVENTS_PER_ATTEMPT) {
+    return sendSuccess(res, { message: "Event ignored", data: null });
+  }
+
+  await attempt.addProctoringEvent({
+    type: req.body.type,
+    severity: "warning",
+    durationSeconds: Number(req.body.durationSeconds) || 0,
+  });
+
+  return sendSuccess(res, {
+    message: "Event recorded",
+    data: { warningCount: attempt.proctoring.warningCount },
+  });
+});
+
+/** Integrity summary shown to graders (event counts by type). */
+const integrityOf = (plain) => {
+  const counts = {};
+  for (const event of plain.proctoring?.events ?? []) {
+    counts[event.type] = (counts[event.type] ?? 0) + 1;
+  }
+
+  const usedSeconds =
+    plain.startedAt && plain.submittedAt
+      ? Math.round((new Date(plain.submittedAt) - new Date(plain.startedAt)) / 1000)
+      : null;
+
+  return {
+    events: counts,
+    totalEvents: plain.proctoring?.events?.length ?? 0,
+    usedSeconds,
+    timeLimitSeconds: plain.timeLimitSeconds ?? null,
+  };
+};
+
 const attemptView = (attempt) => {
   const plain = attempt.toObject ? attempt.toObject() : attempt;
 
@@ -557,6 +638,7 @@ const attemptView = (attempt) => {
       percentage: plain.percentage ?? 0,
       passed: plain.passed ?? null,
     },
+    integrity: integrityOf(plain),
   };
 };
 
@@ -791,10 +873,12 @@ export const startAttempt = asyncHandler(async (req, res) => {
     );
   }
 
+  // A timed-out (terminated) attempt counts: restarting must not buy
+  // fresh time after seeing the questions.
   const countedAttempts = await TestAttempt.find({
     testId: test._id,
     studentId: req.user._id,
-    status: { $nin: ["abandoned", "expired"] },
+    status: { $nin: ["abandoned", "cancelled"] },
   });
 
   // Resume only an attempt that is still open; finished attempts count
@@ -802,6 +886,11 @@ export const startAttempt = asyncHandler(async (req, res) => {
   const open = countedAttempts.find(
     (attempt) => attempt.status === "started"
   );
+
+  if (open && isPastDeadline(open)) {
+    await terminateForTime(open);
+    throw timeUp();
+  }
 
   if (open) {
     return sendSuccess(res, {
@@ -826,6 +915,10 @@ export const startAttempt = asyncHandler(async (req, res) => {
     studentId: req.user._id,
   }).sort({ attemptNumber: -1 });
 
+  const now = new Date();
+  const limitSeconds =
+    Math.round((Number(test.scheduling?.durationMinutes) || 0) * 60) || null;
+
   const attempt = await TestAttempt.create({
     instituteId: req.user.instituteId,
 
@@ -839,6 +932,15 @@ export const startAttempt = asyncHandler(async (req, res) => {
       (lastAttempt?.attemptNumber || 0) + 1,
 
     status: "started",
+
+    // The clock starts now; submit is refused after deadline + grace.
+    startedAt: now,
+    ...(limitSeconds
+      ? {
+          timeLimitSeconds: limitSeconds,
+          deadlineAt: new Date(now.getTime() + limitSeconds * 1000),
+        }
+      : {}),
   });
 
   return sendCreated(res, {
@@ -904,6 +1006,11 @@ export const submitAttempt = asyncHandler(async (req, res) => {
       400,
       "Attempt is not active"
     );
+  }
+
+  if (isPastDeadline(attempt)) {
+    await terminateForTime(attempt);
+    throw timeUp();
   }
 
   // Auto-grade objective answers.

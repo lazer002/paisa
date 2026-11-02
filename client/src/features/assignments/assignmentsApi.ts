@@ -14,8 +14,23 @@ export interface Assignment {
   instructions?: string
   dueDate?: string
   maxScore?: number
+  /** Criteria graded separately; with a rubric, maxScore is their total. */
+  rubric?: RubricCriterion[]
   status: string
   createdAt: string
+}
+
+export interface RubricCriterion {
+  criterion: string
+  description?: string | null
+  maxPoints: number
+}
+
+export interface RubricScore {
+  criterion: string
+  points: number
+  maxPoints: number
+  comment?: string | null
 }
 
 export const assignmentsApi = createApi({
@@ -31,7 +46,7 @@ export const assignmentsApi = createApi({
       transformResponse: (res: { data?: unknown }) => (res?.data ?? []) as Assignment[],
       providesTags: [{ type: 'Assignment', id: 'LIST' }],
     }),
-    createAssignment: builder.mutation<Assignment, { classId: string; title: string; description?: string; instructions?: string; dueDate?: string; maxScore?: number }>({
+    createAssignment: builder.mutation<Assignment, { classId: string; title: string; description?: string; instructions?: string; dueDate?: string; maxScore?: number; rubric?: RubricCriterion[] }>({
       query: (payload) => ({ url: '/assignments', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Assignment', id: 'LIST' }],
     }),
@@ -130,6 +145,8 @@ export interface Submission {
   attachments?: SubmissionAttachment[]
   status: 'submitted' | 'graded'
   score?: number
+  maxScore?: number
+  rubricScores?: RubricScore[]
   feedback?: string
   gradedBy?: { _id: string; name: string } | string
   submittedAt?: string
@@ -153,7 +170,10 @@ export const submissionsApi = createApi({
       query: (payload) => ({ url: '/submissions', method: 'POST', body: payload }),
       invalidatesTags: [{ type: 'Submission', id: 'LIST' }],
     }),
-    gradeSubmission: builder.mutation<Submission, { id: string; score: number; feedback?: string }>({
+    gradeSubmission: builder.mutation<
+      Submission,
+      { id: string; score?: number; rubricScores?: { criterion: string; points: number; comment?: string }[]; feedback?: string }
+    >({
       query: ({ id, ...payload }) => ({ url: `/submissions/${id}/grade`, method: 'PUT', body: payload }),
       invalidatesTags: [{ type: 'Submission', id: 'LIST' }],
     }),

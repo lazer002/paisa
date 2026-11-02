@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   useGetTestQuery,
   useSubmitAttemptMutation,
+  useRecordAttemptEventMutation,
+  type AttemptEventType,
   type SchoolTest,
   type TestAttempt,
   type TestQuestion,
@@ -76,6 +78,56 @@ export default function TakeTestModal({
   const questions = (full?.questionIds ?? []) as TestQuestion[]
   const answered = questions.filter((q) => answers[q.publicId ?? q._id]).length
 
+  // ── Time limit: a countdown from the server's deadline; at zero the
+  // answers so far are submitted automatically.
+  const deadline = attempt?.deadlineAt ? new Date(attempt.deadlineAt).getTime() : null
+  const [now, setNow] = useState(() => Date.now())
+  const autoSubmitted = useRef(false)
+  const open = !!test && !!attempt
+
+  useEffect(() => {
+    if (!open || !deadline) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [open, deadline])
+
+  const remaining = deadline ? Math.max(0, Math.floor((deadline - now) / 1000)) : null
+
+  // ── Integrity: leaving the page or copying/pasting is reported to the
+  // teacher (the student is told on screen).
+  const [recordEvent] = useRecordAttemptEventMutation()
+  const attemptId = attempt ? (attempt.publicId ?? attempt._id) : ''
+
+  useEffect(() => {
+    if (!open || !attemptId) return
+    const report = (type: AttemptEventType) => {
+      void recordEvent({ id: attemptId, type })
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') report('tab_switch')
+    }
+    // A tab switch also blurs the window; count blur only while the tab stays visible.
+    const onBlur = () => {
+      if (document.visibilityState === 'visible') report('window_blur')
+    }
+    const onCopy = () => report('copy')
+    const onPaste = () => report('paste')
+    const onContextMenu = () => report('right_click')
+
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', onBlur)
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('paste', onPaste)
+    document.addEventListener('contextmenu', onContextMenu)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', onBlur)
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('paste', onPaste)
+      document.removeEventListener('contextmenu', onContextMenu)
+    }
+  }, [open, attemptId, recordEvent])
+
   const submit = async () => {
     if (!attempt) return
     setError('')
@@ -90,10 +142,29 @@ export default function TakeTestModal({
       clearDraft(draftKey)
       onSubmitted(result)
     } catch (e) {
-      const message = (e as { data?: { message?: string } })?.data?.message
-      setError(message ?? 'Could not submit the test. Please try again.')
+      const data = (e as { data?: { message?: string; code?: string } })?.data
+      if (data?.code === 'TIME_UP') clearDraft(draftKey)
+      setError(data?.message ?? 'Could not submit the test. Please try again.')
     }
   }
+
+  // Latest submit for the timer (it closes over the newest answers).
+  const submitRef = useRef(submit)
+  useEffect(() => {
+    submitRef.current = submit
+  })
+
+  useEffect(() => {
+    if (remaining === 0 && !autoSubmitted.current && questions.length > 0) {
+      autoSubmitted.current = true
+      void submitRef.current()
+    }
+  }, [remaining, questions.length])
+
+  const clock =
+    remaining === null
+      ? null
+      : `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
 
   return (
     <ModalShell
@@ -105,7 +176,17 @@ export default function TakeTestModal({
         <>
           <span className="mr-auto text-xs text-gray-500">
             {answered}/{questions.length} answered
-            {test?.scheduling?.durationMinutes ? ` · ${test.scheduling.durationMinutes} min` : ''}
+            {clock !== null ? (
+              <span
+                role="timer"
+                aria-label="Time left"
+                className={`ml-2 rounded-md px-2 py-0.5 font-mono font-semibold ${
+                  (remaining ?? 0) <= 60 ? 'bg-rose-50 text-rose-700' : 'bg-gray-100 text-gray-800'
+                }`}
+              >
+                {clock} left
+              </span>
+            ) : test?.scheduling?.durationMinutes ? ` · ${test.scheduling.durationMinutes} min` : ''}
           </span>
           <Button variant="secondary" onClick={onClose}>Save &amp; close</Button>
           <Button onClick={submit} disabled={submitting || isLoading || questions.length === 0}>
@@ -118,6 +199,10 @@ export default function TakeTestModal({
         {test?.instructions && (
           <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">{test.instructions}</p>
         )}
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {deadline ? 'Answers are submitted automatically when the time runs out. ' : ''}
+          Switching tabs or windows, copying and pasting are recorded for your teacher.
+        </p>
         {isLoading && <p className="text-sm text-gray-400">Loading questions…</p>}
         {!isLoading && questions.length === 0 && (
           <p className="text-sm text-gray-400">This test has no questions yet.</p>

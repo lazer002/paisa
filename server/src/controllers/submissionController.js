@@ -12,6 +12,7 @@ import { childUserIdsFor } from "../utils/parentScope.js";
 import { fileDownloadPath } from "../models/File.js";
 import { claimFile, linkFile } from "../services/fileService.js";
 import { awardActivityPoints } from "../services/gamificationService.js";
+import { notifyOnce } from "../services/notify.js";
 
 import {
   sendSuccess,
@@ -503,11 +504,12 @@ export const gradeSubmission =
     async (req, res) => {
       // The route gate (submission:update) decides who may grade.
       const {
-        score,
         feedback,
       } = req.body;
 
-      if (score == null) {
+      let { score } = req.body;
+
+      if (score == null && !req.body.rubricScores) {
         return sendError(
           res,
           400,
@@ -522,7 +524,7 @@ export const gradeSubmission =
           ...tenantScope(req),
         }).populate(
           "assignmentId",
-          "maxScore createdBy"
+          "maxScore createdBy rubric"
         );
 
       if (!submission) {
@@ -557,6 +559,74 @@ export const gradeSubmission =
       const maxScore =
         submission.assignmentId
           ?.maxScore || 100;
+
+      // Rubric grading: one score per criterion of the assignment's
+      // rubric (each within its max); the score is their sum.
+      let rubricScores;
+
+      if (req.body.rubricScores) {
+        const rubric =
+          submission.assignmentId?.rubric ?? [];
+
+        if (rubric.length === 0) {
+          return sendError(
+            res,
+            400,
+            "This assignment has no rubric"
+          );
+        }
+
+        const given = new Map(
+          req.body.rubricScores.map((s) => [
+            s.criterion.trim().toLowerCase(),
+            s,
+          ])
+        );
+
+        rubricScores = [];
+
+        for (const criterion of rubric) {
+          const entry = given.get(
+            criterion.criterion.trim().toLowerCase()
+          );
+
+          if (!entry) {
+            return sendError(
+              res,
+              400,
+              `Give a score for "${criterion.criterion}"`
+            );
+          }
+
+          if (Number(entry.points) > criterion.maxPoints) {
+            return sendError(
+              res,
+              400,
+              `"${criterion.criterion}" is out of ${criterion.maxPoints}`
+            );
+          }
+
+          rubricScores.push({
+            criterion: criterion.criterion,
+            points: Number(entry.points),
+            maxPoints: criterion.maxPoints,
+            comment: entry.comment || null,
+          });
+        }
+
+        if (given.size !== rubric.length) {
+          return sendError(
+            res,
+            400,
+            "Score only the criteria in this assignment's rubric"
+          );
+        }
+
+        score = rubricScores.reduce(
+          (sum, s) => sum + s.points,
+          0
+        );
+      }
 
       if (
         !Number.isFinite(
@@ -599,6 +669,8 @@ export const gradeSubmission =
                   10000
               ) / 100,
             feedback,
+            // A plain score replaces any earlier rubric breakdown.
+            rubricScores: rubricScores ?? [],
             status: "graded",
             gradedAt:
               new Date(),
@@ -622,6 +694,17 @@ export const gradeSubmission =
             "gradedBy",
             "name"
           );
+
+      // Tell the student (once per submission; a regrade is not re-announced).
+      await notifyOnce({
+        instituteId: updated.instituteId,
+        userIds: [updated.studentId?._id ?? updated.studentId],
+        type: "assignment_graded",
+        title: `"${updated.assignmentId?.title ?? "Assignment"}" was graded`,
+        body: `You scored ${updated.score} / ${updated.maxScore}.`,
+        link: "/dashboard/assignments",
+        reference: { kind: "submission_graded", id: updated._id, publicId: updated.publicId },
+      });
 
       sendSuccess(
         res,

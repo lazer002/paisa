@@ -13,6 +13,7 @@ import {
 } from "../models/Certificate.js";
 import { User } from "../models/User.js";
 import Organization from "../models/organization.js";
+import { CertificateTemplate, designOf } from "../models/CertificateTemplate.js";
 import env from "../config/env.js";
 import ApiError from "../utils/ApiError.js";
 import { hasPermission } from "../utils/permissions.js";
@@ -565,6 +566,22 @@ export const createCertificate = asyncHandler(
 
     const expiry = validUntil || expiresAt || null;
 
+    // Design: the picked template, else the organization's default, else
+    // the built-in layout. Copied so later template edits don't change it.
+    const template = req.body.templateId
+      ? await CertificateTemplate.findOne({
+          publicId: req.body.templateId,
+          instituteId: recipient.instituteId,
+        })
+      : await CertificateTemplate.findOne({
+          instituteId: recipient.instituteId,
+          isDefault: true,
+        });
+
+    if (req.body.templateId && !template) {
+      return sendError(res, 400, "Certificate template not found");
+    }
+
     const certificateNumber = newCertificateNumber(issuedOn);
     const verificationCode = newVerificationCode();
 
@@ -619,6 +636,17 @@ export const createCertificate = asyncHandler(
       ],
 
       source: "manual",
+
+      ...(template
+        ? {
+            template: {
+              templateId: template.publicId,
+              templateVersion: template.updatedAt?.toISOString() ?? null,
+              name: template.name,
+              configuration: designOf(template),
+            },
+          }
+        : {}),
 
       createdBy: req.user._id,
     });

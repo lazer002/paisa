@@ -135,12 +135,20 @@ const attachment = Joi.object({
   mimeType: optStr(150),
 });
 
+const rubricCriterion = Joi.object({
+  criterion: str(200).required(),
+  description: optStr(1000),
+  maxPoints: Joi.number().greater(0).max(100000).required(),
+});
+
 const assignmentFields = {
   description: text(10000),
   instructions: text(10000),
   dueDate: optDate(),
   maxScore: optNum(0),
   attachments: Joi.array().items(attachment).max(50).allow(null),
+  // Criteria graded separately; the assignment is then out of their total.
+  rubric: Joi.array().items(rubricCriterion).max(30).allow(null),
 };
 
 export const createAssignmentSchema = Joi.object({

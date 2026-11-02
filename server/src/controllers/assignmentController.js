@@ -13,6 +13,24 @@ import {
   sendError,
 } from "../utils/response.js";
 
+/**
+ * A grading rubric from the request: trimmed criteria and their total. With
+ * criteria the assignment is marked out of the rubric total.
+ */
+export const normalizeRubric = (rubric) => {
+  const criteria = (rubric ?? [])
+    .map((c) => ({
+      criterion: String(c.criterion ?? "").trim(),
+      description: c.description ? String(c.description).trim() : null,
+      maxPoints: Number(c.maxPoints) || 0,
+    }))
+    .filter((c) => c.criterion && c.maxPoints > 0);
+
+  const total = criteria.reduce((sum, c) => sum + c.maxPoints, 0);
+
+  return { rubric: criteria, rubricTotalPoints: total };
+};
+
 export const createAssignment = asyncHandler(async (req, res) => {
   const {
     classId,
@@ -23,6 +41,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
     maxScore,
     attachments,
   } = req.body;
+
+  const { rubric, rubricTotalPoints } = normalizeRubric(req.body.rubric);
 
   if (!classId || !title) {
     return sendError(
@@ -63,7 +83,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
     description,
     instructions,
     dueDate,
-    maxScore: maxScore || 100,
+    maxScore: rubric.length ? rubricTotalPoints : maxScore || 100,
+    rubric,
     attachments,
     status: "published",
   });
@@ -239,6 +260,14 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     if (req.body[key] !== undefined) {
       updates[key] = req.body[key];
     }
+  }
+
+  // Rubric (findOneAndUpdate skips the model's save hook, so total it here).
+  if (req.body.rubric !== undefined) {
+    const { rubric, rubricTotalPoints } = normalizeRubric(req.body.rubric);
+    updates.rubric = rubric;
+    updates.rubricTotalPoints = rubricTotalPoints;
+    if (rubric.length) updates.maxScore = rubricTotalPoints;
   }
 
   const updated = await Assignment.findOneAndUpdate(

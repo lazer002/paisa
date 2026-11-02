@@ -370,6 +370,35 @@ export default function TestsPage() {
     },
     { key: 'status', header: 'Status', render: (a) => <StatusBadge status={a.status} /> },
     {
+      // Graders only (filtered out of the student's own results).
+      key: 'integrity',
+      header: 'Integrity',
+      render: (a) => {
+        const i = a.integrity
+        if (!i) return <span className="text-gray-400">—</span>
+        const minutes = i.usedSeconds !== null ? Math.ceil(i.usedSeconds / 60) : null
+        const limit = i.timeLimitSeconds ? Math.round(i.timeLimitSeconds / 60) : null
+        const labels: Record<string, string> = {
+          tab_switch: 'tab switches', window_blur: 'window changes', copy: 'copies', paste: 'pastes',
+          right_click: 'right-clicks', fullscreen_exit: 'full-screen exits',
+        }
+        return (
+          <div className="text-xs">
+            {i.totalEvents === 0 ? (
+              <span className="text-emerald-700">No flags</span>
+            ) : (
+              <span className="text-amber-700">
+                {Object.entries(i.events).map(([type, n]) => `${n} ${labels[type] ?? type}`).join(', ')}
+              </span>
+            )}
+            {minutes !== null && (
+              <span className="block text-gray-400">{minutes} min used{limit ? ` of ${limit}` : ''}</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
       key: 'actions',
       header: '',
       className: 'text-right',
@@ -467,7 +496,7 @@ export default function TestsPage() {
 
       {tab === 'results' && isStudent && (
         <DataTable
-          columns={attemptColumns.filter((c) => c.key !== 'student' && c.key !== 'actions')}
+          columns={attemptColumns.filter((c) => c.key !== 'student' && c.key !== 'actions' && c.key !== 'integrity')}
           rows={attempts}
           keyOf={(a) => a.publicId ?? a._id}
           emptyTitle="No attempts yet"

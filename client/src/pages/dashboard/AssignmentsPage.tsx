@@ -22,6 +22,7 @@ import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
 import SubmissionsGradingModal from '@/components/learning/SubmissionsGradingModal'
+import RubricEditor, { type RubricRow } from '@/components/learning/RubricEditor'
 import FileUpload from '@/components/ui/FileUpload'
 import type { StoredFile } from '@/lib/api/files'
 
@@ -55,6 +56,13 @@ export default function AssignmentsPage() {
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [maxScore, setMaxScore] = useState('100')
+  const [rubricRows, setRubricRows] = useState<RubricRow[]>([])
+
+  // Complete rows only; with criteria the server marks the assignment out of their total.
+  const rubricPayload = () =>
+    rubricRows
+      .filter((r) => r.criterion.trim() && Number(r.maxPoints) > 0)
+      .map((r) => ({ criterion: r.criterion.trim(), maxPoints: Number(r.maxPoints), description: r.description.trim() || undefined }))
 
   const [submitFor, setSubmitFor] = useState<Assignment | null>(null)
   const [submissionText, setSubmissionText] = useState('')
@@ -68,7 +76,7 @@ export default function AssignmentsPage() {
   const mySubmissionFor = (assignment: Assignment) => submissionsFor(assignment)[0]
 
   const resetForm = () => {
-    setClassId(''); setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100'); setError('')
+    setClassId(''); setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100'); setRubricRows([]); setError('')
   }
 
   const openCreate = () => {
@@ -84,6 +92,7 @@ export default function AssignmentsPage() {
     setDescription(a.description ?? '')
     setDueDate(a.dueDate ? a.dueDate.slice(0, 10) : '')
     setMaxScore(String(a.maxScore ?? 100))
+    setRubricRows((a.rubric ?? []).map((c) => ({ criterion: c.criterion, maxPoints: String(c.maxPoints), description: c.description ?? '' })))
     setShowCreate(true)
   }
 
@@ -99,11 +108,12 @@ export default function AssignmentsPage() {
       if (editing) {
         await updateAssignment({
           id: rid(editing),
-          payload: { title, description, dueDate: dueDate || null, maxScore: Number(maxScore) || 100 },
+          payload: { title, description, dueDate: dueDate || null, maxScore: Number(maxScore) || 100, rubric: rubricPayload() },
         }).unwrap()
       } else {
         await createAssignment({
           classId, title, description, dueDate: dueDate || undefined, maxScore: Number(maxScore) || 100,
+          rubric: rubricPayload(),
         }).unwrap()
       }
       closeForm()
@@ -155,6 +165,18 @@ export default function AssignmentsPage() {
                       {a.dueDate ? ` · due ${new Date(a.dueDate).toLocaleDateString()}` : ''}
                     </p>
                     {a.description && <p className="mt-2 text-sm text-gray-600">{a.description}</p>}
+                    {sub?.status === 'graded' && !!sub.rubricScores?.length && (
+                      <ul className="mt-2 space-y-0.5 text-xs text-gray-600">
+                        {sub.rubricScores.map((s) => (
+                          <li key={s.criterion}>
+                            {s.criterion}: <span className="font-medium text-gray-900">{s.points}/{s.maxPoints}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {sub?.status === 'graded' && sub.feedback && (
+                      <p className="mt-1 text-xs text-gray-500">Feedback: {sub.feedback}</p>
+                    )}
                   </div>
 
                   <div className="flex flex-shrink-0 items-center gap-2">
@@ -248,10 +270,17 @@ export default function AssignmentsPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Max score</label>
-              <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+              {rubricPayload().length > 0 ? (
+                <p className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                  {rubricPayload().reduce((sum, c) => sum + c.maxPoints, 0)} (rubric total)
+                </p>
+              ) : (
+                <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black" />
+              )}
             </div>
           </div>
+          <RubricEditor rows={rubricRows} onChange={setRubricRows} />
           {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
           <div className="flex justify-end gap-3 border-t pt-4">
             <Button variant="secondary" type="button" onClick={closeForm}>Cancel</Button>
