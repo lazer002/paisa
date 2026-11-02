@@ -6,18 +6,23 @@ import { setAuth, logout } from '@/lib/store/authSlice'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
+import TwoFactorCard from '@/components/security/TwoFactorCard'
+import { usePermission } from '@/lib/auth/usePermission'
+import DevicesCard from '@/components/security/DevicesCard'
 import {
   useGetNotificationPreferencesQuery,
   useUpdateNotificationPreferencesMutation,
 } from '@/features/notifications/notificationsApi'
 
-const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
-  super_admin: ['Manage all organizations', 'Create any role user', 'Change admin emails', 'Delete organizations', 'Billing & plans'],
-  admin: ['Manage own organization profile', 'Create users below admin', 'Approve leaves', 'Mark attendance', 'Post announcements'],
-  teacher: ['View own classes', 'Mark attendance', 'View students'],
-  student: ['View enrolled classes', 'View own attendance', 'View announcements'],
-  hr: ['Manage employees', 'Process payroll', 'Approve/reject leaves'],
-  employee: ['View own payslips', 'Apply for leave', 'View announcements', 'View own attendance'],
+/** "invoice:read" … → [["Invoice", ["read", "create"]], …] sorted by area. */
+function groupPermissions(permissions: readonly string[]): [string, string[]][] {
+  const groups = new Map<string, string[]>()
+  for (const p of permissions) {
+    const [resource, action = ''] = p.split(':')
+    const label = resource.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+    groups.set(label, [...(groups.get(label) ?? []), action.replace(/_/g, ' ')])
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
 }
 
 export default function SettingsPage() {
@@ -67,7 +72,9 @@ export default function SettingsPage() {
     }
   }
 
-  const permissions = PERMISSIONS_BY_ROLE[user?.role ?? 'employee'] ?? []
+  // The same generated matrix the server enforces (config/permissions.ts).
+  const { permissions: rolePermissions } = usePermission()
+  const permissionGroups = groupPermissions(rolePermissions)
 
   const { data: notifPrefs } = useGetNotificationPreferencesQuery()
   const [updateNotifPrefs] = useUpdateNotificationPreferencesMutation()
@@ -148,6 +155,10 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <TwoFactorCard />
+
+        <DevicesCard />
+
         {/* Notification preferences */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
@@ -185,10 +196,14 @@ export default function SettingsPage() {
           <h3 className="font-semibold text-gray-900">Your role permissions</h3>
           <Badge color="blue">{user?.role?.replace('_', ' ')}</Badge>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {permissions.map((p) => (
-            <div key={p} className="flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
-              <SettingsIcon size={13} className="text-gray-400" /> {p}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {permissionGroups.map(([area, actions]) => (
+            <div key={area} className="flex items-start gap-2 rounded-xl bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
+              <SettingsIcon size={13} className="mt-1 shrink-0 text-gray-400" />
+              <span>
+                <span className="font-medium text-gray-900">{area}</span>
+                <span className="block text-xs text-gray-500">{actions.join(', ')}</span>
+              </span>
             </div>
           ))}
         </div>

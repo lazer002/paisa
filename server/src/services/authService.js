@@ -20,6 +20,13 @@ import {
 } from "../utils/crypto.js";
 
 import {
+  createChallenge,
+  readChallenge,
+  verifySecondFactor,
+  loadUserWithSecrets,
+} from "./twoFactorService.js";
+
+import {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
@@ -92,6 +99,11 @@ const sanitizeUser = (user) => {
 
   delete source.failedAttempts;
   delete source.lockedUntil;
+
+  delete source.twoFactorSecret;
+  delete source.twoFactorPendingSecret;
+  delete source.twoFactorRecoveryCodes;
+  delete source.twoFactorLastStep;
 
   return source;
 };
@@ -418,6 +430,14 @@ const login = async ({
     await user.save();
   }
 
+  // Password is right; with 2FA on, no session until the code is checked.
+  if (user.twoFactorEnabled) {
+    return {
+      twoFactorRequired: true,
+      challengeToken: createChallenge(user),
+    };
+  }
+
   const tokens =
     await createSession({
       user,
@@ -447,6 +467,149 @@ const login = async ({
     expiresAt:
       tokens.expiresAt,
   };
+};
+
+
+// ─────────────────────────────────────────────
+// LOGIN STEP 2: AUTHENTICATOR / RECOVERY CODE
+// ─────────────────────────────────────────────
+
+const completeTwoFactorLogin = async ({
+  challengeToken,
+  code,
+  recoveryCode,
+  ipAddress = null,
+  userAgent = null,
+}) => {
+  const userId = readChallenge(challengeToken);
+
+  const user =
+    await loadUserWithSecrets(userId);
+
+  if (
+    !user ||
+    user.isDeleted ||
+    user.deletedAt ||
+    String(user.status || "active").toLowerCase() !== "active"
+  ) {
+    throw ApiError.unauthorized(
+      "Your account is not active",
+      "ACCOUNT_INACTIVE"
+    );
+  }
+
+  const factor =
+    await verifySecondFactor(user, {
+      code,
+      recoveryCode,
+    });
+
+  const tokens =
+    await createSession({
+      user,
+      ipAddress,
+      userAgent,
+    });
+
+  return {
+    user: sanitizeUser(user),
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    sessionId: tokens.sessionId,
+    expiresAt: tokens.expiresAt,
+    recoveryCodesLeft: factor.recoveryCodesLeft,
+  };
+};
+
+
+// ─────────────────────────────────────────────
+// SIGNED-IN DEVICES
+// ─────────────────────────────────────────────
+
+/** The user's active sessions, newest activity first. */
+const listSessions = async ({
+  userId,
+  currentSessionId = null,
+}) => {
+  const sessions =
+    await RefreshSession.find({
+      userId,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ lastUsedAt: -1, createdAt: -1 })
+      .select("_id ip userAgent createdAt lastUsedAt expiresAt")
+      .lean();
+
+  return sessions.map((s) => ({
+    id: String(s._id),
+    ip: s.ip ?? null,
+    userAgent: s.userAgent ?? null,
+    createdAt: s.createdAt,
+    lastUsedAt: s.lastUsedAt ?? s.createdAt,
+    expiresAt: s.expiresAt,
+    current: String(s._id) === String(currentSessionId),
+  }));
+};
+
+/** Sign one of the user's own sessions out; it stops working at once. */
+const revokeSession = async ({
+  userId,
+  sessionId,
+}) => {
+  const session =
+    await RefreshSession.findOne({
+      _id: sessionId,
+      userId,
+      revokedAt: null,
+    });
+
+  if (!session) {
+    throw ApiError.notFound(
+      "That session was not found or is already signed out",
+      "SESSION_NOT_FOUND"
+    );
+  }
+
+  await session.revoke("logout");
+
+  await del(
+    cacheKey.refreshSession(
+      sessionId
+    )
+  );
+
+  // Drop live sockets; only still-valid sessions can reconnect.
+  emit.disconnectUser(userId);
+
+  return { success: true };
+};
+
+
+/** Sign out every session of the user except the one making the request. */
+const revokeOtherSessions = async ({
+  userId,
+  currentSessionId,
+}) => {
+  const others =
+    await RefreshSession.find({
+      userId,
+      revokedAt: null,
+      _id: { $ne: currentSessionId },
+    }).select("_id");
+
+  await RefreshSession.updateMany(
+    { _id: { $in: others.map((s) => s._id) } },
+    { $set: { revokedAt: new Date(), revokedReason: "logout" } }
+  );
+
+  await Promise.all(
+    others.map((s) => del(cacheKey.refreshSession(s._id)))
+  );
+
+  if (others.length > 0) emit.disconnectUser(userId);
+
+  return { revoked: others.length };
 };
 
 
@@ -835,6 +998,10 @@ export {
   createSession,
   register,
   login,
+  completeTwoFactorLogin,
+  listSessions,
+  revokeSession,
+  revokeOtherSessions,
   refreshSession,
   logout,
   logoutAll,
@@ -845,6 +1012,10 @@ export default {
   createSession,
   register,
   login,
+  completeTwoFactorLogin,
+  listSessions,
+  revokeSession,
+  revokeOtherSessions,
   refreshSession,
   logout,
   logoutAll,

@@ -40,6 +40,8 @@ import {
 } from '@/features/users/usersApi'
 import { useGetDepartmentsQuery } from '@/features/departments/departmentsApi'
 import DeleteUserDialog from '@/components/platform-admin/DeleteUserDialog'
+import UserSecurityPanel from '@/components/security/UserSecurityPanel'
+import { useAppSelector } from '@/app/store'
 import { useUserDeleteGate } from '@/components/platform-admin/useUserDeleteGate'
 
 import type {
@@ -231,6 +233,10 @@ export default function UserDetailPage() {
   }>()
 
   const id = publicId ?? ''
+
+  const currentUserPublicId = useAppSelector(
+    (s) => s.auth.user?.publicId
+  )
 
   const {
     data: user,
@@ -1880,6 +1886,14 @@ if (user && user !== prevUser) {
                     </div>
                   </div>
                 </Section>
+
+                {user.publicId &&
+                  user.publicId !== currentUserPublicId && (
+                    <UserSecurityPanel
+                      publicId={user.publicId}
+                      name={user.name ?? 'this user'}
+                    />
+                  )}
               </>
             )}
           </div>

@@ -5,6 +5,15 @@ import express from "express";
 import {
   register,
   login,
+  loginTwoFactor,
+  twoFactorStatus,
+  twoFactorSetup,
+  twoFactorEnable,
+  twoFactorDisable,
+  twoFactorRecoveryCodes,
+  listSessions,
+  revokeSession,
+  revokeOtherSessions,
   refresh,
   logout,
   logoutAll,
@@ -25,6 +34,10 @@ import {
   logoutSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  twoFactorLoginSchema,
+  twoFactorPasswordSchema,
+  twoFactorEnableSchema,
+  twoFactorConfirmSchema,
 } from "../validators/authValidator.js";
 
 import {
@@ -71,6 +84,103 @@ router.post(
       "User login attempt",
   }),
   login
+);
+
+// Login step 2 when two-factor sign-in is on (public; the challenge
+// token from step 1 identifies the user). Same limiter as login.
+router.post(
+  "/login/2fa",
+  loginRateLimiter,
+  validateBody(twoFactorLoginSchema),
+  auditMiddleware({
+    action: "login",
+    category: "authentication",
+    resource: "User",
+    description:
+      "Two-factor login attempt",
+  }),
+  loginTwoFactor
+);
+
+// ─────────────────────────────────────────────
+// TWO-FACTOR SETTINGS (own account)
+// ─────────────────────────────────────────────
+
+router.get("/2fa", authenticate, twoFactorStatus);
+
+router.post(
+  "/2fa/setup",
+  authenticate,
+  authRateLimiter,
+  validateBody(twoFactorPasswordSchema),
+  twoFactorSetup
+);
+
+router.post(
+  "/2fa/enable",
+  authenticate,
+  authRateLimiter,
+  validateBody(twoFactorEnableSchema),
+  auditMiddleware({
+    action: "update",
+    category: "security",
+    resource: "User",
+    description: "Two-factor sign-in turned on",
+  }),
+  twoFactorEnable
+);
+
+router.post(
+  "/2fa/disable",
+  authenticate,
+  authRateLimiter,
+  validateBody(twoFactorConfirmSchema),
+  auditMiddleware({
+    action: "update",
+    category: "security",
+    resource: "User",
+    description: "Two-factor sign-in turned off",
+  }),
+  twoFactorDisable
+);
+
+router.post(
+  "/2fa/recovery-codes",
+  authenticate,
+  authRateLimiter,
+  validateBody(twoFactorConfirmSchema),
+  twoFactorRecoveryCodes
+);
+
+// ─────────────────────────────────────────────
+// SIGNED-IN DEVICES (own account)
+// ─────────────────────────────────────────────
+
+router.get("/sessions", authenticate, listSessions);
+
+// Before /sessions/:sessionId so "others" is not taken as an id.
+router.post(
+  "/sessions/revoke-others",
+  authenticate,
+  auditMiddleware({
+    action: "logout",
+    category: "authentication",
+    resource: "RefreshSession",
+    description: "Signed out of all other devices",
+  }),
+  revokeOtherSessions
+);
+
+router.delete(
+  "/sessions/:sessionId",
+  authenticate,
+  auditMiddleware({
+    action: "logout",
+    category: "authentication",
+    resource: "RefreshSession",
+    description: "Signed out of a device",
+  }),
+  revokeSession
 );
 
 // ─────────────────────────────────────────────

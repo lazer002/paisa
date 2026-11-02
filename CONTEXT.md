@@ -324,7 +324,7 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 
 | Role | Pages | Actions | ~Done | Left (biggest first) |
 |---|---|---|---|---|
-| super_admin | 10 | 29 | 82% | No session list / 2FA (F5 Companies/Institutes done 2026-11-02) |
+| super_admin | 10 | 32 | 90% | — (F5, 2FA, devices done 2026-11-02) |
 | admin | 29 | 149 | 91% | Razorpay + Resend untested without keys · no restore of other soft-deleted records |
 | principal | 28 | 66 | 84% | No Billing (lacks `finance:read`, by design) |
 | teacher | 19 | 56 | 85% | No rubrics/proctoring |
@@ -353,7 +353,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 
 | Feature | UI routes | ~Depth | Missing |
 |---|---|---|---|
-| Auth & sessions | 3/9 + login/forgot/reset pages | 80% | No 2FA or session list |
+| Auth & sessions | all + login/forgot/reset pages | 95% | 2FA (TOTP + recovery codes + admin reset) and signed-in devices done 2026-11-02 |
 | Organizations / tenancy | 6/6 | 88% | — (Companies/Institutes = filtered org list with full management, 2026-11-02) |
 | Users & RBAC | 5/6 | 85% | Non-managers get a directory view only (D1 fixed) |
 | Audit log | 1/1 | 85% | Integrity hashes |
@@ -528,6 +528,28 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 8: two-factor sign-in + signed-in devices.** Owner: "complete everything, don't ask again".
+  `services/twoFactorService.js`: RFC 6238 TOTP (SHA-1, 30 s, 6 digits, ±1 step, used step stored in
+  `twoFactorLastStep` so codes can't be replayed), secret AES-256-GCM encrypted (key `TWO_FACTOR_ENCRYPTION_KEY`, else
+  derived from `JWT_REFRESH_SECRET`), 10 one-time recovery codes stored as sha256, 5-minute HMAC challenge token
+  between password and code. Routes: `POST /auth/login` → `{twoFactorRequired, challengeToken}` when on;
+  `POST /auth/login/2fa` `{challengeToken, code|recoveryCode}`; `GET /auth/2fa`, `POST /auth/2fa/setup` (password),
+  `/enable` (code → recovery codes once), `/disable` + `/recovery-codes` (password + code or recovery code);
+  `GET /auth/sessions`, `DELETE /auth/sessions/:id`, `POST /auth/sessions/revoke-others`; managers
+  (`user:update|manage`, same org, lower role; super_admin any): `GET /users/:id/sessions`,
+  `POST /users/:id/sessions/revoke`, `POST /users/:id/2fa/reset` (also signs them out). **Security change:**
+  `authenticate.js` and the socket handshake now reject access tokens whose session is revoked (`TOKEN_REVOKED`),
+  so sign-out / logout-all / reset take effect at once instead of at token expiry (one indexed lookup per request,
+  run in parallel with the user lookup). New User fields: `twoFactorPendingSecret`, `twoFactorRecoveryCodes`,
+  `twoFactorLastStep`, `twoFactorEnabledAt` (all hidden from JSON + `sanitizeUser`). Client: login code step
+  (authenticator or recovery code), Settings → Two-factor card (QR via `qrcode@1.5.4`, typed key, recovery codes,
+  regenerate, turn off) and Signed-in devices card (5 shown, show all, sign out one / all others); user detail →
+  Security tab → Sign-in management (devices, sign out everywhere, reset 2FA). Also fixed: Settings "Your role
+  permissions" was a hard-coded list (empty for 5 roles) — now the real generated matrix grouped by area.
+  Verified: unit 65/65 (RFC 6238 vectors), wave8 live 44/44, socket revoke 4/4, smoke 171/171, flows 39/39,
+  tenant 671/671 (0 leaks), wave7 102/102, client lint + build, screenshots (QR setup, login code step, devices,
+  permissions). Note: demo accounts carry dozens of sessions from the e2e suites (they never log out).
 
 - **2026-11-02 — Razorpay ready for real keys.** Owner supplied test keys in server/.env as `RAZORPAY_KEY` /
   `RAZORPAY_KEY_SECRET`; both pairs tried so far fail Razorpay auth (401), so they are placeholders until the owner

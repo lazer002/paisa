@@ -10,6 +10,7 @@ import Organization from "../models/organization.js";
 import { get } from "../utils/redis.js";
 
 import { User } from "../models/User.js";
+import RefreshSession from "../models/RefreshSession.js";
 import { ROLES } from "../config/constants.js";
 const authenticate = async (
   req,
@@ -103,8 +104,10 @@ const authenticate = async (
     // LOAD CURRENT USER
     // ─────────────────────────────────────────────
 
-    const user =
-      await User.findById(
+    // The session lookup makes "sign out this device" / "log out
+    // everywhere" take effect at once instead of at token expiry.
+    const [user, sessionActive] = await Promise.all([
+      User.findById(
         payload.sub
       )
         .select(
@@ -112,7 +115,23 @@ const authenticate = async (
           "instituteId userCode isDeleted " +
           "deletedAt passwordChangedAt"
         )
-        .lean();
+        .lean(),
+
+      payload.sid
+        ? RefreshSession.exists({
+            _id: payload.sid,
+            userId: payload.sub,
+            revokedAt: null,
+          })
+        : true,
+    ]);
+
+    if (!sessionActive) {
+      throw ApiError.unauthorized(
+        "Authentication session has been revoked",
+        "TOKEN_REVOKED"
+      );
+    }
 
     if (!user) {
       throw ApiError.unauthorized(

@@ -187,6 +187,33 @@ const revokeSessionSchema =
       uuid.required(),
   });
 
+// Two-factor: a 6-digit authenticator code or a recovery code (XXXX-XXXX).
+const totpCode = Joi.string().trim().pattern(/^\d{6}$/).messages({
+  "string.pattern.base": "Enter the 6-digit code from your authenticator app",
+});
+const recoveryCode = Joi.string().trim().max(20);
+const currentPassword = Joi.string().min(1).max(128);
+
+const twoFactorLoginSchema = Joi.object({
+  challengeToken: Joi.string().max(1000).required(),
+  code: totpCode,
+  recoveryCode,
+}).xor("code", "recoveryCode");
+
+const twoFactorPasswordSchema = Joi.object({
+  password: currentPassword.required(),
+});
+
+const twoFactorEnableSchema = Joi.object({
+  code: totpCode.required(),
+});
+
+const twoFactorConfirmSchema = Joi.object({
+  password: currentPassword.required(),
+  code: totpCode,
+  recoveryCode,
+}).xor("code", "recoveryCode");
+
 const authSchemas = Object.freeze({
   register: registerSchema,
   login: loginSchema,
@@ -217,6 +244,10 @@ export {
   verifyEmailSchema,
   resendVerificationSchema,
   revokeSessionSchema,
+  twoFactorLoginSchema,
+  twoFactorPasswordSchema,
+  twoFactorEnableSchema,
+  twoFactorConfirmSchema,
   authSchemas,
 };
 

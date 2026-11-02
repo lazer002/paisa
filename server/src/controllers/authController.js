@@ -12,6 +12,7 @@ import {
   resetPasswordWithToken,
 } from "../services/passwordResetService.js";
 import { sendInBackground } from "../services/emailService.js";
+import * as twoFactor from "../services/twoFactorService.js";
 import {
   hashPassword,
   comparePassword,
@@ -247,6 +248,22 @@ const login = async (req, res, next) => {
           getDeviceName(req),
       });
 
+    // Password accepted, authenticator code still needed: no cookies yet.
+    if (result.twoFactorRequired) {
+      return sendSuccess(res, {
+        message:
+          "Enter the code from your authenticator app",
+
+        data: {
+          twoFactorRequired: true,
+          challengeToken: result.challengeToken,
+        },
+
+        requestId:
+          req.requestId,
+      });
+    }
+
     setAccessTokenCookie(
       res,
       result.accessToken
@@ -279,6 +296,180 @@ const login = async (req, res, next) => {
 
       requestId:
         req.requestId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
+   LOGIN STEP 2 (2FA CODE)
+========================================================= */
+
+const loginTwoFactor = async (req, res, next) => {
+  try {
+    const result =
+      await authService.completeTwoFactorLogin({
+        challengeToken: req.body.challengeToken,
+        code: req.body.code,
+        recoveryCode: req.body.recoveryCode,
+        ipAddress: getRequestIp(req),
+        userAgent: getUserAgent(req),
+      });
+
+    setAccessTokenCookie(res, result.accessToken);
+    setRefreshTokenCookie(res, result.refreshToken);
+
+    return sendSuccess(res, {
+      message: "Login successful",
+
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        expiresAt: result.expiresAt,
+        sessionId: result.sessionId,
+        recoveryCodesLeft: result.recoveryCodesLeft,
+      },
+
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
+   2FA SETTINGS (own account)
+========================================================= */
+
+/** Sensitive changes re-check the password. */
+const assertPassword = async (userId, password) => {
+  const user = await User.findById(userId).select("+passwordHash");
+
+  if (!password || !user?.passwordHash || !(await comparePassword(password, user.passwordHash))) {
+    throw ApiError.unauthorized("Your password is not correct", "INVALID_PASSWORD");
+  }
+};
+
+const twoFactorStatus = async (req, res, next) => {
+  try {
+    return sendSuccess(res, {
+      message: "Two-factor status",
+      data: await twoFactor.getStatus(req.user._id),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const twoFactorSetup = async (req, res, next) => {
+  try {
+    await assertPassword(req.user._id, req.body.password);
+
+    return sendSuccess(res, {
+      message: "Scan the code with your authenticator app",
+      data: await twoFactor.startSetup(req.user._id),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const twoFactorEnable = async (req, res, next) => {
+  try {
+    const result = await twoFactor.confirmSetup(req.user._id, req.body.code);
+
+    return sendSuccess(res, {
+      message: "Two-factor sign-in is on. Save your recovery codes",
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const twoFactorDisable = async (req, res, next) => {
+  try {
+    await assertPassword(req.user._id, req.body.password);
+
+    return sendSuccess(res, {
+      message: "Two-factor sign-in is off",
+      data: await twoFactor.disable(req.user._id, {
+        code: req.body.code,
+        recoveryCode: req.body.recoveryCode,
+      }),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const twoFactorRecoveryCodes = async (req, res, next) => {
+  try {
+    await assertPassword(req.user._id, req.body.password);
+
+    return sendSuccess(res, {
+      message: "New recovery codes created. The old ones no longer work",
+      data: await twoFactor.regenerateRecoveryCodes(req.user._id, {
+        code: req.body.code,
+        recoveryCode: req.body.recoveryCode,
+      }),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/* =========================================================
+   SIGNED-IN DEVICES (own account)
+========================================================= */
+
+const listSessions = async (req, res, next) => {
+  try {
+    return sendSuccess(res, {
+      message: "Active sessions",
+      data: await authService.listSessions({
+        userId: req.user._id,
+        currentSessionId: req.auth?.sessionId,
+      }),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const revokeSession = async (req, res, next) => {
+  try {
+    await authService.revokeSession({
+      userId: req.user._id,
+      sessionId: req.params.sessionId,
+    });
+
+    // Signing out this very browser also clears its cookies.
+    if (String(req.params.sessionId) === String(req.auth?.sessionId)) {
+      clearAccessTokenCookie(res);
+      clearRefreshTokenCookie(res);
+    }
+
+    return sendSuccess(res, {
+      message: "Signed out of that device",
+      data: null,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const revokeOtherSessions = async (req, res, next) => {
+  try {
+    const result = await authService.revokeOtherSessions({
+      userId: req.user._id,
+      currentSessionId: req.auth?.sessionId,
+    });
+
+    return sendSuccess(res, {
+      message: `Signed out of ${result.revoked} other device${result.revoked === 1 ? "" : "s"}`,
+      data: result,
     });
   } catch (error) {
     return next(error);
@@ -661,6 +852,15 @@ const resetPassword = async (req, res, next) => {
 export {
   register,
   login,
+  loginTwoFactor,
+  twoFactorStatus,
+  twoFactorSetup,
+  twoFactorEnable,
+  twoFactorDisable,
+  twoFactorRecoveryCodes,
+  listSessions,
+  revokeSession,
+  revokeOtherSessions,
   refresh,
   logout,
   logoutAll,

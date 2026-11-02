@@ -14,6 +14,12 @@ import { hasAnyPermission } from "../utils/permissions.js";
 import ApiError from "../utils/ApiError.js";
 
 import { getUserDetail } from "../controllers/userDetailController.js";
+import {
+  getUserSessions,
+  revokeUserSessions,
+  resetUserTwoFactor,
+} from "../controllers/userSecurityController.js";
+import { auditMiddleware } from "../middleware/audit.js";
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -116,6 +122,45 @@ router.delete(
     anyPermissions: ["user:delete"],
   }),
   deleteUser
+);
+
+// ─────────────────────────────────────────────
+// ACCOUNT SECURITY (for someone else)
+// Same org and a lower role than the caller (controller).
+// ─────────────────────────────────────────────
+
+const securityManager = authorize({
+  anyPermissions: USER_MANAGER_PERMISSIONS,
+});
+
+router.get(
+  "/:publicId/sessions",
+  securityManager,
+  getUserSessions
+);
+
+router.post(
+  "/:publicId/sessions/revoke",
+  securityManager,
+  auditMiddleware({
+    action: "logout",
+    category: "security",
+    resource: "User",
+    description: "Signed a user out everywhere",
+  }),
+  revokeUserSessions
+);
+
+router.post(
+  "/:publicId/2fa/reset",
+  securityManager,
+  auditMiddleware({
+    action: "update",
+    category: "security",
+    resource: "User",
+    description: "Reset a user's two-factor sign-in",
+  }),
+  resetUserTwoFactor
 );
 
 export default router;

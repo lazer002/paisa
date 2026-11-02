@@ -25,6 +25,7 @@ import { ROLES } from "../config/constants.js";
 import logger from "../config/logger.js";
 
 import { User } from "../models/User.js";
+import RefreshSession from "../models/RefreshSession.js";
 import Organization from "../models/organization.js";
 import { Conversation } from "../models/Conversation.js";
 
@@ -104,6 +105,21 @@ export const resolveSocketUser = async (token) => {
         "TOKEN_REVOKED"
       );
     }
+  }
+
+  // Same rule as authenticate.js: a signed-out session cannot reconnect.
+  if (
+    payload.sid &&
+    !(await RefreshSession.exists({
+      _id: payload.sid,
+      userId: payload.sub,
+      revokedAt: null,
+    }))
+  ) {
+    throw new SocketAuthError(
+      "Authentication session has been revoked",
+      "TOKEN_REVOKED"
+    );
   }
 
   const user = await User.findById(payload.sub)
