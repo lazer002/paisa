@@ -1,5 +1,10 @@
-import { useState } from 'react'
-import { LogIn, LogOut, MapPin, Trash2, KeyRound, Pencil } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import QRCode from 'qrcode'
+import { LogIn, LogOut, MapPin, Trash2, KeyRound, Pencil, ScanLine, Maximize2 } from 'lucide-react'
+
+import QrScanner from './QrScanner'
+import { attendanceLink, canScanInPage, extractAttendanceCode } from './qr'
 
 import {
   useSelfCheckMutation,
@@ -90,26 +95,52 @@ export function SelfCheckPanel() {
   )
 }
 
-/** Student side: enter the code the teacher shows in class. */
+/**
+ * Student side: type the code the teacher shows, scan its QR here, or arrive
+ * from the phone camera with ?code= in the link (submitted automatically).
+ */
 export function ClassCodePanel() {
   const [scanQr, { isLoading }] = useScanQrMutation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [code, setCode] = useState('')
+  const [scanning, setScanning] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
 
-  const submit = async () => {
-    if (!code.trim()) return
-    try {
-      await scanQr(code.trim()).unwrap()
-      setCode('')
-      setToast({ msg: 'Attendance marked', tone: 'success' })
-    } catch (e) {
-      setToast({ msg: errorMessage(e, 'Could not mark attendance'), tone: 'critical' })
-    }
-  }
+  const submit = useCallback(
+    async (value: string) => {
+      if (!value.trim()) return
+      try {
+        const res = await scanQr(value.trim()).unwrap()
+        setCode('')
+        setToast({ msg: (res as { message?: string } | undefined)?.message ?? 'Attendance marked', tone: 'success' })
+      } catch (e) {
+        setToast({ msg: errorMessage(e, 'Could not mark attendance'), tone: 'critical' })
+      }
+    },
+    [scanQr],
+  )
+
+  // Arrived from a scanned class QR: use its code once, then drop it from the URL.
+  const linkCode = extractAttendanceCode(searchParams.get('code'))
+  const usedLink = useRef(false)
+  useEffect(() => {
+    if (!linkCode || usedLink.current) return
+    usedLink.current = true
+    setSearchParams({}, { replace: true })
+    void submit(linkCode)
+  }, [linkCode, setSearchParams, submit])
+
+  const onScanned = useCallback(
+    (scanned: string) => {
+      setScanning(false)
+      void submit(scanned)
+    },
+    [submit],
+  )
 
   return (
-    <Card title="Class attendance code" hint="Enter the code your teacher shows in class">
-      <div className="flex gap-2">
+    <Card title="Class attendance code" hint="Scan the QR your teacher shows (phone camera works too) or type the code">
+      <div className="flex flex-wrap gap-2">
         <input
           className={`${inputCls} max-w-[12rem] font-mono uppercase tracking-widest`}
           placeholder="ABCD2345"
@@ -117,10 +148,60 @@ export function ClassCodePanel() {
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
         />
-        <Button onClick={submit} loading={isLoading}><KeyRound size={15} /> Mark me present</Button>
+        <Button onClick={() => submit(code)} loading={isLoading}><KeyRound size={15} /> Mark me present</Button>
+        {canScanInPage() && !scanning && (
+          <Button variant="secondary" onClick={() => setScanning(true)}><ScanLine size={15} /> Scan QR</Button>
+        )}
       </div>
+      {scanning && <QrScanner onCode={onScanned} onClose={() => setScanning(false)} />}
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </Card>
+  )
+}
+
+/** The opened code as a QR (encodes the attendance link) with a full-screen view for projecting. */
+function OpenedCode({ opened }: { opened: QrSessionOpened }) {
+  const [qr, setQr] = useState('')
+  const [fullScreen, setFullScreen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    QRCode.toDataURL(attendanceLink(opened.code), { margin: 1, width: 480 })
+      .then((url) => !cancelled && setQr(url))
+      .catch(() => !cancelled && setQr(''))
+    return () => {
+      cancelled = true
+    }
+  }, [opened.code])
+
+  const until = new Date(opened.expiresAt).toLocaleTimeString()
+
+  return (
+    <>
+      <div className="flex flex-col items-center gap-3 rounded-xl bg-gray-50 p-4 text-center sm:flex-row sm:text-left">
+        {qr && <img src={qr} alt={`QR code for class code ${opened.code}`} className="h-40 w-40 rounded-lg bg-white p-1" />}
+        <div className="space-y-1">
+          <p className="font-mono text-3xl font-bold tracking-[0.3em] text-gray-900">{opened.code}</p>
+          <p className="text-xs text-gray-400">Valid until {until} — this code is not shown again</p>
+          <Button size="sm" variant="secondary" onClick={() => setFullScreen(true)}>
+            <Maximize2 size={14} /> Show full screen
+          </Button>
+        </div>
+      </div>
+
+      {fullScreen && (
+        <div
+          role="dialog"
+          aria-label="Class attendance code"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white p-6"
+          onClick={() => setFullScreen(false)}
+        >
+          {qr && <img src={qr} alt={`QR code for class code ${opened.code}`} className="h-[min(70vh,70vw)] w-[min(70vh,70vw)]" />}
+          <p className="font-mono text-5xl font-bold tracking-[0.3em] text-gray-900">{opened.code}</p>
+          <p className="text-sm text-gray-500">Scan with your phone camera or type the code · valid until {until} · click to close</p>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -148,7 +229,7 @@ export function OpenSessionPanel() {
   const active = (sessions ?? []).filter((s) => s.status === 'active' && new Date(s.expiresAt) > new Date())
 
   return (
-    <Card title="Class attendance code" hint="Students enter this code to mark themselves present">
+    <Card title="Class attendance code" hint="Students scan the QR or type the code to mark themselves present">
       <div className="flex flex-wrap items-end gap-2">
         <select className={`${inputCls} max-w-xs`} value={classId} onChange={(e) => setClassId(e.target.value)}>
           <option value="">Select class</option>
@@ -168,14 +249,7 @@ export function OpenSessionPanel() {
         <Button onClick={start} loading={isLoading} disabled={!classId}>Start session</Button>
       </div>
 
-      {opened && (
-        <div className="rounded-xl bg-gray-50 p-4 text-center">
-          <p className="font-mono text-3xl font-bold tracking-[0.3em] text-gray-900">{opened.code}</p>
-          <p className="mt-1 text-xs text-gray-400">
-            Valid until {new Date(opened.expiresAt).toLocaleTimeString()} — this code is not shown again
-          </p>
-        </div>
-      )}
+      {opened && <OpenedCode opened={opened} />}
 
       {active.length > 0 && (
         <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">

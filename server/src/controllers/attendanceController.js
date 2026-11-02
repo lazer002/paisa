@@ -57,6 +57,29 @@ export const markAttendance = asyncHandler(async (req, res) => {
     });
   }
 
+  // Who may appear on the register: a class register holds its enrolled
+  // students; the staff register holds everyone except students and parents.
+  const ids = resolvedRecords.map((r) => r.userId);
+
+  if (resolvedClassId) {
+    const cls = await Class.findById(resolvedClassId).select("studentIds").lean();
+    const enrolled = new Set((cls?.studentIds ?? []).map(String));
+
+    if (ids.some((id) => !enrolled.has(String(id)))) {
+      throw ApiError.badRequest(
+        "Only students enrolled in this class can be marked on its register",
+        "NOT_IN_CLASS"
+      );
+    }
+  } else if (
+    await User.exists({ _id: { $in: ids }, role: { $in: ["student", "parent"] } })
+  ) {
+    throw ApiError.badRequest(
+      "Students and parents are marked on a class register, not the staff register",
+      "NOT_STAFF"
+    );
+  }
+
   const ops = resolvedRecords.map(
     ({ userId, status, notes }) =>
       Attendance.findOneAndUpdate(

@@ -52,7 +52,8 @@ function MarkPanel({ classes }: { classes: ClassOption[] }) {
   const cls = classes.find((c) => rid(c) === classRef)
   const memberIds = new Set((cls?.studentIds ?? []).map(idOf))
   const people = (users ?? []).filter(
-    (u) => u.status !== 'inactive' && (cls ? memberIds.has(u._id) : u.role !== 'student'),
+    // Class register: its members. Staff register: everyone but students and parents.
+    (u) => u.status !== 'inactive' && (cls ? memberIds.has(u._id) : u.role !== 'student' && u.role !== 'parent'),
   )
 
   // Prefill with what is already saved for this register and date.

@@ -40,7 +40,7 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 | Payments | **Razorpay**, built as if keys exist (`RAZORPAY_KEY_ID` — `RAZORPAY_KEY` also accepted — `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in server/.env). As of 2026-11-02 server/.env holds **placeholder test keys that Razorpay rejects (401)**; the owner will paste real ones later — no code change needed, just restart the API |
 | Email | **Resend API** (`RESEND_API_KEY`, `EMAIL_FROM`); log to console when unset |
 | File storage | **Local disk now, S3-ready** adapter (`STORAGE_PROVIDER=local`, `STORAGE_PATH=./uploads`) |
-| Commits | **One verified commit per wave** on `feature/roles-polaris`; never push without asking |
+| Commits | **One verified commit per wave** on `feature/roles-polaris`. 2026-11-02 the owner asked to "push everything on main": `main` is fast-forwarded to the branch (`git push origin HEAD:main`, never force) after each verified wave |
 | Defaults (not asked) | Live video = Jitsi meeting links (no key) · realtime = socket.io · AI features only when an API key is set |
 
 ### Waves
@@ -363,7 +363,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Tests / questions / attempts | 5/5 + 4/4 + 4/4 | 82% | No proctoring |
 | Study materials | 4/4 | 85% | Abandoned (never-attached) uploads not cleaned up |
 | Live sessions | 6/7 | 75% | No recording (Jitsi embed + attendance done) |
-| Attendance | 5/5 | 75% | Device kiosk · QR image (class registers + org records view done) |
+| Attendance | 5/5 | 88% | Device kiosk (QR image + camera scan + scan-link done 2026-11-02) |
 | Certificates | 4/4 + public verify | 80% | Templates |
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
@@ -383,7 +383,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Reports | 10/10 | 80% | Per-role trend charts + breakdowns with date range and CSV/print of every chart (2026-11-02). No scheduled/emailed reports |
 | Files | 3/3 | 78% | S3 adapter is a stub |
 
-Not built anywhere: SMS/push, i18n, QR image, AI features (scheduled jobs done 2026-11-02, Wave 9). Unused models: Device,
+Not built anywhere: SMS/push, i18n, AI features (scheduled jobs done 2026-11-02 Wave 9, attendance QR Wave 10). Unused models: Device,
 AttendanceEvent, Streak, Leaderboard (CRMNote.js and the stray Invoice.js were deleted 2026-11-01).
 
 ### Previous audit (2026-10-27, superseded)
@@ -528,6 +528,17 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 10: attendance QR.** The opened class code is also a QR (`qrcode`) encoding
+  `<origin>/dashboard/attendance?code=XXXX`, with a full-screen view for projecting. Students: any phone camera
+  opens that link; `ClassCodePanel` submits a `?code=` once and strips it from the URL; where the browser has
+  `BarcodeDetector` + a camera there is an in-page "Scan QR" (`components/attendance/QrScanner.tsx`); typing still
+  works. `AuthGuard` now passes `state.from` and LoginPage returns there (same-site `/dashboard…` paths only), so a
+  signed-out scan survives login. Fixed: the staff register listed parents (client filter), and the server now
+  enforces registers — class register = enrolled students only (400 `NOT_IN_CLASS`), staff register = no
+  students/parents (400 `NOT_STAFF`). Verified: headless-Chrome scan-link flow (redirect → login → back → marked,
+  server scanCount 1), register rules live 6/6, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), unit 69/69,
+  client lint + build, screenshots (teacher QR, student marked). Pushed to `main` on the owner's request.
 
 - **2026-11-02 — Wave 9: scheduled jobs.** `src/jobs/scheduler.js` runs an in-process tick every minute (first
   tick 15 s after start; `JOBS_ENABLED=false` turns scheduling off). `JobRun` (one row per job) is both the

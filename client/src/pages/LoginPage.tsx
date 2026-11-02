@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAppDispatch, useAppSelector } from '@/app/store'
 import { setAuth } from '@/lib/store/authSlice'
@@ -10,6 +10,10 @@ export default function LoginPage() {
   const dispatch = useAppDispatch()
 
   const user = useAppSelector((s) => s.auth.user)
+
+  // Back to the page that sent the visitor here; same-site dashboard paths only.
+  const from = (useLocation().state as { from?: string } | null)?.from
+  const returnTo = from?.startsWith('/dashboard') && !from.startsWith('//') ? from : '/dashboard'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,7 +28,7 @@ export default function LoginPage() {
 
   // Redirect already logged-in users
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={returnTo} replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,7 +60,7 @@ export default function LoginPage() {
       // Access token goes to Redux memory; refresh token is an httpOnly cookie
       dispatch(setAuth({ user, token: accessToken }))
 
-      navigate('/dashboard')
+      navigate(returnTo)
     } catch (err) {
       // An expired challenge means starting over with the password.
       if ((err as { response?: { data?: { code?: string } } })?.response?.data?.code === 'TWO_FACTOR_CHALLENGE_INVALID') {
