@@ -280,6 +280,7 @@ export const PERMISSIONS = {
   SETTINGS_READ: 'settings:read',
   SETTINGS_UPDATE: 'settings:update',
   SETTINGS_MANAGE: 'settings:manage',
+  SYSTEM_JOB_MANAGE: 'system_job:manage',
 } as const
 
 export type Permission =
@@ -556,6 +557,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   'settings:read',
   'settings:update',
   'settings:manage',
+  'system_job:manage',
 ]
 
 /**
@@ -836,6 +838,7 @@ export const ROLE_PERMISSIONS: Readonly<
     'settings:read',
     'settings:update',
     'settings:manage',
+    'system_job:manage',
   ],
   admin: [
     'organization:read',

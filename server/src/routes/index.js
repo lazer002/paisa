@@ -33,6 +33,7 @@ import billingRoutes from "./billingRoutes.js";
 import paymentRoutes from "./paymentRoutes.js";
 import subscriptionRoutes from "./subscriptionRoutes.js";
 import auditRoutes from "./auditRoutes.js";
+import jobRoutes from "./jobRoutes.js";
 import geofenceRoutes from "./geofenceRoutes.js";
 import qrSessionRoutes from "./qrSessionRoutes.js";
 import contactRoutes from "./contactRoutes.js";
@@ -73,6 +74,7 @@ const router = express.Router();
 // ─────────────────────────────────────────────
 
 const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
+  auth: "authentication",
   users: "user_management",
   organizations: "organization",
   classes: "education",
@@ -321,6 +323,12 @@ router.use(
 router.use(
   "/audit-logs",
   auditRoutes
+);
+
+// Platform scheduled jobs (super_admin)
+router.use(
+  "/jobs",
+  jobRoutes
 );
 
 router.use(

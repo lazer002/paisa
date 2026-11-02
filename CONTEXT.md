@@ -383,7 +383,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Reports | 10/10 | 80% | Per-role trend charts + breakdowns with date range and CSV/print of every chart (2026-11-02). No scheduled/emailed reports |
 | Files | 3/3 | 78% | S3 adapter is a stub |
 
-Not built anywhere: scheduled jobs, SMS/push, i18n, QR image, AI features. Unused models: Device,
+Not built anywhere: SMS/push, i18n, QR image, AI features (scheduled jobs done 2026-11-02, Wave 9). Unused models: Device,
 AttendanceEvent, Streak, Leaderboard (CRMNote.js and the stray Invoice.js were deleted 2026-11-01).
 
 ### Previous audit (2026-10-27, superseded)
@@ -528,6 +528,24 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Wave 9: scheduled jobs.** `src/jobs/scheduler.js` runs an in-process tick every minute (first
+  tick 15 s after start; `JOBS_ENABLED=false` turns scheduling off). `JobRun` (one row per job) is both the
+  cross-process lock (10-min `lockedUntil`) and the last-run record; a run that died mid-way shows "interrupted"
+  and is retried on the next tick. Jobs: `invoice-overdue` (hourly; model `markOverdue()` + history entry; payer
+  and guardians notified once), `subscription-expiry` (hourly; `reconcileSubscription`), `assignment-due-reminders`
+  (hourly; due within 24 h, students without a submission), `live-session-reminders` (5 min; ≤15 min before start,
+  host + class + participants), `ticket-sla` (15 min; past `sla.resolutionDueAt` → `sla.status: breached`, assignee
+  or the org's support/admin alerted), `upload-cleanup` (daily; files never linked within a day — avatars are
+  linked at upload), `session-cleanup` (daily; expired refresh sessions), `leave-balances` (daily; this year's
+  balances incl. carry-over). `services/notify.js` `notifyOnce` dedupes by `reference.kind/id` per user. API
+  `GET /api/jobs`, `POST /api/jobs/:name/run` gated by new permission `system_job:manage` (no role holds it →
+  super_admin only; client permissions regenerated, 271 perms). Client: Platform → System Jobs page (status, last
+  result, next run, Run now). Also: per-route `auditMiddleware` removed from authenticated Wave-8 routes (the
+  global hook in routes/index.js already audits them; `auth` resource now maps to category `authentication`);
+  demo super_admin renamed back to "Demo Super Admin". Verified: unit 69/69, wave9 live 27/27 (each job's effect
+  checked, dedupe on re-run, 403 for admin), smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), wave8 44/44,
+  client lint + build, screenshot.
 
 - **2026-11-02 — Wave 8: two-factor sign-in + signed-in devices.** Owner: "complete everything, don't ask again".
   `services/twoFactorService.js`: RFC 6238 TOTP (SHA-1, 30 s, 6 digits, ±1 step, used step stored in

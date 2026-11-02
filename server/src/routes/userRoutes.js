@@ -19,7 +19,6 @@ import {
   revokeUserSessions,
   resetUserTwoFactor,
 } from "../controllers/userSecurityController.js";
-import { auditMiddleware } from "../middleware/audit.js";
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -142,24 +141,12 @@ router.get(
 router.post(
   "/:publicId/sessions/revoke",
   securityManager,
-  auditMiddleware({
-    action: "logout",
-    category: "security",
-    resource: "User",
-    description: "Signed a user out everywhere",
-  }),
   revokeUserSessions
 );
 
 router.post(
   "/:publicId/2fa/reset",
   securityManager,
-  auditMiddleware({
-    action: "update",
-    category: "security",
-    resource: "User",
-    description: "Reset a user's two-factor sign-in",
-  }),
   resetUserTwoFactor
 );
 

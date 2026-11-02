@@ -116,17 +116,12 @@ router.post(
   twoFactorSetup
 );
 
+// Authenticated writes are audited by the global hook in routes/index.js.
 router.post(
   "/2fa/enable",
   authenticate,
   authRateLimiter,
   validateBody(twoFactorEnableSchema),
-  auditMiddleware({
-    action: "update",
-    category: "security",
-    resource: "User",
-    description: "Two-factor sign-in turned on",
-  }),
   twoFactorEnable
 );
 
@@ -135,12 +130,6 @@ router.post(
   authenticate,
   authRateLimiter,
   validateBody(twoFactorConfirmSchema),
-  auditMiddleware({
-    action: "update",
-    category: "security",
-    resource: "User",
-    description: "Two-factor sign-in turned off",
-  }),
   twoFactorDisable
 );
 
@@ -162,24 +151,12 @@ router.get("/sessions", authenticate, listSessions);
 router.post(
   "/sessions/revoke-others",
   authenticate,
-  auditMiddleware({
-    action: "logout",
-    category: "authentication",
-    resource: "RefreshSession",
-    description: "Signed out of all other devices",
-  }),
   revokeOtherSessions
 );
 
 router.delete(
   "/sessions/:sessionId",
   authenticate,
-  auditMiddleware({
-    action: "logout",
-    category: "authentication",
-    resource: "RefreshSession",
-    description: "Signed out of a device",
-  }),
   revokeSession
 );
 

@@ -390,6 +390,9 @@ const PERMISSIONS = Object.freeze({
   SETTINGS_READ: "settings:read",
   SETTINGS_UPDATE: "settings:update",
   SETTINGS_MANAGE: "settings:manage",
+
+  // Platform scheduled jobs (no role holds it; super_admin passes every check)
+  SYSTEM_JOB_MANAGE: "system_job:manage",
 });
 
 const ALL_PERMISSIONS = Object.freeze(

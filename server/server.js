@@ -22,6 +22,10 @@ import {
   initRealtime,
   closeRealtime,
 } from "./src/realtime/socket.js";
+import {
+  startScheduler,
+  stopScheduler,
+} from "./src/jobs/scheduler.js";
 
 let server = null;
 let shuttingDown = false;
@@ -125,6 +129,11 @@ if (env.REDIS_REQUIRED) {
     );
 
     /*
+     * Scheduled jobs (JOBS_ENABLED=false to turn off)
+     */
+    startScheduler();
+
+    /*
      * Request timeout
      */
     if (env.REQUEST_TIMEOUT > 0) {
@@ -177,6 +186,8 @@ const shutdown = async (signal) => {
   /*
    * Stop accepting new connections
    */
+  stopScheduler();
+
   if (server) {
     // Open websockets would keep server.close() waiting.
     closeRealtime();

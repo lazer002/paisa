@@ -27,6 +27,7 @@ import {
   IndianRupee,
   MessageSquare,
   Video,
+  Timer,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -66,6 +67,7 @@ export const PATH_PERMISSION: Record<string, Permission | Permission[]> = {
   '/dashboard/users': 'user:manage',
   '/dashboard/reports': 'report:read',
   '/dashboard/audit-log': 'audit:read',
+  '/dashboard/system-jobs': 'system_job:manage',
 
   // Organization
   '/dashboard/departments': 'department:read',
@@ -181,6 +183,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: ShieldCheck,
         path: '/dashboard/audit-log',
         roles: ['super_admin', 'admin'],
+      },
+      {
+        label: 'System Jobs',
+        icon: Timer,
+        path: '/dashboard/system-jobs',
+        roles: ['super_admin'],
       },
       {
         label: 'Reports',
