@@ -9,6 +9,7 @@ import {
   getTicketAssignees,
   updateTicket,
   deleteTicket,
+  mergeTicket,
   addTicketMessage,
   getTicketTemplates,
   createTicketTemplate,
@@ -26,6 +27,7 @@ import {
   createTicketSchema,
   updateTicketSchema,
   ticketMessageSchema,
+  mergeTicketSchema,
   createTicketTemplateSchema,
   updateTicketTemplateSchema,
 } from "../validators/ticketValidator.js";
@@ -92,6 +94,13 @@ router.post(
   authorize({ anyPermissions: ["ticket_message:create", "ticket:update"] }),
   body(ticketMessageSchema),
   addTicketMessage
+);
+
+router.post(
+  "/:publicId/merge",
+  authorize({ anyPermissions: ["ticket:update"] }),
+  body(mergeTicketSchema),
+  mergeTicket
 );
 
 router.put(

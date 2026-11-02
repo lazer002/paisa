@@ -6,7 +6,7 @@
 
 import api from '@/lib/api/axios'
 
-export type FilePurpose = 'employee_document' | 'study_material' | 'submission' | 'avatar'
+export type FilePurpose = 'employee_document' | 'study_material' | 'submission' | 'avatar' | 'chat_attachment'
 
 export interface StoredFile {
   _id: string

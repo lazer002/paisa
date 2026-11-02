@@ -8,6 +8,7 @@ import {
   useLazyPreviewPayrollQuery,
   type GenerateSummary,
   type RunOptions,
+  type UnitCounts,
 } from '@/features/payroll/payrollApi'
 import { useGetSalaryStructuresQuery } from '@/features/platform/platformApi'
 import { rid } from '@/features/users/usersApi'
@@ -32,6 +33,15 @@ export default function PayrollRunPanel() {
   const [previewUser, setPreviewUser] = useState('')
   const [summary, setSummary] = useState<GenerateSummary | null>(null)
   const [error, setError] = useState('')
+  // Unit counts for per_unit components this run: { userPublicId: { CODE: n } }
+  const [units, setUnits] = useState<Record<string, UnitCounts>>({})
+  const setUnit = (userId: string, code: string, value: string) =>
+    setUnits((prev) => {
+      const forUser = { ...(prev[userId] ?? {}) }
+      if (value === '') delete forUser[code]
+      else forUser[code] = Math.max(0, Number(value) || 0)
+      return { ...prev, [userId]: forUser }
+    })
 
   const { data: assignments } = useGetSalaryAssignmentsQuery()
   const { data: structures } = useGetSalaryStructuresQuery({ status: 'active' })
@@ -44,7 +54,7 @@ export default function PayrollRunPanel() {
   const runGenerate = async () => {
     setError('')
     try {
-      setSummary(await generate(options).unwrap())
+      setSummary(await generate({ ...options, units }).unwrap())
     } catch (e) {
       setError(errorText(e, 'Payroll generation failed'))
     }
@@ -121,7 +131,7 @@ export default function PayrollRunPanel() {
             </Field>
           </div>
           <Button variant="secondary" disabled={!previewUser} loading={previewing}
-            onClick={() => loadPreview({ ...options, userId: previewUser })}>
+            onClick={() => loadPreview({ ...options, userId: previewUser, units: units[previewUser] })}>
             <Eye size={16} /> Preview
           </Button>
         </div>
@@ -167,6 +177,7 @@ export default function PayrollRunPanel() {
                   <th className="py-2 font-medium">Employee</th>
                   <th className="py-2 font-medium">Role</th>
                   <th className="py-2 font-medium">Salary structure</th>
+                  <th className="py-2 font-medium">Units this run</th>
                 </tr>
               </thead>
               <tbody>
@@ -183,6 +194,27 @@ export default function PayrollRunPanel() {
                           <option key={rid(s)} value={rid(s)}>{s.name} ({money(s.baseSalary)})</option>
                         ))}
                       </select>
+                    </td>
+                    <td className="py-2">
+                      {a.user?.publicId && (a.salaryStructure?.perUnitComponents ?? []).length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {(a.salaryStructure?.perUnitComponents ?? []).map((c) => (
+                            <label key={c.code} className="flex items-center gap-1 text-xs text-gray-600">
+                              {c.name}
+                              <input
+                                type="number"
+                                min={0}
+                                className={`${inputCls} w-20`}
+                                value={units[a.user!.publicId!]?.[c.code] ?? ''}
+                                onChange={(e) => setUnit(a.user!.publicId!, c.code, e.target.value)}
+                                title={`${money(c.perUnitAmount ?? 0)} per ${c.unit ?? 'unit'}`}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

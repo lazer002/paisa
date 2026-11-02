@@ -15,6 +15,7 @@ export const FILE_PURPOSES = Object.freeze([
   "study_material",
   "submission",
   "avatar",
+  "chat_attachment",
 ]);
 
 export const FILE_LINK_KINDS = Object.freeze([
@@ -22,6 +23,7 @@ export const FILE_LINK_KINDS = Object.freeze([
   "study_material",
   "submission",
   "user",
+  "message",
 ]);
 
 /**

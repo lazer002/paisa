@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Plus, Trash2, ArrowUp, ArrowDown, X, GitBranch } from 'lucide-react'
+import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, X, GitBranch } from 'lucide-react'
 
 import {
   useGetPipelinesQuery,
   useCreatePipelineMutation,
+  useUpdatePipelineMutation,
   useDeletePipelineMutation,
   type Pipeline,
 } from '@/features/platform/platformApi'
@@ -12,7 +13,8 @@ import { usePermission } from '@/lib/auth/usePermission'
 import Button from '@/components/ui/button'
 import { SectionCard, StatusBadge, ModalShell, Field, inputCls, Toast } from '@/components/ui/kit'
 
-type StageDraft = { name: string; type: 'open' | 'won' | 'lost' }
+// `key` is kept for existing stages so renaming doesn't orphan deals using it.
+type StageDraft = { name: string; type: 'open' | 'won' | 'lost'; key?: string }
 
 const PIPELINE_TYPES = ['sales', 'admissions', 'enrollment', 'renewal', 'support', 'custom']
 
@@ -33,26 +35,48 @@ const STAGE_TONE: Record<string, string> = {
 const errMsg = (e: unknown, fallback: string) =>
   (e as { data?: { message?: string } })?.data?.message ?? fallback
 
-/** CRM pipelines: list with ordered stages, create, delete. */
+/** CRM pipelines: list with ordered stages, create, edit, delete. */
 export default function PipelinesPanel() {
   const { can } = usePermission()
   const canCreate = can('pipeline:create')
+  const canUpdate = can('pipeline:update')
   const canDelete = can('pipeline:delete')
 
   const { data: pipelines, isLoading, isError, refetch } = useGetPipelinesQuery()
   const [createPipeline, { isLoading: creating }] = useCreatePipelineMutation()
+  const [updatePipeline, { isLoading: updating }] = useUpdatePipelineMutation()
   const [deletePipeline] = useDeletePipelineMutation()
 
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  // publicId of the pipeline being edited; null while the modal creates one
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [type, setType] = useState('sales')
   const [stages, setStages] = useState<StageDraft[]>(DEFAULT_STAGES)
 
   const resetForm = () => {
+    setEditingId(null)
     setName('')
     setType('sales')
     setStages(DEFAULT_STAGES)
+  }
+
+  const openCreate = () => {
+    resetForm()
+    setShowCreate(true)
+  }
+
+  const openEdit = (p: Pipeline) => {
+    setEditingId(rid(p))
+    setName(p.name)
+    setType(p.type ?? 'sales')
+    setStages(
+      [...(p.stages ?? [])]
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((s) => ({ name: s.name, key: s.key, type: (s.type as StageDraft['type']) ?? 'open' })),
+    )
+    setShowCreate(true)
   }
 
   const updateStage = (index: number, patch: Partial<StageDraft>) =>
@@ -74,13 +98,15 @@ export default function PipelinesPanel() {
 
   const submit = async () => {
     if (!canSubmit) return
+    const payload = { name: name.trim(), type, stages: cleanStages }
     try {
-      await createPipeline({ name: name.trim(), type, stages: cleanStages }).unwrap()
+      if (editingId) await updatePipeline({ id: editingId, payload }).unwrap()
+      else await createPipeline(payload).unwrap()
       setShowCreate(false)
+      setToast({ msg: editingId ? 'Pipeline updated' : 'Pipeline created', tone: 'success' })
       resetForm()
-      setToast({ msg: 'Pipeline created', tone: 'success' })
     } catch (e) {
-      setToast({ msg: errMsg(e, 'Failed to create pipeline'), tone: 'critical' })
+      setToast({ msg: errMsg(e, editingId ? 'Failed to update pipeline' : 'Failed to create pipeline'), tone: 'critical' })
     }
   }
 
@@ -98,7 +124,7 @@ export default function PipelinesPanel() {
     <div className="space-y-4">
       {canCreate && (
         <div className="flex justify-end">
-          <Button onClick={() => setShowCreate(true)}><Plus size={15} /> New Pipeline</Button>
+          <Button onClick={openCreate}><Plus size={15} /> New Pipeline</Button>
         </div>
       )}
 
@@ -121,7 +147,7 @@ export default function PipelinesPanel() {
           <p className="text-sm text-gray-500">No pipelines yet</p>
           <p className="mt-0.5 text-xs text-gray-400">Define the stages your deals move through</p>
           {canCreate && (
-            <Button className="mt-3" onClick={() => setShowCreate(true)}><Plus size={15} /> New Pipeline</Button>
+            <Button className="mt-3" onClick={openCreate}><Plus size={15} /> New Pipeline</Button>
           )}
         </div>
       ) : (
@@ -140,6 +166,16 @@ export default function PipelinesPanel() {
                       {p.type ?? 'sales'} · {ordered.length} stage{ordered.length === 1 ? '' : 's'}
                     </p>
                   </div>
+                  {canUpdate && (
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                      title="Edit pipeline"
+                      aria-label={`Edit pipeline ${p.name}`}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       onClick={() => remove(p)}
@@ -170,12 +206,12 @@ export default function PipelinesPanel() {
       <ModalShell
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="New Pipeline"
+        title={editingId ? 'Edit Pipeline' : 'New Pipeline'}
         size="lg"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={submit} disabled={!canSubmit || creating}>Create Pipeline</Button>
+            <Button onClick={submit} disabled={!canSubmit || creating || updating}>{editingId ? 'Save' : 'Create Pipeline'}</Button>
           </>
         }
       >

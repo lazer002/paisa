@@ -144,6 +144,19 @@ test("formula components are evaluated in order", () => {
   assert.equal(s.netSalary, 37200);
 });
 
+test("per_unit components use the run's unit count (0 when none given)", () => {
+  const structure = {
+    baseSalary: 20000,
+    components: [
+      { code: "CLASSES", name: "Extra classes", type: "earning", category: "other", calculationType: "per_unit", perUnitAmount: 500, proratable: false },
+    ],
+  };
+  const breakdown = { workingDays: 20, lopDays: 0, paidDays: 20 };
+
+  assert.equal(computeSalary({ structure, breakdown }).grossSalary, 20000);
+  assert.equal(computeSalary({ structure, breakdown, units: { CLASSES: 6 } }).allowances.other, 3000);
+});
+
 test("PF is on earned basic; LOP can be disabled", () => {
   const breakdown = { workingDays: 20, lopDays: 5 };
   const structure = {

@@ -435,6 +435,97 @@ export const deleteTicket = asyncHandler(
 );
 
 /* =========================================================
+   MERGE
+   Folds a duplicate ticket into another one of the same
+   requester: the duplicate's messages move to the target,
+   the duplicate is closed with parentTicketId -> target, and
+   both threads get a staff note. Different requesters are
+   refused so nobody sees another person's messages.
+========================================================= */
+
+export const mergeTicket = asyncHandler(async (req, res) => {
+  if (!STAFF_ROLES.includes(req.user.role)) {
+    throw forbidden();
+  }
+
+  const source = await Ticket.findOne(
+    scoped(req, { publicId: req.params.publicId })
+  );
+
+  if (!source) {
+    return sendNotFound(res, "Ticket not found");
+  }
+
+  const target = await Ticket.findOne({
+    publicId: String(req.body.into ?? ""),
+    instituteId: source.instituteId,
+  });
+
+  if (!target) {
+    return sendNotFound(res, "Target ticket not found");
+  }
+
+  if (String(target._id) === String(source._id)) {
+    return sendError(res, { statusCode: 400, code: "MERGE_SELF", message: "A ticket can't be merged into itself" });
+  }
+
+  if (source.parentTicketId || target.parentTicketId) {
+    return sendError(res, { statusCode: 400, code: "ALREADY_MERGED", message: "One of these tickets was already merged" });
+  }
+
+  if (String(source.requesterId) !== String(target.requesterId)) {
+    return sendError(res, {
+      statusCode: 400,
+      code: "DIFFERENT_REQUESTER",
+      message: "Only tickets from the same requester can be merged",
+    });
+  }
+
+  const moved = await TicketMessage.updateMany(
+    { ticketId: source._id },
+    { $set: { ticketId: target._id } }
+  );
+
+  const note = (ticket, body) =>
+    TicketMessage.create({
+      instituteId: ticket.instituteId,
+      ticketId: ticket._id,
+      authorId: req.user._id,
+      body,
+      type: "internal_note",
+      internal: { visibleToCustomer: false, visibleToAgents: true },
+      source: "web",
+    });
+
+  await note(
+    target,
+    `Merged ticket ${source.publicId} ("${source.subject}") into this one; ${moved.modifiedCount} message(s) moved.`
+  );
+  await note(source, `Merged into ${target.publicId} ("${target.subject}").`);
+
+  const now = new Date();
+  source.parentTicketId = target._id;
+  source.status = "closed";
+  source.closedAt = now;
+  source.closedBy = req.user._id;
+  if (!source.sla.resolvedAt) {
+    source.sla.resolvedAt = now;
+    source.sla.status = "completed";
+  }
+  await source.save();
+
+  if (!target.relatedTicketIds.some((id) => String(id) === String(source._id))) {
+    target.relatedTicketIds.push(source._id);
+  }
+  await target.save();
+
+  return sendSuccess(res, {
+    message: "Tickets merged",
+    data: { ticket: withAssignee(target), mergedFrom: source.publicId, movedMessages: moved.modifiedCount },
+  });
+});
+
+/* =========================================================
    MESSAGES
 ========================================================= */
 

@@ -30,7 +30,8 @@
 //   per_day x working days / per_hour x hours x working days / formula
 //   (services/salaryFormula.js; reads BASIC, GROSS, CTC, WORKING_DAYS,
 //   PAID_DAYS, LOP_DAYS, HOURS_PER_DAY and earlier component codes).
-//   per_unit components need a unit count per run and count as 0.
+//   per_unit = perUnitAmount x the unit count entered for this run
+//   (units[code], 0 when none was entered).
 // - Proration (mid-month joiners/leavers): basic and proratable earnings are
 //   scaled by employed working days / working days. ESI eligibility uses the
 //   full-month gross.
@@ -215,7 +216,7 @@ const monthlyBasicOf = (structure, workingDays) => {
 /**
  * Turn a salary structure + day breakdown into Payroll fields.
  */
-export const computeSalary = ({ structure, breakdown }) => {
+export const computeSalary = ({ structure, breakdown, units = {} }) => {
   const workingDays = breakdown.workingDays;
   const hoursPerDay = Number(structure.leave?.workingHoursPerDay) || 8;
 
@@ -276,7 +277,7 @@ export const computeSalary = ({ structure, breakdown }) => {
         }
         break;
       case "per_unit":
-        amount = 0;
+        amount = (Number(component.perUnitAmount) || 0) * (Number(units[component.code]) || 0);
         break;
       default:
         amount = Number(component.amount) || 0;

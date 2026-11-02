@@ -190,6 +190,50 @@ export const getLeads = asyncHandler(async (req, res) => {
   });
 });
 
+// Possible duplicates of a lead about to be created or edited: same email,
+// same phone (digits only, last 10), or same name + company. `exclude` skips
+// the lead being edited.
+export const checkLeadDuplicates = asyncHandler(async (req, res) => {
+  const { email, phone, firstName, lastName, company, exclude } = req.query;
+  const or = [];
+
+  const cleanEmail = String(email || "").trim();
+  if (cleanEmail) {
+    or.push({ email: { $regex: `^${escapeRegex(cleanEmail)}$`, $options: "i" } });
+  }
+
+  const digits = String(phone || "").replace(/\D/g, "").slice(-10);
+  if (digits.length >= 7) {
+    // Stored phones may contain spaces, dashes or a country code.
+    or.push({ phone: { $regex: digits.split("").join("\\D*") + "$" } });
+  }
+
+  const fullName = [firstName, lastName].map((s) => String(s || "").trim()).filter(Boolean).join(" ");
+  if (fullName) {
+    const byName = { fullName: { $regex: `^${escapeRegex(fullName)}$`, $options: "i" } };
+    const cleanCompany = String(company || "").trim();
+    or.push(
+      cleanCompany
+        ? { ...byName, companyName: { $regex: `^${escapeRegex(cleanCompany)}$`, $options: "i" } }
+        : byName
+    );
+  }
+
+  if (!or.length) {
+    return sendSuccess(res, { message: "No fields to compare", data: [] });
+  }
+
+  const query = { ...scoped(req), $or: or };
+  if (exclude) query.publicId = { $ne: String(exclude) };
+
+  const leads = await Lead.find(query).sort({ createdAt: -1 }).limit(10);
+
+  return sendSuccess(res, {
+    message: leads.length ? "Possible duplicates found" : "No duplicates",
+    data: leads.map(leadView),
+  });
+});
+
 export const getLead = asyncHandler(async (req, res) => {
   const lead = await Lead.findOne({
     publicId: req.params.publicId,
@@ -408,7 +452,14 @@ const STAGE_TYPES = ["open", "won", "lost"];
 // The Pipeline model requires a unique `key` and `order`
 // per stage. Callers send names (strings or { name, type }),
 // so keys are derived from names and order follows the
-// array position.
+// array position. A stage sent back with its `key` keeps it,
+// so renaming a stage doesn't orphan deals that use the key.
+const toKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/(^_|_$)/g, "");
+
 const normalizeStages = (stages) => {
   const keys = new Set();
 
@@ -419,10 +470,7 @@ const normalizeStages = (stages) => {
     const name = String(stage.name || "").trim();
 
     const base =
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/(^_|_$)/g, "") || `stage_${index + 1}`;
+      toKey(stage.key) || toKey(name) || `stage_${index + 1}`;
 
     let key = base;
     let suffix = 2;
@@ -509,6 +557,49 @@ export const getPipelines = asyncHandler(
     return sendSuccess(res, {
       message: "Pipelines fetched",
       data: pipelines,
+    });
+  }
+);
+
+export const updatePipeline = asyncHandler(
+  async (req, res) => {
+    const pipeline = await Pipeline.findOne({
+      publicId: req.params.publicId,
+    });
+
+    if (!pipeline) {
+      return sendNotFound(res, "Pipeline not found");
+    }
+
+    assertTenant(req, pipeline);
+
+    const { name, type, status, stages } = req.body;
+
+    if (name !== undefined) pipeline.name = name;
+    if (type !== undefined) pipeline.type = type;
+    if (status !== undefined) pipeline.status = status;
+
+    if (stages !== undefined) {
+      const normalized = normalizeStages(stages);
+
+      if (!normalized.length || normalized.some((stage) => !stage.name)) {
+        return sendError(res, 400, "Every stage needs a name");
+      }
+
+      pipeline.stages = normalized;
+      pipeline.defaultStageKey = normalized[0].key;
+      pipeline.wonStageKey =
+        normalized.find((stage) => stage.type === "won")?.key || null;
+      pipeline.lostStageKey =
+        normalized.find((stage) => stage.type === "lost")?.key || null;
+    }
+
+    pipeline.updatedBy = req.user._id;
+    await pipeline.save();
+
+    return sendSuccess(res, {
+      message: "Pipeline updated",
+      data: pipeline,
     });
   }
 );

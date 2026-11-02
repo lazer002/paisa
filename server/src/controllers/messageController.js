@@ -10,6 +10,9 @@ import { Message } from "../models/Message.js";
 import { User } from "../models/User.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
+import { escapeRegex } from "../utils/crudHelpers.js";
+import { claimFile, linkFile } from "../services/fileService.js";
+import { fileDownloadPath } from "../models/File.js";
 
 import { asyncHandler } from "../utils/errorHandler.js";
 
@@ -665,13 +668,65 @@ export const getMessages = asyncHandler(
   }
 );
 
+// Search the caller's own conversations (active participation only).
+// ?q= text (case-insensitive, min 2 chars) · ?conversationId= limits to one.
+export const searchMessages = asyncHandler(
+  async (req, res) => {
+    const q = String(req.query.q ?? "").trim();
+
+    if (q.length < 2) {
+      throw ApiError.badRequest(
+        "Search needs at least 2 characters",
+        "VALIDATION_ERROR"
+      );
+    }
+
+    const conversations = await Conversation.find({
+      ...scoped(req),
+      isDeleted: false,
+      participants: { $elemMatch: { userId: req.user._id, status: "active" } },
+      ...(req.query.conversationId ? { publicId: String(req.query.conversationId) } : {}),
+    }).select("_id publicId title type");
+
+    const byId = new Map(conversations.map((c) => [String(c._id), c]));
+    const regex = { $regex: escapeRegex(q), $options: "i" };
+
+    const messages = conversations.length
+      ? await Message.find({
+          conversationId: { $in: [...byId.keys()] },
+          status: { $ne: "deleted" },
+          $or: [{ text: regex }, { "attachments.name": regex }],
+        })
+          .sort({ createdAt: -1 })
+          .limit(50)
+      : [];
+
+    return sendSuccess(res, {
+      message: "Messages found",
+      data: messages.map((message) => {
+        const conversation = byId.get(String(message.conversationId));
+        return {
+          ...message.toJSON(),
+          conversation: {
+            publicId: conversation?.publicId,
+            title: conversation?.title ?? null,
+            type: conversation?.type,
+          },
+        };
+      }),
+    });
+  }
+);
+
 export const sendMessage = asyncHandler(
   async (req, res) => {
     const { text, type } = req.body;
+    const fileIds = [...new Set(req.body.fileIds ?? [])];
+    const cleanText = String(text ?? "").trim();
 
-    if (!text || !String(text).trim()) {
+    if (!cleanText && !fileIds.length) {
       throw ApiError.badRequest(
-        "Message text is required",
+        "Message text or an attachment is required",
         "VALIDATION_ERROR"
       );
     }
@@ -708,6 +763,15 @@ export const sendMessage = asyncHandler(
       );
     }
 
+    // Uploaded chat files, described from the stored File so the client
+    // can't fake name/size/type. Linked to the message once it exists.
+    const files = [];
+    for (const fileId of fileIds) {
+      files.push(
+        await claimFile(req, fileId, { purpose: "chat_attachment", kind: "message" })
+      );
+    }
+
     const message = await Message.create({
       instituteId: conversation.instituteId,
 
@@ -719,9 +783,17 @@ export const sendMessage = asyncHandler(
 
       senderRole: req.user.role,
 
-      type: type || "text",
+      type: type || (files.length && !cleanText ? "file" : "text"),
 
-      text: String(text).trim(),
+      text: cleanText || null,
+
+      attachments: files.map((file) => ({
+        fileId: file.publicId,
+        name: file.originalName,
+        url: fileDownloadPath(file.publicId),
+        mimeType: file.mimeType,
+        size: file.size,
+      })),
 
       // The text index reads `language` as its language override and
       // rejects the schema default of null, so give it a real value.
@@ -729,6 +801,8 @@ export const sendMessage = asyncHandler(
 
       status: "sent",
     });
+
+    await Promise.all(files.map((file) => linkFile(file, "message", message._id)));
 
     await conversation.updateLastMessage({
       messageId: message._id,
@@ -739,7 +813,9 @@ export const sendMessage = asyncHandler(
 
       type: message.type,
 
-      preview: message.text.slice(0, 200),
+      preview: cleanText
+        ? cleanText.slice(0, 200)
+        : `📎 ${files[0].originalName}${files.length > 1 ? ` +${files.length - 1}` : ""}`.slice(0, 200),
 
       createdAt: message.createdAt,
     });

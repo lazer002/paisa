@@ -8,6 +8,7 @@ import {
   useUpdateTicketMutation,
   useAddTicketMessageMutation,
   useDeleteTicketMutation,
+  useMergeTicketMutation,
   useGetTicketAssigneesQuery,
   useGetTicketTemplatesQuery,
   type SupportTicket,
@@ -67,6 +68,32 @@ export default function TicketsPage() {
   const [updateTicket] = useUpdateTicketMutation()
   const [addMessage] = useAddTicketMessageMutation()
   const [deleteTicket] = useDeleteTicketMutation()
+  const [mergeTicket] = useMergeTicketMutation()
+
+  const requesterKey = (t?: SupportTicket) =>
+    typeof t?.requesterId === 'object' ? t?.requesterId?._id : t?.requesterId
+  // Other open tickets of the same requester (the server refuses anything else).
+  const mergeTargets = ticketDetail
+    ? (tickets ?? []).filter(
+        (t) =>
+          rid(t) !== rid(ticketDetail.ticket) &&
+          !t.parentTicketId &&
+          requesterKey(t) === requesterKey(ticketDetail.ticket),
+      )
+    : []
+
+  const merge = async (into: string) => {
+    if (!openTicketId || !into) return
+    const target = mergeTargets.find((t) => rid(t) === into)
+    if (!window.confirm(`Merge this ticket into "${target?.subject ?? into}"? Its messages move there and this ticket is closed.`)) return
+    try {
+      const result = await mergeTicket({ id: openTicketId, into }).unwrap()
+      setToast({ msg: `Merged (${result.movedMessages} message(s) moved)`, tone: 'success' })
+      setOpenTicketId(into)
+    } catch (e: unknown) {
+      setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Merge failed', tone: 'critical' })
+    }
+  }
 
   const [subject, setSubject] = useState('')
   const [description, setDescription] = useState('')
@@ -291,6 +318,19 @@ export default function TicketsPage() {
                     <option key={a._id} value={a.publicId ?? a._id}>
                       {a.name} ({a.role})
                     </option>
+                  ))}
+                </select>
+              )}
+              {canAssign && !ticketDetail.ticket.parentTicketId && mergeTargets.length > 0 && (
+                <select
+                  aria-label="Merge into another ticket"
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs outline-none focus:border-gray-900"
+                  value=""
+                  onChange={(e) => merge(e.target.value)}
+                >
+                  <option value="">Merge into…</option>
+                  {mergeTargets.map((t) => (
+                    <option key={rid(t)} value={rid(t)}>{t.subject} ({t.status})</option>
                   ))}
                 </select>
               )}

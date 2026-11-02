@@ -3,6 +3,7 @@ import { Plus, Trash2, Target, ArrowRightCircle, History } from 'lucide-react'
 
 import {
   useGetLeadsQuery,
+  useLazyCheckLeadDuplicatesQuery,
   useCreateLeadMutation,
   useDeleteLeadMutation,
   useUpdateLeadMutation,
@@ -66,6 +67,7 @@ export default function CRMPage() {
   const { data: deals } = useGetDealsQuery(undefined, { skip: !canDeals })
 
   const [createLead] = useCreateLeadMutation()
+  const [checkDuplicates] = useLazyCheckLeadDuplicatesQuery()
   const [updateLead] = useUpdateLeadMutation()
   const [deleteLead] = useDeleteLeadMutation()
   const [createDeal] = useCreateDealMutation()
@@ -83,6 +85,10 @@ export default function CRMPage() {
   const [phone, setPhone] = useState('')
   const [source, setSource] = useState('other')
   const [estimatedValue, setEstimatedValue] = useState('')
+  // Possible duplicates found for these exact form values; a second click creates anyway.
+  const dupKey = [firstName, lastName, company, email, phone].join('|')
+  const [dupes, setDupes] = useState<{ key: string; leads: Lead[] } | null>(null)
+  const shownDupes = dupes?.key === dupKey ? dupes.leads : []
 
   const filteredLeads = useMemo(
     () =>
@@ -106,6 +112,14 @@ export default function CRMPage() {
 
   const submitLead = async () => {
     if (!firstName && !company) return
+    if (dupes?.key !== dupKey) {
+      const found = await checkDuplicates({
+        firstName: firstName || undefined, lastName: lastName || undefined,
+        company: company || undefined, email: email || undefined, phone: phone || undefined,
+      }).unwrap().catch(() => [] as Lead[])
+      setDupes({ key: dupKey, leads: found })
+      if (found.length) return
+    }
     try {
       await createLead({
         firstName: firstName || undefined,
@@ -118,6 +132,7 @@ export default function CRMPage() {
       }).unwrap()
       setShowLead(false)
       setFirstName(''); setLastName(''); setCompany(''); setEmail(''); setPhone(''); setEstimatedValue('')
+      setDupes(null)
       setToast({ msg: 'Lead created', tone: 'success' })
     } catch (e: unknown) {
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to create lead', tone: 'critical' })
@@ -366,11 +381,26 @@ export default function CRMPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowLead(false)}>Cancel</Button>
-            <Button onClick={submitLead}>Create Lead</Button>
+            <Button onClick={submitLead}>{shownDupes.length ? 'Create anyway' : 'Create Lead'}</Button>
           </>
         }
       >
         <div className="space-y-4">
+          {shownDupes.length > 0 && (
+            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-medium">Possible duplicate{shownDupes.length === 1 ? '' : 's'}:</p>
+              <ul className="mt-1 list-disc pl-5 text-xs">
+                {shownDupes.map((l) => (
+                  <li key={l.publicId ?? l._id}>
+                    {[l.firstName, l.lastName].filter(Boolean).join(' ') || l.company}
+                    {l.company ? ` · ${l.company}` : ''}
+                    {l.contact?.email ? ` · ${l.contact.email}` : ''}
+                    {l.contact?.phone ? ` · ${l.contact.phone}` : ''} ({l.status})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="First name">
               <input className={inputCls} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Aarav" />

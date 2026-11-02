@@ -126,6 +126,31 @@ const parseOptions = (source) => {
   };
 };
 
+// Unit counts for per_unit components: { CODE: n } (preview sends it as a
+// JSON string in the query). Anything that isn't a sane count is dropped.
+const cleanUnits = (raw) => {
+  let value = raw;
+
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const units = {};
+  for (const [code, count] of Object.entries(value)) {
+    const n = Number(count);
+    if (/^[A-Z0-9_]{1,100}$/i.test(code) && Number.isFinite(n) && n >= 0 && n <= 100000) {
+      units[code.toUpperCase()] = n;
+    }
+  }
+  return units;
+};
+
 const effectiveIn = (start, end) => ({
   status: "active",
   isDeleted: false,
@@ -175,6 +200,7 @@ const calculateFor = async ({
   month,
   year,
   options,
+  units = {},
 }) => {
   const { start, end } = monthBounds(month, year);
 
@@ -224,12 +250,13 @@ const calculateFor = async ({
     lastWorkingDate: employee.lastWorkingDate,
   });
 
-  const salary = computeSalary({ structure, breakdown });
+  const salary = computeSalary({ structure, breakdown, units });
 
   return {
     structure,
     breakdown,
     salary,
+    units,
     period: { start, end },
   };
 };
@@ -240,7 +267,7 @@ const payrollFields = ({
   month,
   year,
 }) => {
-  const { structure, breakdown, salary, period } = calculation;
+  const { structure, breakdown, salary, period, units } = calculation;
 
   return {
     month,
@@ -263,6 +290,7 @@ const payrollFields = ({
       perDayRate: salary.perDayRate,
       lopEnabled: salary.lopEnabled,
       lines: salary.lines,
+      units: units ?? {},
       weeklyOff: options.weeklyOff,
       unmarkedAsPresent: options.unmarkedAsPresent,
       structure: {
@@ -762,23 +790,35 @@ export const getSalaryAssignments = asyncHandler(async (req, res) => {
   })
     .select("publicId employeeCode displayName designation status userId salaryStructureId")
     .populate("userId", "name email role publicId userCode")
-    .populate("salaryStructureId", "publicId name baseSalary type status")
+    .populate("salaryStructureId", "publicId name baseSalary type status components")
     .sort({ displayName: 1 })
     .lean();
 
   return sendSuccess(res, {
     message: "Salary assignments fetched",
-    data: employees.map((employee) => ({
-      employee: {
-        publicId: employee.publicId,
-        employeeCode: employee.employeeCode,
-        name: employee.displayName,
-        designation: employee.designation,
-        status: employee.status,
-      },
-      user: userSummary(employee.userId),
-      salaryStructure: employee.salaryStructureId ?? null,
-    })),
+    data: employees.map((employee) => {
+      const { components, ...structure } = employee.salaryStructureId ?? {};
+
+      return {
+        employee: {
+          publicId: employee.publicId,
+          employeeCode: employee.employeeCode,
+          name: employee.displayName,
+          designation: employee.designation,
+          status: employee.status,
+        },
+        user: userSummary(employee.userId),
+        salaryStructure: employee.salaryStructureId
+          ? {
+              ...structure,
+              // per_unit components need a unit count on each payroll run.
+              perUnitComponents: (components ?? [])
+                .filter((c) => c.calculationType === "per_unit" && c.active !== false)
+                .map((c) => ({ code: c.code, name: c.name, perUnitAmount: c.perUnitAmount, unit: c.unit })),
+            }
+          : null,
+      };
+    }),
   });
 });
 
@@ -854,6 +894,7 @@ export const previewPayroll = asyncHandler(async (req, res) => {
     month,
     year,
     options,
+    units: cleanUnits(req.query.units),
   });
 
   if (calculation.error) {
@@ -929,6 +970,8 @@ export const generatePayroll = asyncHandler(async (req, res) => {
       month,
       year,
       options,
+      // body.units: { "<user publicId>": { CODE: n } }
+      units: cleanUnits(req.body?.units?.[user.publicId]),
     });
 
     if (calculation.error) {

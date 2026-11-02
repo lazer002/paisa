@@ -103,6 +103,13 @@ export const createPipelineSchema = Joi.object({
   stages: Joi.array().items(pipelineStage).max(50),
 });
 
+export const updatePipelineSchema = Joi.object({
+  name: optStr(200),
+  type: oneOf(PIPELINE_TYPES),
+  status: optStr(20),
+  stages: Joi.array().items(pipelineStage).min(1).max(50),
+});
+
 /* ─── Contacts ──────────────────────────────── */
 
 export const contactSchema = Joi.object({

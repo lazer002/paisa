@@ -28,7 +28,9 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 ### Snapshot (2026-11-01, after Wave 5)
 - Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
   leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
-- Roles ~77–90% done (§8b); features 55–88% (§8c). D7/D8, D13–D15 and payroll proration/formulas are done.
+- Roles ~77–91% done (§8b); features 55–90% (§8c). D7/D8, D13–D15, payroll proration/formulas and the
+  2026-11-02 small-gaps wave (pipeline edit, lead duplicates, ticket merge, chat search/attachments, per-unit pay)
+  are done.
   What keeps it below 100%: real Razorpay/Resend runs (need keys), and not-built items (2FA/session list,
   SMS/push, scheduled jobs, AI, i18n).
 
@@ -323,14 +325,14 @@ Percentages below include the Wave 5 fixes (D1–D6, D9–D12).
 | Role | Pages | Actions | ~Done | Left (biggest first) |
 |---|---|---|---|---|
 | super_admin | 10 | 29 | 75% | No session list / 2FA · Companies/Institutes read-only (F5) |
-| admin | 29 | 148 | 90% | Razorpay + Resend untested without keys · no restore of other soft-deleted records |
+| admin | 29 | 149 | 91% | Razorpay + Resend untested without keys · no restore of other soft-deleted records |
 | principal | 28 | 66 | 84% | No Billing (lacks `finance:read`, by design) |
 | teacher | 19 | 56 | 85% | No rubrics/proctoring |
 | student | 17 | 26 | 82% | Online pay untested (no keys) |
-| hr | 15 | 56 | 86% | `per_unit` salary components need a unit count per run (count as 0) · no goals/PIP |
+| hr | 15 | 57 | 88% | No goals/PIP · no tax regime / Form 16 |
 | accountant | 9 | 30 | 77% | Reports are stat cards + CSV |
-| counselor | 12 | 51 | 82% | No lead scoring/duplicate check |
-| support | 8 | 23 | 80% | No ticket merge |
+| counselor | 12 | 52 | 84% | No lead scoring |
+| support | 8 | 24 | 84% | Reports are basic |
 | employee | 11 | 22 | 82% | — (self-service complete for the current scope) |
 | parent | 14 | 20 | 78% | Read-mostly by design |
 
@@ -366,17 +368,17 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
-| Payroll | 9/9 | 85% | `per_unit` components count as 0 · no tax regime / Form 16 |
+| Payroll | 9/9 | 88% | No tax regime / Form 16 |
 | Salary structures / reviews | 9/9 | 75% | No goals/PIP |
 | Employee documents | 4/4 | 85% | — |
 | Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
 | Billing / subscriptions | 7/7 | 75% | Real checkout untested |
-| CRM leads/deals/contacts/customers | 4/5 + 4/4 + 4/4 + 4/4 | 78% | No scoring / duplicate check |
-| CRM pipelines | 3/3 | 70% | No pipeline edit route |
+| CRM leads/deals/contacts/customers | 5/6 + 4/4 + 4/4 + 4/4 | 82% | No lead scoring |
+| CRM pipelines | 4/4 | 85% | Deals don't store a pipelineId yet (stage keys are global) |
 | CRM activities/tasks/notes | 4/4 + 5/5 + 4/4 | 80% | — |
-| Messaging | 9/9 + 2/2 | 85% | No attachments in chat · no message search |
+| Messaging | 9/9 + 3/3 | 90% | No reactions / read receipts per message |
 | Announcements / events | 4/5 + 4/5 | 80% | — |
-| Tickets | 11/11 | 82% | No merge |
+| Tickets | 12/12 | 86% | Merge needs the same requester (by design) |
 | Gamification | 9/9 | 55% | Leaderboard empty for demo users · Streak/Leaderboard models unused |
 | Reports | 9/9 | 55% | Stat cards + CSV/print only |
 | Files | 3/3 | 78% | S3 adapter is a stub |
@@ -526,6 +528,20 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Small-gaps wave: pipeline edit, lead duplicates, ticket merge, chat search + attachments,
+  per-unit pay.** `PUT /pipelines/:id` (pipeline:update; stages sent back with their `key` keep it, so renames
+  don't orphan deals) + edit in PipelinesPanel. `GET /leads/duplicates` (email case-insensitive, phone = last 10
+  digits ignoring separators, full name [+ company], `exclude`); the New Lead form warns and needs a second click.
+  `POST /tickets/:id/merge {into}` (staff): same requester only (else 400 `DIFFERENT_REQUESTER`), messages move to
+  the target, source closed with `parentTicketId`, staff notes on both; "Merge into…" in the ticket drawer. Chat:
+  `File` purpose `chat_attachment` / link kind `message` (download = active participants of the conversation),
+  `sendMessage` takes `fileIds` (≤5, text optional), `GET /messages/search?q=` (≥2 chars, own conversations,
+  text + attachment names); MessagesPage gets a search box, paperclip upload and attachment chips. Payroll:
+  `per_unit` = perUnitAmount × units entered per run (`units` on preview query as JSON, generate body
+  `{userPublicId: {CODE: n}}`), shown as a "Units this run" column; editor offers "₹ per unit". Verified: wave6
+  live 34/34, unit 49/49, client lint + build, smoke 171/171, flows 42/42, tenant 671/671 (0 leaks), files 49/49,
+  chat-scope 20/20, realtime 31/31, proration 11/11.
 
 - **2026-11-01 — Payroll proration + formula salary components.** `computeAttendanceBreakdown` takes
   `joiningDate`/`lastWorkingDate`: working days outside employment become `notEmployedDays` (never LOP);

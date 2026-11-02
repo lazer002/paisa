@@ -6,7 +6,8 @@ import { inputCls } from '@/components/ui/kit'
 
 const FORMULA_HELP =
   'Formula variables: BASIC, GROSS, CTC, WORKING_DAYS, PAID_DAYS, LOP_DAYS, HOURS_PER_DAY and the code of any component above. ' +
-  'Operators + - * / %, comparisons, cond ? a : b, and min, max, round, floor, ceil, abs. Example: min(BASIC * 0.12, 1800)'
+  'Operators + - * / %, comparisons, cond ? a : b, and min, max, round, floor, ceil, abs. Example: min(BASIC * 0.12, 1800). ' +
+  '"₹ per unit" components (e.g. per class taught) get their count in Payroll → Run payroll.'
 
 interface Props {
   value: SalaryComponent[]
@@ -45,8 +46,13 @@ export default function SalaryComponentsEditor({ value, onChange }: Props) {
               <option value="fixed">fixed ₹</option>
               <option value="percentage">% of basic</option>
               <option value="formula">formula</option>
+              <option value="per_unit">₹ per unit</option>
             </select>
-            {calc === 'formula' ? (
+            {calc === 'per_unit' ? (
+              <input type="number" className={`${inputCls} col-span-2`} placeholder="₹ / unit" value={c.perUnitAmount ?? ''}
+                title="The unit count is entered on each payroll run"
+                onChange={(e) => update(i, { perUnitAmount: e.target.value === '' ? null : Number(e.target.value) })} />
+            ) : calc === 'formula' ? (
               <input className={`${inputCls} col-span-2 font-mono text-xs`} placeholder="BASIC * 0.4" value={c.formula ?? ''}
                 onChange={(e) => update(i, { formula: e.target.value })} />
             ) : calc === 'percentage' ? (

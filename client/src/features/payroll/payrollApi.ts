@@ -26,6 +26,7 @@ export interface PayrollCalculation {
   perDayRate: number
   lopEnabled: boolean
   lines?: { earnings: PayrollLine[]; deductions: PayrollLine[] }
+  units?: Record<string, number>
   weeklyOff: number[]
   unmarkedAsPresent: boolean
   structure?: { publicId: string; name: string }
@@ -123,8 +124,15 @@ export interface GenerateSummary {
 export interface SalaryAssignment {
   employee: { publicId: string; employeeCode?: string; name?: string; designation?: string; status?: string }
   user: PayrollUser | null
-  salaryStructure: { _id: string; publicId?: string; name: string; baseSalary?: number; type?: string; status?: string } | null
+  salaryStructure: {
+    _id: string; publicId?: string; name: string; baseSalary?: number; type?: string; status?: string
+    /** per_unit components: need a unit count on each run. */
+    perUnitComponents?: { code: string; name: string; perUnitAmount?: number | null; unit?: string | null }[]
+  } | null
 }
+
+/** Unit counts for per_unit components, by component code. */
+export type UnitCounts = Record<string, number>
 
 const optionParams = ({ weeklyOff, unmarkedAsPresent, ...rest }: RunOptions) => ({
   ...rest,
@@ -171,11 +179,15 @@ export const payrollApi = createApi({
       query: (id) => ({ url: `/payroll/${id}` }),
       transformResponse: (res: { data?: unknown }) => (res?.data ?? res) as PayslipData,
     }),
-    previewPayroll: builder.query<PayrollPreview, RunOptions & { userId: string }>({
-      query: (params) => ({ url: '/payroll/preview', params: optionParams(params) }),
+    previewPayroll: builder.query<PayrollPreview, RunOptions & { userId: string; units?: UnitCounts }>({
+      query: ({ units, ...params }) => ({
+        url: '/payroll/preview',
+        params: { ...optionParams(params), units: units && Object.keys(units).length ? JSON.stringify(units) : undefined },
+      }),
       transformResponse: (res: { data?: unknown }) => (res?.data ?? res) as PayrollPreview,
     }),
-    generatePayroll: builder.mutation<GenerateSummary, RunOptions>({
+    // units: { "<user publicId>": { CODE: n } }
+    generatePayroll: builder.mutation<GenerateSummary, RunOptions & { units?: Record<string, UnitCounts> }>({
       query: (body) => ({ url: '/payroll/generate', method: 'POST', body }),
       transformResponse: (res: { data?: unknown }) => (res?.data ?? res) as GenerateSummary,
       invalidatesTags: [{ type: 'Payroll', id: 'LIST' }],

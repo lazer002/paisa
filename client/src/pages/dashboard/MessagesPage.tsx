@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send, MessageSquare, Users, Plus, ArrowLeft, Pencil, Trash2, UserPlus, LogOut } from 'lucide-react'
+import { Send, MessageSquare, Users, Plus, ArrowLeft, Pencil, Trash2, UserPlus, LogOut, Paperclip, X, Search, FileText } from 'lucide-react'
 
 import {
   useGetConversationsQuery,
@@ -10,12 +10,14 @@ import {
   useSendMessageMutation,
   useEditMessageMutation,
   useDeleteMessageMutation,
+  useSearchMessagesQuery,
   useAddConversationParticipantsMutation,
   useLeaveConversationMutation,
   type Conversation,
   type ChatMessage,
 } from '@/features/messaging/messagingApi'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
+import { uploadFile, checkFile, downloadStoredFile, formatBytes, FILE_ACCEPT, type StoredFile } from '@/lib/api/files'
 import { useAppSelector } from '@/app/store'
 import { usePermission } from '@/lib/auth/usePermission'
 import { useConversationRealtime, useRealtimeEvent } from '@/lib/realtime'
@@ -72,6 +74,22 @@ export default function MessagesPage() {
   const [showNew, setShowNew] = useState(false)
   const [showGroup, setShowGroup] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
+  // Files uploaded for the next message (max 5, server rule).
+  const [pendingFiles, setPendingFiles] = useState<StoredFile[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+  const searching = debouncedSearch.length >= 2
+  const { data: searchHits, isFetching: searchLoading } = useSearchMessagesQuery(
+    { q: debouncedSearch },
+    { skip: !searching },
+  )
 
   const { data: conversations, isLoading, isError, refetch } = useGetConversationsQuery()
   const { data: messages } = useGetMessagesQuery(
@@ -143,13 +161,37 @@ export default function MessagesPage() {
     }
   }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const attach = async (list: FileList | null) => {
+    const files = Array.from(list ?? [])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (!files.length) return
+    if (pendingFiles.length + files.length > 5) {
+      setToast({ msg: 'Up to 5 files per message', tone: 'critical' })
+      return
+    }
+    setUploading(true)
+    try {
+      for (const file of files) {
+        const problem = checkFile(file)
+        if (problem) throw new Error(`${file.name}: ${problem}`)
+        const stored = await uploadFile(file, 'chat_attachment')
+        setPendingFiles((prev) => [...prev, stored])
+      }
+    } catch (e: unknown) {
+      setToast({ msg: (e as Error).message || 'Upload failed', tone: 'critical' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const send = async () => {
     const text = draft.trim()
-    if (!text || !activeId) return
+    if ((!text && !pendingFiles.length) || !activeId) return
     stopTyping()
     try {
-      await sendMessage({ conversationId: activeId, text }).unwrap()
+      await sendMessage({ conversationId: activeId, text, fileIds: pendingFiles.map((f) => f.publicId) }).unwrap()
       setDraft('')
+      setPendingFiles([])
     } catch (e: unknown) {
       setToast({ msg: (e as { data?: { message?: string } })?.data?.message ?? 'Failed to send', tone: 'critical' })
     }
@@ -172,7 +214,7 @@ export default function MessagesPage() {
 
   const startEdit = (m: ChatMessage) => {
     setEditingId(msgId(m))
-    setEditText(m.text)
+    setEditText(m.text ?? '')
   }
 
   const saveEdit = async () => {
@@ -260,9 +302,45 @@ export default function MessagesPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
         {/* Conversation list */}
         <div className={`rounded-xl border border-gray-200 bg-white ${activeId ? 'hidden lg:block' : ''}`}>
-          <div className="border-b border-gray-100 px-4 py-3">
+          <div className="space-y-2 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-semibold text-gray-700">Chats</p>
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                className={`${inputCls} pl-8`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search messages"
+                aria-label="Search messages"
+              />
+            </div>
           </div>
+          {searching ? (
+            <div className="max-h-[60vh] overflow-y-auto">
+              {searchLoading && <p className="px-4 py-6 text-center text-sm text-gray-400">Searching...</p>}
+              {!searchLoading && (searchHits ?? []).length === 0 && (
+                <p className="px-4 py-6 text-center text-sm text-gray-400">No messages match “{debouncedSearch}”</p>
+              )}
+              {(searchHits ?? []).map((hit) => {
+                const conv = sorted.find((c) => (c.publicId ?? c._id) === hit.conversation.publicId)
+                return (
+                  <button
+                    key={msgId(hit)}
+                    onClick={() => { setActiveId(hit.conversation.publicId ?? null); setSearch(''); setEditingId(null) }}
+                    className="block w-full border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50/60"
+                  >
+                    <p className="truncate text-xs font-medium text-gray-500">
+                      {conv ? otherPartyName(conv, myId) : hit.conversation.title ?? 'Conversation'} · {hit.senderName ?? ''}
+                    </p>
+                    <p className="truncate text-sm text-gray-800">
+                      {hit.text || hit.attachments?.map((a) => a.name).join(', ')}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{new Date(hit.createdAt).toLocaleString()}</p>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
           <div className="max-h-[60vh] overflow-y-auto">
             {isLoading && (
               <p className="px-4 py-8 text-center text-sm text-gray-400">Loading chats...</p>
@@ -318,6 +396,7 @@ export default function MessagesPage() {
               )
             })}
           </div>
+          )}
         </div>
 
         {/* Chat panel */}
@@ -404,7 +483,31 @@ export default function MessagesPage() {
                               </div>
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                            m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                          )}
+                          {(m.attachments ?? []).length > 0 && (
+                            <div className="mt-1 space-y-1">
+                              {(m.attachments ?? []).map((a, i) => (
+                                <button
+                                  key={a.fileId ?? i}
+                                  type="button"
+                                  disabled={!a.fileId}
+                                  onClick={() =>
+                                    a.fileId &&
+                                    downloadStoredFile(a.fileId, a.name ?? 'attachment').catch((e: Error) =>
+                                      setToast({ msg: e.message, tone: 'critical' }),
+                                    )
+                                  }
+                                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs ${
+                                    isMine ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-50 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  <FileText size={14} className="flex-shrink-0" />
+                                  <span className="min-w-0 flex-1 truncate">{a.name ?? 'attachment'}</span>
+                                  {a.size ? <span className="opacity-60">{formatBytes(a.size)}</span> : null}
+                                </button>
+                              ))}
+                            </div>
                           )}
                           <p className={`mt-1 text-[10px] ${isMine ? 'text-white/50' : 'text-gray-300'}`}>
                             {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -446,7 +549,42 @@ export default function MessagesPage() {
                 {typingLabel ?? ''}
               </p>
 
+              {pendingFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 border-t border-gray-100 px-3 pt-2">
+                  {pendingFiles.map((f) => (
+                    <span key={f.publicId} className="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                      <FileText size={12} /> {f.originalName}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${f.originalName}`}
+                        onClick={() => setPendingFiles((prev) => prev.filter((p) => p.publicId !== f.publicId))}
+                        className="text-gray-400 hover:text-rose-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-end gap-2 border-t border-gray-100 p-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={FILE_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => attach(e.target.files)}
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || pendingFiles.length >= 5}
+                  aria-label="Attach files"
+                  title="Attach files"
+                >
+                  <Paperclip size={14} />
+                </Button>
                 <textarea
                   className={inputCls}
                   rows={2}
@@ -465,7 +603,7 @@ export default function MessagesPage() {
                   }}
                   placeholder="Write a message... (Enter to send)"
                 />
-                <Button onClick={send} disabled={!draft.trim()}>
+                <Button onClick={send} disabled={uploading || (!draft.trim() && pendingFiles.length === 0)}>
                   <Send size={14} /> Send
                 </Button>
               </div>

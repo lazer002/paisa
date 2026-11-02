@@ -12,8 +12,11 @@
 //   submission        – the student who submitted; the teacher who set the
 //                       assignment (or teaches its class); graders holding
 //                       submission:update/manage (submissionController)
+//   message           – active participants of the message's conversation
 
 import { File } from "../models/File.js";
+import { Message } from "../models/Message.js";
+import { Conversation } from "../models/Conversation.js";
 import { EmployeeDocument } from "../models/EmployeeDocument.js";
 import { StudyMaterial } from "../models/StudyMaterial.js";
 import { Submission } from "../models/Submission.js";
@@ -40,6 +43,8 @@ export const canUploadFor = (user, purpose) => {
       return user.role === "student" && hasPermission(user, "submission:create");
     case "avatar":
       return true;
+    case "chat_attachment":
+      return hasPermission(user, "message:create");
     default:
       return false;
   }
@@ -164,10 +169,28 @@ const canSeeSubmission = async (user, file) => {
   return hasAnyPermission(user, ["submission:update", "submission:manage"]);
 };
 
+const canSeeMessageFile = async (user, file) => {
+  const message = await Message.findOne({
+    _id: file.linkedResource.id,
+    instituteId: file.instituteId,
+    status: { $ne: "deleted" },
+  }).select("conversationId");
+
+  if (!message) return false;
+
+  return Boolean(
+    await Conversation.exists({
+      _id: message.conversationId,
+      participants: { $elemMatch: { userId: user._id, status: "active" } },
+    })
+  );
+};
+
 const LINK_CHECKS = {
   employee_document: canSeeEmployeeDocument,
   study_material: canSeeStudyMaterial,
   submission: canSeeSubmission,
+  message: canSeeMessageFile,
 };
 
 /** Same org AND (uploader, institute-visible, or allowed on the linked record). */

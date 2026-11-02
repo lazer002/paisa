@@ -14,7 +14,9 @@ import {
   deleteDeal,
   createPipeline,
   getPipelines,
+  updatePipeline,
   deletePipeline,
+  checkLeadDuplicates,
 } from "../controllers/crmController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -27,6 +29,7 @@ import {
   createDealSchema,
   updateDealStageSchema,
   createPipelineSchema,
+  updatePipelineSchema,
 } from "../validators/crmValidator.js";
 
 const router = express.Router();
@@ -45,6 +48,12 @@ leadRouter.get(
   "/",
   authorize({ anyPermissions: ["lead:read"] }),
   getLeads
+);
+
+leadRouter.get(
+  "/duplicates",
+  authorize({ anyPermissions: ["lead:read"] }),
+  checkLeadDuplicates
 );
 
 leadRouter.get(
@@ -127,6 +136,13 @@ pipelineRouter.post(
   authorize({ anyPermissions: ["pipeline:create"] }),
   body(createPipelineSchema),
   createPipeline
+);
+
+pipelineRouter.put(
+  "/:publicId",
+  authorize({ anyPermissions: ["pipeline:update"] }),
+  body(updatePipelineSchema),
+  updatePipeline
 );
 
 pipelineRouter.delete(

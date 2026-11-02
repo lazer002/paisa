@@ -36,6 +36,10 @@ export const ticketMessageSchema = Joi.object({
   isInternal: bool(),
 });
 
+export const mergeTicketSchema = Joi.object({
+  into: str(100).required(),
+});
+
 export const createTicketTemplateSchema = Joi.object({
   name: str(120).required(),
   body: str(5000).required(),

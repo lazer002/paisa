@@ -98,6 +98,8 @@ export interface SupportTicket {
   requesterId?: Ref | string
   assigneeId?: Ref | string | null
   firstResponseAt?: string | null
+  /** Set when this ticket was merged into another one. */
+  parentTicketId?: string | null
   /** Computed by the server from priority (see TICKET_SLA_HOURS in ticketController). */
   slaState?: TicketSlaState
   createdAt: string
@@ -151,6 +153,7 @@ export interface SalaryComponent {
   percentage?: number | null
   percentageBase?: string | null
   formula?: string | null
+  perUnitAmount?: number | null
   proratable?: boolean
   [key: string]: unknown
 }
@@ -331,6 +334,10 @@ export const platformApi = createApi({
     }),
 
     // ── CRM: Leads ──
+    checkLeadDuplicates: builder.query<Lead[], Record<string, string | undefined>>({
+      query: (params) => ({ url: '/leads/duplicates', params }),
+      transformResponse: list,
+    }),
     getLeads: builder.query<Lead[], { status?: string; search?: string } | void>({
       query: (params) => ({
         url: '/leads',
@@ -384,6 +391,10 @@ export const platformApi = createApi({
       query: (body) => ({ url: '/pipelines', method: 'POST', body }),
       invalidatesTags: [{ type: 'Pipeline', id: 'LIST' }],
     }),
+    updatePipeline: builder.mutation<Pipeline, { id: string; payload: Record<string, unknown> }>({
+      query: ({ id, payload }) => ({ url: `/pipelines/${id}`, method: 'PUT', body: payload }),
+      invalidatesTags: [{ type: 'Pipeline', id: 'LIST' }],
+    }),
     deletePipeline: builder.mutation<void, string>({
       query: (id) => ({ url: `/pipelines/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Pipeline', id: 'LIST' }],
@@ -420,6 +431,11 @@ export const platformApi = createApi({
     deleteTicket: builder.mutation<void, string>({
       query: (id) => ({ url: `/tickets/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Ticket', id: 'LIST' }],
+    }),
+    // Folds ticket `id` into `into` (same requester only; staff).
+    mergeTicket: builder.mutation<{ mergedFrom: string; movedMessages: number }, { id: string; into: string }>({
+      query: ({ id, into }) => ({ url: `/tickets/${id}/merge`, method: 'POST', body: { into } }),
+      invalidatesTags: (r, e, { id, into }) => [{ type: 'Ticket', id }, { type: 'Ticket', id: into }, { type: 'Ticket', id: 'LIST' }],
     }),
     // Staff of the ticket's organization who can be assigned (staff only).
     getTicketAssignees: builder.query<TicketAssignee[], string>({
@@ -581,10 +597,11 @@ export const platformApi = createApi({
 export const {
   useGetEnrollmentsQuery, useCreateEnrollmentMutation, useUpdateEnrollmentStatusMutation, useDeleteEnrollmentMutation,
   useGetInvoicesQuery, useCreateInvoiceMutation, useRecordPaymentMutation, useUpdateInvoiceStatusMutation, useDeleteInvoiceMutation,
-  useGetLeadsQuery, useCreateLeadMutation, useUpdateLeadMutation, useDeleteLeadMutation,
+  useGetLeadsQuery, useLazyCheckLeadDuplicatesQuery, useCreateLeadMutation, useUpdateLeadMutation, useDeleteLeadMutation,
   useGetDealsQuery, useCreateDealMutation, useUpdateDealStageMutation, useDeleteDealMutation,
-  useGetPipelinesQuery, useCreatePipelineMutation, useDeletePipelineMutation,
+  useGetPipelinesQuery, useCreatePipelineMutation, useUpdatePipelineMutation, useDeletePipelineMutation,
   useGetTicketsQuery, useGetTicketQuery, useCreateTicketMutation, useUpdateTicketMutation, useAddTicketMessageMutation, useDeleteTicketMutation,
+  useMergeTicketMutation,
   useGetTicketAssigneesQuery,
   useGetTicketTemplatesQuery, useCreateTicketTemplateMutation, useUpdateTicketTemplateMutation, useDeleteTicketTemplateMutation,
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,

@@ -12,6 +12,7 @@ import {
   markConversationRead,
   getMessages,
   sendMessage,
+  searchMessages,
   deleteMessage,
   editMessage,
 } from "../controllers/messageController.js";
@@ -122,6 +123,15 @@ export const messageItemRouter =
   express.Router();
 
 messageItemRouter.use(authenticate);
+
+// GET /api/messages/search?q=...&conversationId=...
+messageItemRouter.get(
+  "/search",
+  authorize({
+    anyPermissions: ["message:read"],
+  }),
+  searchMessages
+);
 
 messageItemRouter.put(
   "/:publicId",

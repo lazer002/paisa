@@ -50,8 +50,21 @@ export interface ChatMessage {
   text: string
   type: string
   status: string
+  attachments?: ChatAttachment[]
   editedAt?: string | null
   createdAt: string
+}
+
+export interface ChatAttachment {
+  fileId?: string | null
+  name?: string | null
+  url?: string | null
+  mimeType?: string | null
+  size?: number | null
+}
+
+export interface ChatSearchHit extends ChatMessage {
+  conversation: { publicId?: string; title?: string | null; type?: string }
 }
 
 export interface LiveSession {
@@ -102,16 +115,20 @@ export const messagingApi = createApi({
       transformResponse: list,
       providesTags: (r, e, { conversationId }) => [{ type: 'Message', id: conversationId }],
     }),
-    sendMessage: builder.mutation<ChatMessage, { conversationId: string; text: string }>({
-      query: ({ conversationId, text }) => ({
+    sendMessage: builder.mutation<ChatMessage, { conversationId: string; text: string; fileIds?: string[] }>({
+      query: ({ conversationId, text, fileIds }) => ({
         url: `/conversations/${conversationId}/messages`,
         method: 'POST',
-        body: { text },
+        body: fileIds?.length ? { text, fileIds } : { text },
       }),
       invalidatesTags: (r, e, { conversationId }) => [
         { type: 'Message', id: conversationId },
         { type: 'Conversation', id: 'LIST' },
       ],
+    }),
+    searchMessages: builder.query<ChatSearchHit[], { q: string; conversationId?: string }>({
+      query: (params) => ({ url: '/messages/search', params }),
+      transformResponse: list,
     }),
     addConversationParticipants: builder.mutation<Conversation, { id: string; userIds: string[] }>({
       query: ({ id, userIds }) => ({ url: `/conversations/${id}/participants`, method: 'POST', body: { userIds } }),
@@ -161,6 +178,7 @@ export const {
   useSendMessageMutation,
   useEditMessageMutation,
   useDeleteMessageMutation,
+  useSearchMessagesQuery,
   useGetLiveSessionsQuery,
   useCreateLiveSessionMutation,
   useUpdateLiveSessionMutation,

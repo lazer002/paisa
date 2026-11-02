@@ -110,10 +110,13 @@ export const addParticipantsSchema = Joi.object({
   userIds: refList(500).min(1).required(),
 });
 
+// Text, attachments (publicIds of files uploaded with purpose
+// chat_attachment), or both.
 export const sendMessageSchema = Joi.object({
-  text: str(50000).required(),
+  text: Joi.string().trim().max(50000).allow(""),
   type: optOneOf(MESSAGE_TYPES),
-});
+  fileIds: Joi.array().items(Joi.string().trim().max(100)).max(5),
+}).or("text", "fileIds");
 
 export const editMessageSchema = Joi.object({
   text: str(50000).required(),
