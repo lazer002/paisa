@@ -1,5 +1,45 @@
 {
   "permissions": {
-    "allow": ["Bash(npm *)", "Bash(node *)", "Bash(git *)"]
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash",
+      "PowerShell",
+      "Edit",
+      "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Bash(npm *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "PowerShell(npm *)",
+      "PowerShell(node *)",
+      "PowerShell(git *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Select-String *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f*)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"MANDATORY: Before answering or writing any code for this prompt, invoke the Skill tool with skill \\\"andrej-karpathy-skills:karpathy-guidelines\\\" (once per prompt) and apply it alongside the project feature-workflow skill.\"}}'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
