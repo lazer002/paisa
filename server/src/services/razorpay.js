@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 
 import env from "../config/env.js";
+import logger from "../config/logger.js";
 import ApiError from "../utils/ApiError.js";
 
 const API = "https://api.razorpay.com/v1";
@@ -26,16 +27,38 @@ const request = async (method, path, body) => {
     `${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`
   ).toString("base64");
 
-  const response = await fetch(`${API}${path}`, {
-    method,
-    headers: {
-      authorization: `Basic ${auth}`,
-      "content-type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API}${path}`, {
+      method,
+      headers: {
+        authorization: `Basic ${auth}`,
+        "content-type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    logger.warn("Razorpay unreachable", { path, error: error.message });
+
+    throw new ApiError("The payment gateway is unreachable. Try again shortly", 502, {
+      code: "PAYMENT_GATEWAY_UNREACHABLE",
+    });
+  }
 
   const data = await response.json().catch(() => ({}));
+
+  // Wrong or revoked keys: tell the payer plainly, tell the operator why.
+  if (response.status === 401) {
+    logger.warn(
+      "Razorpay rejected the API keys: check RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET in server/.env",
+      { path }
+    );
+
+    throw new ApiError("Online payments are not set up correctly. Please contact the administrator", 502, {
+      code: "PAYMENT_GATEWAY_AUTH_FAILED",
+    });
+  }
 
   if (!response.ok) {
     throw new ApiError(

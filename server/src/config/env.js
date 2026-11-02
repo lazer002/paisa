@@ -560,8 +560,10 @@ const env = Object.freeze({
   RESEND_API_KEY:
     getEnv("RESEND_API_KEY"),
 
+  // RAZORPAY_KEY is accepted as an alias (the name the dashboard docs use).
   RAZORPAY_KEY_ID:
-    getEnv("RAZORPAY_KEY_ID"),
+    getEnv("RAZORPAY_KEY_ID") ||
+    getEnv("RAZORPAY_KEY"),
 
   RAZORPAY_KEY_SECRET:
     getEnv("RAZORPAY_KEY_SECRET"),

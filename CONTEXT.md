@@ -37,7 +37,7 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 ### Decisions (owner, 2026-10-29)
 | Area | Decision |
 |---|---|
-| Payments | **Razorpay**, built as if keys exist (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in server/.env) |
+| Payments | **Razorpay**, built as if keys exist (`RAZORPAY_KEY_ID` — `RAZORPAY_KEY` also accepted — `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in server/.env). As of 2026-11-02 server/.env holds **placeholder test keys that Razorpay rejects (401)**; the owner will paste real ones later — no code change needed, just restart the API |
 | Email | **Resend API** (`RESEND_API_KEY`, `EMAIL_FROM`); log to console when unset |
 | File storage | **Local disk now, S3-ready** adapter (`STORAGE_PROVIDER=local`, `STORAGE_PATH=./uploads`) |
 | Commits | **One verified commit per wave** on `feature/roles-polaris`; never push without asking |
@@ -528,6 +528,16 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-02 — Razorpay ready for real keys.** Owner supplied test keys in server/.env as `RAZORPAY_KEY` /
+  `RAZORPAY_KEY_SECRET`; both pairs tried so far fail Razorpay auth (401), so they are placeholders until the owner
+  pastes real ones. `config/env.js` now accepts `RAZORPAY_KEY` as an alias of `RAZORPAY_KEY_ID`. `services/razorpay.js`:
+  rejected keys → 502 `PAYMENT_GATEWAY_AUTH_FAILED` ("Online payments are not set up correctly…") plus a server warning
+  naming the env vars; network failure → 502 `PAYMENT_GATEWAY_UNREACHABLE` (was a 500). Live: `/payments/config`
+  returns the key, invoice order and subscription checkout reach Razorpay and fail cleanly, unsigned webhook → 400.
+  Unit 59/59, smoke 171/171. **When real keys arrive:** restart the API, pay demo invoice INV-2026-00042 as
+  student@demo with Razorpay test card 4111 1111 1111 1111, then a starter subscription as admin@demo; for automatic
+  confirmation also set `RAZORPAY_WEBHOOK_SECRET` and point a webhook at `/api/payments/razorpay/webhook`.
 
 - **2026-11-02 — Wave 7b: F5 Companies/Institutes.** `PlatformOrganizationsList` takes an optional `group`
   (title + allowed types); CompaniesPage (company, startup) and InstitutesPage (school, college, coaching, institute)
