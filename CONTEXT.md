@@ -25,6 +25,18 @@ Work is done in waves; each wave is verified (tests, lint, build, live API calls
 - How these were measured (2026-11-01): route gates for 252 routes × 11 roles, client nav → hooks → endpoints,
   and 484 live GETs as every demo user in both orgs. Method in §8b; scripts are in the session scratchpad only.
 
+### Snapshot (2026-11-03, full audit after Waves 7–15 + S3)
+- Measured: 300 API routes (266 permission-gated, 25 login-only with controller checks, 9 public: login/2FA/
+  refresh/forgot/reset/register(disabled by default)/certificate verify/kiosk screen/Razorpay webhook); 271
+  permissions; routes reachable per role — super_admin 300, admin 286, principal 185, hr 145, teacher 145,
+  counselor 127, student 104, accountant 102, parent 92, employee 91, support 82; nav items shown without the page
+  permission: 0; client/server permission drift: none (regenerated, no diff).
+- Health: unit 93 server + 4 client; live 1,192 checks green (smoke 171, flows 39, tenant 671 with 0 leaks, waves
+  7–14 + F5 suites 311).
+- Features avg ≈ 87% (§8c, lowest: billing, live sessions, notifications 75%); roles ≈ 85–93% (estimate).
+- Left: real runs with real Razorpay/Resend/S3 keys; SMS/push/AI/i18n not built; live-session recording; peer
+  review; deals per pipeline (owner decision); new screens of waves 12–14 not visually checked (low memory).
+
 ### Snapshot (2026-11-01, after Wave 5)
 - Health: 39/39 unit tests, client lint + build, e2e:smoke 171/171, e2e:flows 39/39, e2e:tenant 671/671 (0
   leaks), 484 live page-load GETs across both demo orgs with 0 real failures.
