@@ -14,6 +14,7 @@ import {
 import { User } from "../models/User.js";
 import Organization from "../models/organization.js";
 import { CertificateTemplate, designOf } from "../models/CertificateTemplate.js";
+import { notifyOnce } from "../services/notify.js";
 import env from "../config/env.js";
 import ApiError from "../utils/ApiError.js";
 import { hasPermission } from "../utils/permissions.js";
@@ -386,6 +387,10 @@ export const updateReview = asyncHandler(async (req, res) => {
     "status",
     "overallRating",
     "strengths",
+    "areasForImprovement",
+    "outcome",
+    "outcomeComments",
+    "dueAt",
     "goals",
     "feedback",
   ];
@@ -400,6 +405,20 @@ export const updateReview = asyncHandler(async (req, res) => {
     }
   }
 
+  if (updates.goals) {
+    updates.goalScore = goalScoreOf(updates.goals);
+  }
+
+  // The improvement plan (PIP) lives in performanceImprovementPlan.
+  const plan = req.body.improvementPlan;
+  const wasActive = review.performanceImprovementPlan?.status === "active";
+
+  if (plan) {
+    for (const [key, value] of Object.entries(plan)) {
+      updates[`performanceImprovementPlan.${key}`] = value;
+    }
+  }
+
   const updated =
     await PerformanceReview.findOneAndUpdate(
       { publicId: req.params.publicId },
@@ -407,10 +426,95 @@ export const updateReview = asyncHandler(async (req, res) => {
       { new: true, runValidators: true }
     );
 
+  // Tell the employee once when a plan becomes active.
+  const reviewedUserId =
+    !wasActive && updated.performanceImprovementPlan?.status === "active"
+      ? await reviewedUserIdOf(updated)
+      : null;
+
+  if (reviewedUserId) {
+    await notifyOnce({
+      instituteId: updated.instituteId,
+      userIds: [reviewedUserId],
+      type: "system",
+      title: "A performance improvement plan has started for you",
+      body: `See "${updated.title}" for its objectives and dates.`,
+      link: "/dashboard/hr-ops",
+      reference: { kind: "pip_started", id: updated._id, publicId: updated.publicId },
+    });
+  }
+
   return sendSuccess(res, {
     message: "Review updated",
     data: updated,
   });
+});
+
+/** The login of the person a review is about (reviews point at the Employee profile). */
+const reviewedUserIdOf = async (review) => {
+  const { default: Employee } = await import("../models/Employee.js");
+  const employee = await Employee.findById(review.employeeId).select("userId").lean();
+  return employee?.userId ?? review.employeeUserId ?? null;
+};
+
+/** Weighted average goal progress (equal weights when none are set). */
+export const goalScoreOf = (goals) => {
+  const active = (goals ?? []).filter((g) => g.status !== "cancelled");
+  if (active.length === 0) return null;
+
+  const weights = active.map((g) => Number(g.weight) || 0);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+
+  const score = totalWeight > 0
+    ? active.reduce((sum, g, i) => sum + (Number(g.progress) || 0) * weights[i], 0) / totalWeight
+    : active.reduce((sum, g) => sum + (Number(g.progress) || 0), 0) / active.length;
+
+  return Math.round(score * 10) / 10;
+};
+
+// Reviews the employee may still report progress on.
+const SELF_UPDATABLE_REVIEW_STATUSES = ["draft", "scheduled", "in_progress"];
+
+/** PUT /reviews/:id/progress — the reviewed employee updates their own goals / plan objectives. */
+export const updateReviewProgress = asyncHandler(async (req, res) => {
+  const review = await PerformanceReview.findOne({ publicId: req.params.publicId });
+
+  if (!review) {
+    return sendNotFound(res, "Review not found");
+  }
+
+  assertTenant(req, review);
+
+  // Only the person reviewed; others get a 404 so reviews stay private.
+  if (String(await reviewedUserIdOf(review)) !== String(req.user._id)) {
+    return sendNotFound(res, "Review not found");
+  }
+
+  const planActive = review.performanceImprovementPlan?.status === "active";
+
+  if (!SELF_UPDATABLE_REVIEW_STATUSES.includes(review.status) && !planActive) {
+    throw ApiError.badRequest("This review is closed for updates", "REVIEW_CLOSED");
+  }
+
+  for (const change of req.body.goals ?? []) {
+    const goal = review.goals[change.index];
+    if (!goal) throw ApiError.badRequest(`There is no goal #${change.index + 1}`, "GOAL_NOT_FOUND");
+    if (change.progress !== undefined) goal.progress = change.progress;
+    if (change.actualValue !== undefined) goal.actualValue = change.actualValue;
+    if (change.status !== undefined) goal.status = change.status;
+  }
+
+  for (const change of req.body.objectives ?? []) {
+    const objective = review.performanceImprovementPlan?.objectives?.[change.index];
+    if (!objective) throw ApiError.badRequest(`There is no plan objective #${change.index + 1}`, "OBJECTIVE_NOT_FOUND");
+    if (change.progress !== undefined) objective.progress = change.progress;
+    if (change.status !== undefined) objective.status = change.status;
+  }
+
+  review.goalScore = goalScoreOf(review.goals);
+  await review.save();
+
+  return sendSuccess(res, { message: "Progress saved", data: review });
 });
 
 // The reviewed employee confirms they have seen a finished review.

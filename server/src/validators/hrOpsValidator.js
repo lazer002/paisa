@@ -71,6 +71,46 @@ export const createReviewSchema = Joi.object({
   dueDate: optDate(),
 });
 
+const GOAL_STATUSES = ["not_started", "in_progress", "completed", "partially_completed", "cancelled", "deferred"];
+const PIP_STATUSES = ["planned", "active", "completed", "failed", "cancelled"];
+const OBJECTIVE_STATUSES = ["planned", "in_progress", "completed", "cancelled"];
+const REVIEW_OUTCOMES = [
+  "exceeds_expectations", "meets_expectations", "partially_meets_expectations",
+  "does_not_meet_expectations", "promotion_recommended", "promotion_not_recommended",
+  "salary_revision_recommended", "salary_revision_not_recommended", "pip_recommended", "no_change",
+];
+const percent = () => Joi.number().min(0).max(100);
+
+const goal = Joi.object({
+  title: str(500).required(),
+  description: text(5000),
+  dueDate: optDate(),
+  status: optOneOf(GOAL_STATUSES),
+  progress: percent(),
+  weight: percent(),
+  targetValue: Joi.number().allow(null),
+  actualValue: Joi.number().allow(null),
+  unit: optStr(100),
+});
+
+const pipObjective = Joi.object({
+  title: str(500).required(),
+  description: text(3000),
+  targetDate: optDate(),
+  status: optOneOf(OBJECTIVE_STATUSES),
+  progress: percent(),
+});
+
+const improvementPlan = Joi.object({
+  enabled: Joi.boolean(),
+  startDate: optDate(),
+  endDate: optDate(),
+  reviewFrequency: optStr(100),
+  status: optOneOf(PIP_STATUSES),
+  outcome: text(3000),
+  objectives: Joi.array().items(pipObjective).max(50),
+});
+
 export const updateReviewSchema = Joi.object({
   title: str(500),
   description: text(5000),
@@ -82,9 +122,25 @@ export const updateReviewSchema = Joi.object({
     strList(2000, 100),
     text(2000)
   ),
-  goals: Joi.array().items(obj()).max(100),
+  areasForImprovement: Joi.alternatives().try(strList(2000, 100), text(2000)),
+  outcome: optOneOf(REVIEW_OUTCOMES),
+  outcomeComments: text(5000),
+  dueAt: optDate(),
+  goals: Joi.array().items(goal).max(100),
+  improvementPlan,
   feedback: Joi.array().items(obj()).max(200),
 });
+
+// The reviewed employee reports progress on their own goals / plan objectives
+// (by position in the review's lists).
+export const reviewSelfUpdateSchema = Joi.object({
+  goals: Joi.array()
+    .items(Joi.object({ index: Joi.number().integer().min(0).required(), progress: percent(), actualValue: Joi.number().allow(null), status: optOneOf(GOAL_STATUSES) }))
+    .max(100),
+  objectives: Joi.array()
+    .items(Joi.object({ index: Joi.number().integer().min(0).required(), progress: percent(), status: optOneOf(OBJECTIVE_STATUSES) }))
+    .max(50),
+}).or("goals", "objectives");
 
 /* ---------------- certificates ---------------- */
 

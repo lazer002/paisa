@@ -981,12 +981,19 @@ publicId: {
         default: null,
       },
 
+      // What the employee must achieve; each tracked with its own progress.
       objectives: {
         type: [
           {
-            type: String,
-            trim: true,
-            maxlength: 2000,
+            title: { type: String, trim: true, maxlength: 2000, required: true },
+            description: { type: String, trim: true, maxlength: 3000, default: null },
+            targetDate: { type: Date, default: null },
+            status: {
+              type: String,
+              enum: ["planned", "in_progress", "completed", "cancelled"],
+              default: "planned",
+            },
+            progress: { type: Number, min: 0, max: 100, default: 0 },
           },
         ],
         default: [],

@@ -175,11 +175,43 @@ export interface PerformanceReview {
   publicId?: string
   employeeId?: Ref | string | null
   title: string
+  description?: string | null
   type?: string
   status: string
   overallRating?: number | null
+  maxRating?: number | null
   dueDate?: string | null
+  dueAt?: string | null
+  goals?: ReviewGoal[]
+  goalScore?: number | null
+  strengths?: string[]
+  areasForImprovement?: string[]
+  outcome?: string | null
+  outcomeComments?: string | null
+  performanceImprovementPlan?: ImprovementPlan | null
   createdAt: string
+}
+
+export interface ReviewGoal {
+  title: string
+  description?: string | null
+  dueDate?: string | null
+  status?: string
+  progress?: number
+  weight?: number
+  targetValue?: number | null
+  actualValue?: number | null
+  unit?: string | null
+}
+
+export interface ImprovementPlan {
+  enabled?: boolean
+  startDate?: string | null
+  endDate?: string | null
+  reviewFrequency?: string | null
+  status?: 'planned' | 'active' | 'completed' | 'failed' | 'cancelled'
+  outcome?: string | null
+  objectives?: { title: string; description?: string | null; targetDate?: string | null; status?: string; progress?: number }[]
 }
 
 export interface Certificate {
@@ -539,6 +571,13 @@ export const platformApi = createApi({
       invalidatesTags: [{ type: 'Review', id: 'LIST' }],
     }),
     // The reviewed employee confirms they have seen a finished review.
+    updateReviewProgress: builder.mutation<
+      PerformanceReview,
+      { id: string; goals?: { index: number; progress?: number; status?: string }[]; objectives?: { index: number; progress?: number; status?: string }[] }
+    >({
+      query: ({ id, ...body }) => ({ url: `/reviews/${id}/progress`, method: 'PUT', body }),
+      invalidatesTags: [{ type: 'Review', id: 'LIST' }],
+    }),
     acknowledgeReview: builder.mutation<PerformanceReview, string>({
       query: (id) => ({ url: `/reviews/${id}/acknowledge`, method: 'POST' }),
       invalidatesTags: [{ type: 'Review', id: 'LIST' }],
@@ -677,6 +716,7 @@ export const {
   useGetSalaryStructuresQuery, useCreateSalaryStructureMutation, useUpdateSalaryStructureMutation, useDeleteSalaryStructureMutation,
   useGetReviewsQuery, useCreateReviewMutation, useUpdateReviewMutation, useDeleteReviewMutation,
   useAcknowledgeReviewMutation,
+  useUpdateReviewProgressMutation,
   useGetCertificatesQuery, useCreateCertificateMutation, useRevokeCertificateMutation, useDeleteCertificateMutation,
   useGetCertificateTemplatesQuery, useSaveCertificateTemplateMutation, useDeleteCertificateTemplateMutation,
   useVerifyCertificateQuery, useLazyVerifyCertificateQuery,

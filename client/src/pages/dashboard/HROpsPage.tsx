@@ -26,6 +26,7 @@ import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import EmployeeDocumentsPanel from '@/components/hr/EmployeeDocumentsPanel'
 import CertificateTemplatesPanel from '@/components/certificates/CertificateTemplatesPanel'
+import ReviewModal from '@/components/hr/ReviewModal'
 import SalaryComponentsEditor from '@/components/hr-payroll/SalaryComponentsEditor'
 import PageHeader from '@/components/ui/PageHeader'
 import Button from '@/components/ui/button'
@@ -80,6 +81,7 @@ export default function HROpsPage() {
   // publicId of the structure being edited; null while the modal creates a new one
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null)
   const [showReview, setShowReview] = useState(false)
+  const [openReview, setOpenReview] = useState<PerformanceReview | null>(null)
   const [showCertificate, setShowCertificate] = useState(false)
 
   const [name, setName] = useState('')
@@ -223,11 +225,29 @@ export default function HROpsPage() {
     { key: 'type', header: 'Type', render: (r) => <span className="capitalize text-gray-500">{r.type ?? 'annual'}</span> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     {
+      key: 'goals',
+      header: 'Goals',
+      render: (r) => (
+        <span className="text-xs text-gray-600">
+          {r.goals?.length ? `${r.goals.length} · ${r.goalScore ?? 0}%` : '—'}
+          {r.performanceImprovementPlan?.enabled && r.performanceImprovementPlan.status !== 'cancelled' && (
+            <span className="ml-2 rounded-md bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700">PIP {r.performanceImprovementPlan.status}</span>
+          )}
+        </span>
+      ),
+    },
+    {
       key: 'actions',
       header: '',
       className: 'text-right',
       render: (r) => (
         <div className="flex justify-end gap-1.5">
+          <button
+            onClick={() => setOpenReview(r)}
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            {canReview ? 'Open' : 'View'}
+          </button>
           {canReview && r.status === 'draft' && (
             <button
               onClick={async () => {
@@ -569,6 +589,16 @@ export default function HROpsPage() {
           <p className="text-xs text-gray-400">A certificate number and a public verification code are generated automatically.</p>
         </div>
       </ModalShell>
+
+      {openReview && (
+        <ReviewModal
+          key={rid(openReview)}
+          review={openReview}
+          canManage={canReview}
+          onClose={() => setOpenReview(null)}
+          onToast={setToast}
+        />
+      )}
 
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>

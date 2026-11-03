@@ -10,6 +10,7 @@ import {
   createReview,
   getReviews,
   updateReview,
+  updateReviewProgress,
   acknowledgeReview,
   deleteReview,
   createCertificate,
@@ -35,6 +36,7 @@ import {
   updateSalaryStructureSchema,
   createReviewSchema,
   updateReviewSchema,
+  reviewSelfUpdateSchema,
   createCertificateSchema,
   createCertificateTemplateSchema,
   updateCertificateTemplateSchema,
@@ -119,6 +121,16 @@ reviewRouter.put(
   }),
   body(updateReviewSchema),
   updateReview
+);
+
+// The reviewed employee reports progress on their goals / plan (own only — controller).
+reviewRouter.put(
+  "/:publicId/progress",
+  authorize({
+    anyPermissions: ["performance:read"],
+  }),
+  body(reviewSelfUpdateSchema),
+  updateReviewProgress
 );
 
 // The reviewed employee acknowledges a finished review (own only — controller).

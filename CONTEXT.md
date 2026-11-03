@@ -369,7 +369,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
 | Payroll | 9/9 | 88% | No tax regime / Form 16 |
-| Salary structures / reviews | 9/9 | 75% | No goals/PIP |
+| Salary structures / reviews | 10/10 | 88% | Goals + weighted goal score + PIP + employee progress done 2026-11-03 |
 | Employee documents | 4/4 | 85% | — |
 | Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
 | Billing / subscriptions | 7/7 | 75% | Real checkout untested |
@@ -528,6 +528,20 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-03 — Wave 12a: review goals + performance improvement plans.** `PUT /reviews/:id` now takes typed
+  `goals` [{title, description, dueDate, status, progress 0–100, weight 0–100}] (→ `goalScore` = weighted average
+  progress, equal weights when none; cancelled goals ignored; `goalScoreOf` in hrOpsController), `improvementPlan`
+  {enabled, status planned|active|completed|failed|cancelled, startDate, endDate, reviewFrequency, outcome,
+  objectives[{title, description, targetDate, status, progress}]} (stored in `performanceImprovementPlan`; its
+  `objectives` were plain strings in the model — now subdocuments, nothing used them before), `areasForImprovement`,
+  `outcome`, `outcomeComments`, `dueAt`. The employee is notified once when a plan turns active. New
+  `PUT /reviews/:id/progress` (performance:read; only the reviewed person — owner resolved through the Employee
+  profile, others 404) updates progress/status of own goals and plan objectives by index while the review is
+  open or a plan is active (else 400 `REVIEW_CLOSED`). Client: `components/hr/ReviewModal.tsx` (managers edit
+  status, rating, outcome, strengths, goals, PIP; employees update progress) opened from HR Ops → Reviews; Goals
+  column shows count, score and PIP status. Verified: wave12a live 14/14, smoke 171/171, flows 42/42, unit 69/69,
+  client lint + typecheck.
 
 - **2026-11-02 — Wave 11: rubrics, test time limits + integrity, certificate templates.** Assignments take
   `rubric: [{criterion, maxPoints, description}]` (≤30; `maxScore` = total; `normalizeRubric` in
