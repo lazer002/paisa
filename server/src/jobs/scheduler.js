@@ -8,7 +8,7 @@
 import { JobRun } from "../models/JobRun.js";
 import logger from "../config/logger.js";
 import { invoiceOverdue, subscriptionExpiry } from "./billing.js";
-import { assignmentDueReminders, liveSessionReminders, ticketSlaBreaches } from "./reminders.js";
+import { assignmentDueReminders, liveSessionReminders, ticketSlaBreaches, leadRescoring } from "./reminders.js";
 import { abandonedUploadCleanup, expiredSessionCleanup, leaveBalanceSync } from "./maintenance.js";
 
 export const JOBS = [
@@ -17,6 +17,7 @@ export const JOBS = [
   assignmentDueReminders,
   liveSessionReminders,
   ticketSlaBreaches,
+  leadRescoring,
   abandonedUploadCleanup,
   expiredSessionCleanup,
   leaveBalanceSync,

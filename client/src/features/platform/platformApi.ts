@@ -59,6 +59,10 @@ export interface Lead {
   status: string
   priority: string
   estimatedValue?: number
+  /** 0–100, computed by the server (services/leadScoring.js). */
+  score?: number
+  temperature?: 'hot' | 'warm' | 'cold'
+  scoreFactors?: { label: string; points: number }[]
   createdBy?: Ref | string | null
   createdAt: string
 }

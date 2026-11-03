@@ -11,6 +11,10 @@ import {
   razorpayWebhook,
   refundPayment,
 } from "../controllers/paymentController.js";
+import {
+  getReconciliation,
+  fixReconciledInvoice,
+} from "../controllers/reconciliationController.js";
 
 import authenticate from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -63,6 +67,23 @@ router.post(
   }),
   body(razorpayVerifySchema),
   verifyRazorpayPayment
+);
+
+// Reconciliation (finance): invoices vs their payments; declared before /:publicId.
+router.get(
+  "/reconciliation",
+  authorize({
+    anyPermissions: ["finance:read"],
+  }),
+  getReconciliation
+);
+
+router.post(
+  "/reconciliation/invoices/:publicId/fix",
+  authorize({
+    anyPermissions: ["finance:manage"],
+  }),
+  fixReconciledInvoice
 );
 
 router.get(

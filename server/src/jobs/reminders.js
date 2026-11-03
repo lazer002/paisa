@@ -12,7 +12,9 @@ import { Class } from "../models/Class.js";
 import { LiveSession } from "../models/LiveSession.js";
 import { Ticket } from "../models/Ticket.js";
 import { User } from "../models/User.js";
+import { Lead } from "../models/Lead.js";
 import { notifyOnce } from "../services/notify.js";
+import { rescoreLead } from "../services/leadScoring.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const BATCH = 500;
@@ -103,6 +105,26 @@ export const liveSessionReminders = {
     }
 
     return { sessions: sessions.length, notified };
+  },
+};
+
+export const leadRescoring = {
+  name: "lead-scoring",
+  description: "Rescores open leads daily so recency (and fading interest) shows in the score",
+  everyMinutes: 24 * 60,
+
+  async run(now = new Date()) {
+    const leads = await Lead.find({ status: { $nin: ["converted", "lost", "junk"] }, isDeleted: { $ne: true } })
+      .select("_id")
+      .limit(5000)
+      .lean();
+
+    let scored = 0;
+    for (const lead of leads) {
+      if (await rescoreLead(lead._id, now)) scored += 1;
+    }
+
+    return { leads: leads.length, scored };
   },
 };
 

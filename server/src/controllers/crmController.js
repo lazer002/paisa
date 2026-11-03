@@ -9,6 +9,7 @@ import {
   LEAD_SOURCES,
   LEAD_PRIORITIES,
 } from "../models/Lead.js";
+import { rescoreLead } from "../services/leadScoring.js";
 import { escapeRegex, assertOwnerOrPermission } from "../utils/crudHelpers.js";
 import { Deal } from "../models/Deal.js";
 import { Pipeline } from "../models/Pipeline.js";
@@ -149,9 +150,12 @@ export const createLead = asyncHandler(
       status: "new",
     });
 
+    // The score is the system's; any client-sent score is replaced.
+    await rescoreLead(lead._id);
+
     return sendCreated(res, {
       message: "Lead created",
-      data: leadView(lead),
+      data: leadView(await Lead.findById(lead._id)),
     });
   }
 );
@@ -165,6 +169,9 @@ export const getLeads = asyncHandler(async (req, res) => {
   if (status) query.status = status;
   if (source) query.source = source;
   if (priority) query.priority = priority;
+  if (["hot", "warm", "cold"].includes(req.query.temperature)) {
+    query.temperature = req.query.temperature;
+  }
 
   if (search) {
     const regex = {
@@ -180,9 +187,10 @@ export const getLeads = asyncHandler(async (req, res) => {
     ];
   }
 
-  const leads = await Lead.find(query).sort({
-    createdAt: -1,
-  });
+  // ?sort=score: best leads first (newest among equals).
+  const leads = await Lead.find(query).sort(
+    req.query.sort === "score" ? { score: -1, createdAt: -1 } : { createdAt: -1 }
+  );
 
   return sendSuccess(res, {
     message: "Leads fetched",
@@ -267,9 +275,11 @@ export const updateLead = asyncHandler(async (req, res) => {
     { new: true, runValidators: true }
   );
 
+  await rescoreLead(updated._id);
+
   return sendSuccess(res, {
     message: "Lead updated",
-    data: leadView(updated),
+    data: leadView(await Lead.findById(updated._id)),
   });
 });
 

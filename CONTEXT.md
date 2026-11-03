@@ -371,9 +371,9 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Payroll | 9/9 + tax 6/6 | 94% | Tax regimes, declarations, auto TDS, annual statement done 2026-11-03 · no official Form 16 (TRACES) |
 | Salary structures / reviews | 10/10 | 88% | Goals + weighted goal score + PIP + employee progress done 2026-11-03 |
 | Employee documents | 4/4 | 85% | — |
-| Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
+| Invoices & payments | 5/6 + 8/9 | 88% | Reconciliation done 2026-11-03 · real Razorpay checkout untested (placeholder keys) |
 | Billing / subscriptions | 7/7 | 75% | Real checkout untested |
-| CRM leads/deals/contacts/customers | 5/6 + 4/4 + 4/4 + 4/4 | 82% | No lead scoring |
+| CRM leads/deals/contacts/customers | 5/6 + 4/4 + 4/4 + 4/4 | 90% | Lead scoring done 2026-11-03 |
 | CRM pipelines | 4/4 | 85% | Deals don't store a pipelineId yet (stage keys are global) |
 | CRM activities/tasks/notes | 4/4 + 5/5 + 4/4 | 80% | — |
 | Messaging | 9/9 + 3/3 | 90% | No reactions / read receipts per message |
@@ -528,6 +528,20 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-03 — Wave 13: lead scoring + payment reconciliation.** `services/leadScoring.js`: rule-based 0–100
+  score with reasons (source weight, email/phone, stated interest, interactions in 30 days ×5 capped 25, recency
+  +15/+8/−10, status, priority; converted = 100, lost/junk = 0; hot ≥ 70, warm ≥ 40). Stored on the lead
+  (`score`, `temperature`, new `scoreFactors`, `scoredAt`) on create/edit (client-sent scores are overwritten),
+  when an activity/note is logged (which now also sets `lastActivityAt`), and by a new daily job `lead-scoring`.
+  `GET /leads?sort=score&temperature=hot`. `services/reconciliation.js`: invoices vs their payments —
+  amount_mismatch, payment_not_applied, status_mismatch (fixable), overpaid, payment_on_closed, orphan_payment,
+  stale_online_order (flagged only) + period totals and collections by method. `GET /payments/reconciliation?from&to`
+  (finance:read), `POST /payments/reconciliation/invoices/:id/fix` (finance:manage; recalculates paid/refunded/due/
+  status/allocations from payments, recorded in invoice history). Client: Score column (reasons on hover),
+  temperature filter and best-first sort on CRM leads; Invoices → Reconciliation panel. Found in the demo data: one
+  orphan payment (its invoice was deleted by an earlier test) — left for finance to decide. Verified: unit 89/89
+  (11 new), wave13 live 19/19, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), client lint + typecheck + build.
 
 - **2026-11-03 — Wave 12b: income tax.** `config/incomeTax.js` holds slabs per financial year: FY 2025-26 per Finance
   Act 2025 (new: ₹75k std deduction, nil up to ₹12 L taxable via 87A with marginal relief, surcharge capped 25%;

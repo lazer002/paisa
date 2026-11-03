@@ -12,6 +12,7 @@ import { CRMActivity } from "../models/CRMActivity.js";
 import { CRMTask } from "../models/CRMTask.js";
 import { Lead } from "../models/Lead.js";
 import { Deal } from "../models/Deal.js";
+import { rescoreLead } from "../services/leadScoring.js";
 import { Contact } from "../models/Contact.js";
 import { Customer } from "../models/Customer.js";
 import { User } from "../models/User.js";
@@ -173,6 +174,7 @@ export const createActivity = asyncHandler(async (req, res) => {
     completedBy: data.status === "completed" ? req.user._id : null,
   });
 
+  await touchLead(activity.leadId);
   await activity.populate(POPULATE);
 
   return sendCreated(res, {
@@ -180,6 +182,13 @@ export const createActivity = asyncHandler(async (req, res) => {
     data: activity,
   });
 });
+
+/** An interaction with a lead: note when it happened and rescore it. */
+const touchLead = async (leadId) => {
+  if (!leadId) return;
+  await Lead.updateOne({ _id: leadId }, { $set: { lastActivityAt: new Date() } });
+  await rescoreLead(leadId);
+};
 
 export const getActivities = asyncHandler(async (req, res) => {
   const { type, status, search } = req.query;
@@ -301,6 +310,7 @@ export const createNote = asyncHandler(async (req, res) => {
     completedBy: req.user._id,
   });
 
+  await touchLead(note.leadId);
   await note.populate(POPULATE);
 
   return sendCreated(res, {

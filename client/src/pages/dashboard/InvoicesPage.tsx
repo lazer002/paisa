@@ -21,6 +21,7 @@ import {
   type Column,
 } from '@/components/ui/kit'
 import ExportMenu from '@/components/ui/ExportMenu'
+import ReconciliationPanel from '@/components/payments/ReconciliationPanel'
 import { fmtAmount, fmtDate, humanize, refName, type ExportColumn } from '@/lib/export'
 
 const INVOICE_EXPORT_COLUMNS: ExportColumn<Invoice>[] = [
@@ -44,6 +45,8 @@ const INVOICE_EXPORT_COLUMNS: ExportColumn<Invoice>[] = [
 export default function InvoicesPage() {
   const { can } = usePermission()
   const canManage = can('invoice:create')
+  const canReconcile = can('finance:read')
+  const [showRecon, setShowRecon] = useState(false)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -242,6 +245,11 @@ export default function InvoicesPage() {
               columns={INVOICE_EXPORT_COLUMNS}
               rows={filtered}
             />
+            {canReconcile && (
+              <Button variant="secondary" onClick={() => setShowRecon(!showRecon)}>
+                {showRecon ? 'Hide reconciliation' : 'Reconciliation'}
+              </Button>
+            )}
             {canManage && (
               <Button onClick={() => setShowCreate(true)}>
                 <Plus size={15} /> New Invoice
@@ -250,6 +258,8 @@ export default function InvoicesPage() {
           </div>
         }
       />
+
+      {canReconcile && showRecon && <ReconciliationPanel />}
 
       {canManage && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -728,6 +728,23 @@ publicId: {
       index: true,
     },
 
+    // Why the score is what it is (services/leadScoring.js), newest scoring.
+    scoreFactors: {
+      type: [
+        {
+          _id: false,
+          label: { type: String, trim: true, maxlength: 200 },
+          points: { type: Number },
+        },
+      ],
+      default: [],
+    },
+
+    scoredAt: {
+      type: Date,
+      default: null,
+    },
+
     /* ====================================================================== */
     /* SOURCE                                                                  */
     /* ====================================================================== */

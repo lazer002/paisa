@@ -61,6 +61,8 @@ export default function CRMPage() {
   )
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [temperatureFilter, setTemperatureFilter] = useState('')
+  const [leadSort, setLeadSort] = useState<'newest' | 'score'>('newest')
   const [toast, setToast] = useState<{ msg: string; tone: 'success' | 'critical' } | null>(null)
 
   const { data: leads, isLoading, isError, refetch } = useGetLeadsQuery(undefined, { skip: !canLeads })
@@ -90,16 +92,16 @@ export default function CRMPage() {
   const [dupes, setDupes] = useState<{ key: string; leads: Lead[] } | null>(null)
   const shownDupes = dupes?.key === dupKey ? dupes.leads : []
 
-  const filteredLeads = useMemo(
-    () =>
-      (leads ?? []).filter(
-        (l) =>
-          (!statusFilter || l.status === statusFilter) &&
-          (!search ||
-            `${l.firstName ?? ''} ${l.lastName ?? ''} ${l.company ?? ''}`.toLowerCase().includes(search.toLowerCase())),
-      ),
-    [leads, search, statusFilter],
-  )
+  const filteredLeads = useMemo(() => {
+    const rows = (leads ?? []).filter(
+      (l) =>
+        (!statusFilter || l.status === statusFilter) &&
+        (!temperatureFilter || l.temperature === temperatureFilter) &&
+        (!search ||
+          `${l.firstName ?? ''} ${l.lastName ?? ''} ${l.company ?? ''}`.toLowerCase().includes(search.toLowerCase())),
+    )
+    return leadSort === 'score' ? [...rows].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)) : rows
+  }, [leads, search, statusFilter, temperatureFilter, leadSort])
 
   const dealsByStage = useMemo(() => {
     const map: Record<string, Deal[]> = {}
@@ -184,6 +186,24 @@ export default function CRMPage() {
       key: 'value',
       header: 'Est. value',
       render: (l) => <span className="text-gray-700">₹{(l.estimatedValue ?? 0).toLocaleString()}</span>,
+    },
+    {
+      key: 'score',
+      header: 'Score',
+      render: (l) => (
+        <span
+          title={(l.scoreFactors ?? []).map((f) => `${f.points > 0 ? '+' : ''}${f.points}  ${f.label}`).join('\n') || 'Not scored yet'}
+          className={`inline-flex min-w-[3.5rem] items-center justify-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+            l.temperature === 'hot'
+              ? 'bg-rose-50 text-rose-700'
+              : l.temperature === 'warm'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-sky-50 text-sky-700'
+          }`}
+        >
+          {l.score ?? 0} <span className="font-normal">{l.temperature ?? 'cold'}</span>
+        </span>
+      ),
     },
     { key: 'priority', header: 'Priority', render: (l) => <StatusBadge status={l.priority} /> },
     { key: 'status', header: 'Status', render: (l) => <StatusBadge status={l.status} /> },
@@ -273,6 +293,28 @@ export default function CRMPage() {
               />
             }
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <SelectFilter
+              label="Temperature"
+              value={temperatureFilter}
+              onChange={setTemperatureFilter}
+              options={[
+                { value: '', label: 'Any temperature' },
+                { value: 'hot', label: 'Hot (70+)' },
+                { value: 'warm', label: 'Warm (40–69)' },
+                { value: 'cold', label: 'Cold (under 40)' },
+              ]}
+            />
+            <SelectFilter
+              label="Sort"
+              value={leadSort}
+              onChange={(v) => setLeadSort(v as 'newest' | 'score')}
+              options={[
+                { value: 'newest', label: 'Newest first' },
+                { value: 'score', label: 'Best score first' },
+              ]}
+            />
+          </div>
           <DataTable
             columns={leadColumns}
             rows={filteredLeads}
