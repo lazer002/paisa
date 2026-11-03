@@ -660,13 +660,71 @@ export const getMessages = asyncHandler(
       .sort({ createdAt: -1 })
       .limit(Number(limit) || 50);
 
+    // Read receipts: a participant has seen a message when their lastReadAt
+    // is at or after it. Shown on the caller's own messages.
+    const readers = conversation.participants.filter(
+      (p) => p.status === "active" && !p.userId.equals(req.user._id) && p.lastReadAt
+    );
+    const readerNames = new Map(
+      (await User.find({ _id: { $in: readers.map((p) => p.userId) } }).select("name").lean())
+        .map((u) => [String(u._id), u.name])
+    );
+
     return sendSuccess(res, {
       message: "Messages fetched",
 
-      data: messages.reverse(),
+      data: messages.reverse().map((m) => {
+        const json = m.toJSON();
+        if (String(m.senderId) !== String(req.user._id)) return json;
+
+        return {
+          ...json,
+          seenBy: readers
+            .filter((p) => new Date(p.lastReadAt) >= m.createdAt)
+            .map((p) => readerNames.get(String(p.userId)) ?? "Someone"),
+        };
+      }),
     });
   }
 );
+
+// Reactions offered in the UI (stored as the emoji on the message).
+export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+/** POST /messages/:id/reactions {emoji} — toggle the caller's reaction. */
+export const toggleReaction = asyncHandler(async (req, res) => {
+  const message = await Message.findOne({ publicId: req.params.publicId, ...scoped(req), status: { $ne: "deleted" } });
+
+  if (!message) return sendNotFound(res, "Message not found");
+
+  const conversation = await Conversation.findById(message.conversationId).select("_id publicId participants");
+
+  if (!conversation || !isParticipant(conversation, req.user._id)) {
+    throw ApiError.forbidden("You are not a participant", "ACCESS_DENIED");
+  }
+
+  const { emoji } = req.body;
+  const index = message.reactions.findIndex((r) => r.userId.equals(req.user._id) && r.emoji === emoji);
+
+  if (index >= 0) {
+    message.reactions.splice(index, 1);
+  } else {
+    message.reactions.push({ userId: req.user._id, emoji, type: "custom" });
+  }
+
+  const summary = new Map();
+  for (const r of message.reactions) summary.set(r.emoji, (summary.get(r.emoji) ?? 0) + 1);
+  message.reactionSummary = summary;
+
+  await message.save();
+
+  pushMessageEvent(conversation, "message:updated", { message: message.toJSON() });
+
+  return sendSuccess(res, {
+    message: index >= 0 ? "Reaction removed" : "Reaction added",
+    data: message,
+  });
+});
 
 // Search the caller's own conversations (active participation only).
 // ?q= text (case-insensitive, min 2 chars) · ?conversationId= limits to one.

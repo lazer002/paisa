@@ -121,3 +121,8 @@ export const sendMessageSchema = Joi.object({
 export const editMessageSchema = Joi.object({
   text: str(50000).required(),
 });
+
+// Same set as messageController.REACTION_EMOJIS.
+export const reactionSchema = Joi.object({
+  emoji: Joi.string().valid("👍", "❤️", "😂", "😮", "😢", "🙏").required(),
+});

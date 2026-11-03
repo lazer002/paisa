@@ -14,6 +14,15 @@ import {
   getLeaderboard,
   getMyGamification,
 } from "../controllers/gamificationController.js";
+import {
+  getRewards,
+  createReward,
+  updateReward,
+  deleteReward,
+  redeemReward,
+  getRedemptions,
+  handleRedemption,
+} from "../controllers/rewardController.js";
 
 import authenticate from "../middleware/authenticate.js";
 
@@ -26,6 +35,9 @@ import {
   updateAchievementSchema,
   awardAchievementSchema,
   awardPointsSchema,
+  createRewardSchema,
+  updateRewardSchema,
+  handleRedemptionSchema,
 } from "../validators/gamificationValidator.js";
 
 const router = express.Router();
@@ -128,6 +140,29 @@ router.get(
 router.get(
   "/me",
   getMyGamification
+);
+
+// ─────────────────────────────────────────────
+// REWARDS (spend points)
+// ─────────────────────────────────────────────
+
+const rewardManagers = authorize({
+  anyPermissions: ["achievement:create", "achievement:manage"],
+});
+const members = authorize({ anyPermissions: ["achievement:read"] });
+
+router.get("/rewards", members, getRewards);
+router.post("/rewards", rewardManagers, body(createRewardSchema), createReward);
+router.put("/rewards/:publicId", rewardManagers, body(updateRewardSchema), updateReward);
+router.delete("/rewards/:publicId", rewardManagers, deleteReward);
+router.post("/rewards/:publicId/redeem", members, redeemReward);
+
+router.get("/redemptions", members, getRedemptions);
+router.post(
+  "/redemptions/:publicId/handle",
+  rewardManagers,
+  body(handleRedemptionSchema),
+  handleRedemption
 );
 
 export default router;

@@ -1,0 +1,37 @@
+# Runs on every push and pull request: server unit tests and syntax check,
+# client lint, unit tests and production build. No secrets or database needed
+# (the live e2e suites in server/scripts need a running API and stay manual).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (npm workspaces)
+        run: npm ci
+
+      - name: Server — unit tests
+        run: npm test --workspace server
+
+      - name: Server — syntax check
+        run: for f in $(git ls-files 'server/src/*.js' 'server/server.js'); do node --check "$f"; done
+
+      - name: Client — lint
+        run: npm run lint --workspace client
+
+      - name: Client — unit tests
+        run: npm test --workspace client
+
+      - name: Client — typecheck + build
+        run: npm run build --workspace client

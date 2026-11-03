@@ -17,7 +17,15 @@ import {
   validateMarkAttendance,
   validateSelfCheck,
   validateQrScan,
+  validateKioskCheck,
+  validateCreateKiosk,
 } from "../validators/attendanceValidator.js";
+import {
+  listKiosks,
+  createKiosk,
+  revokeKiosk,
+  kioskCheck,
+} from "../controllers/kioskController.js";
 
 const router = express.Router();
 
@@ -54,6 +62,20 @@ router.post(
   validateSelfCheck,
   selfCheck
 );
+
+// Staff scan a kiosk's rotating QR: check in, or out when already in.
+router.post(
+  "/kiosk-check",
+  authorize({ anyPermissions: ["attendance:create"] }),
+  qrScanLimiter,
+  validateKioskCheck,
+  kioskCheck
+);
+
+// Kiosks (attendance setup = geofence permissions, admin).
+router.get("/kiosks", authorize({ anyPermissions: ["geofence:read"] }), listKiosks);
+router.post("/kiosks", authorize({ anyPermissions: ["geofence:create"] }), validateCreateKiosk, createKiosk);
+router.delete("/kiosks/:publicId", authorize({ anyPermissions: ["geofence:create"] }), revokeKiosk);
 
 // Students redeem a class attendance code (attendance:scan = student); the
 // controller verifies the code and the student's enrollment.

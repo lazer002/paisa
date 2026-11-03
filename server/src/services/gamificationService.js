@@ -9,8 +9,10 @@
 import { PointLedger } from "../models/PointLedger.js";
 import { User } from "../models/User.js";
 import { UserAchievement } from "../models/UserAchievement.js";
+import { Achievement } from "../models/Achievement.js";
 import env from "../config/env.js";
 import logger from "../config/logger.js";
+import { notifyOnce } from "./notify.js";
 
 /** Points granted once per referenced record (see awardActivityPoints). */
 export const ACTIVITY_POINTS = {
@@ -104,7 +106,7 @@ export const awardActivityPoints = async ({
 
     const balanceBefore = last?.balanceAfter ?? 0;
 
-    return await PointLedger.create({
+    const entry = await PointLedger.create({
       instituteId,
       userId,
       type: "earn",
@@ -116,6 +118,10 @@ export const awardActivityPoints = async ({
       referenceId,
       description,
     });
+
+    await checkAutoBadges({ _id: userId, instituteId });
+
+    return entry;
   } catch (error) {
     logger.warn("Activity points not recorded", {
       source,
@@ -208,8 +214,142 @@ export const getLeaderboard = async ({
   };
 };
 
+/* =========================================================
+   AUTOMATIC BADGES
+========================================================= */
+
+/**
+ * Badges the system awards on its own (worth 0 points, so awarding one can
+ * never trigger another). Created per organization on first use.
+ */
+export const AUTO_BADGES = [
+  { slug: "auto-first-steps", name: "First steps", shortDescription: "Earned your first activity points", type: "participation", rarity: "common", test: (s) => s.points > 0 },
+  { slug: "auto-century", name: "Century", shortDescription: "Earned 100 points", type: "academic", rarity: "uncommon", test: (s) => s.points >= 100 },
+  { slug: "auto-high-achiever", name: "High achiever", shortDescription: "Earned 500 points", type: "academic", rarity: "rare", test: (s) => s.points >= 500 },
+  { slug: "auto-streak-7", name: "On a roll", shortDescription: "Active 7 days in a row", type: "streak", rarity: "rare", test: (s) => s.streak >= 7 },
+  { slug: "auto-streak-30", name: "Unstoppable", shortDescription: "Active 30 days in a row", type: "streak", rarity: "epic", test: (s) => s.streak >= 30 },
+];
+
+/** The copy of an achievement kept on each award (required by UserAchievement). */
+export const achievementSnapshotOf = (achievement) => ({
+  achievementId: achievement._id,
+  code: achievement.slug ?? null,
+  name: achievement.name ?? null,
+  description: achievement.shortDescription ?? achievement.description ?? null,
+  type: achievement.type ?? null,
+  rarity: achievement.rarity ?? null,
+});
+
+/** Points earned (sum of balance moves) by one user. */
+export const pointsOf = async (userId) => {
+  const [row] = await PointLedger.aggregate([
+    { $match: { userId } },
+    { $group: { _id: null, points: { $sum: { $subtract: ["$balanceAfter", "$balanceBefore"] } } } },
+  ]);
+  return row?.points ?? 0;
+};
+
+/** Award any automatic badge the user now qualifies for. Never throws. */
+export const checkAutoBadges = async (user) => {
+  try {
+    if (!user.instituteId) return [];
+
+    const [points, streak] = await Promise.all([pointsOf(user._id), getStreak(user._id)]);
+    const stats = { points, streak: streak.current };
+    const awarded = [];
+
+    for (const badge of AUTO_BADGES.filter((b) => b.test(stats))) {
+      const achievement = await Achievement.findOneAndUpdate(
+        { instituteId: user.instituteId, slug: badge.slug },
+        {
+          $setOnInsert: {
+            instituteId: user.instituteId,
+            slug: badge.slug,
+            name: badge.name,
+            shortDescription: badge.shortDescription,
+            type: badge.type,
+            rarity: badge.rarity,
+            points: 0,
+            status: "active",
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      const held = await UserAchievement.exists({
+        userId: user._id,
+        achievementId: achievement._id,
+        status: { $in: ["earned", "claimed"] },
+      });
+      if (held) continue;
+
+      await UserAchievement.create({
+        instituteId: user.instituteId,
+        userId: user._id,
+        achievementId: achievement._id,
+        achievementSnapshot: achievementSnapshotOf(achievement),
+        status: "earned",
+        awardSource: "rule",
+        awardedAt: new Date(),
+        reason: badge.shortDescription,
+      });
+
+      await notifyOnce({
+        instituteId: user.instituteId,
+        userIds: [user._id],
+        type: "achievement",
+        title: `New badge: ${badge.name}`,
+        body: badge.shortDescription,
+        link: "/dashboard/gamification",
+        reference: { kind: "auto_badge", id: achievement._id, publicId: achievement.publicId },
+      });
+
+      awarded.push(badge.slug);
+    }
+
+    return awarded;
+  } catch (error) {
+    logger.warn("Automatic badges not checked", { userId: String(user._id), error: error.message });
+    return [];
+  }
+};
+
+/* =========================================================
+   SPENDING POINTS
+========================================================= */
+
+/**
+ * Move points out of (negative) or back into (positive) a user's balance.
+ * Refuses to go below zero.
+ */
+export const movePoints = async ({ instituteId, userId, delta, source = "other", type, description, createdBy = null }) => {
+  const last = await PointLedger.findOne({ userId }).sort({ createdAt: -1 }).select("balanceAfter");
+  const balanceBefore = last?.balanceAfter ?? 0;
+
+  if (balanceBefore + delta < 0) {
+    return { ok: false, balance: balanceBefore };
+  }
+
+  const entry = await PointLedger.create({
+    instituteId,
+    userId,
+    type: type ?? (delta < 0 ? "redeem" : "refund"),
+    source,
+    points: Math.abs(delta),
+    balanceBefore,
+    balanceAfter: balanceBefore + delta,
+    description,
+    createdBy,
+  });
+
+  return { ok: true, balance: entry.balanceAfter, entry };
+};
+
 /** Balance, rank, streak and badge count of one user. */
 export const getMySummary = async (user) => {
+  // Catches up badges earned before automatic badges existed.
+  await checkAutoBadges(user);
+
   const [board, weekBoard, streak, achievements] = await Promise.all([
     getLeaderboard({
       instituteId: user.instituteId,

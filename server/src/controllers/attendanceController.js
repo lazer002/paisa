@@ -317,11 +317,43 @@ export const selfCheck = asyncHandler(async (req, res) => {
     markedVia = "geofence";
   }
 
+  const record = await recordSelfCheck({
+    user: req.user,
+    instituteId,
+    timezone,
+    action,
+    markedVia,
+    source: "web",
+  });
+
+  return sendSuccess(res, {
+    message:
+      action === "out"
+        ? "Checked out"
+        : zone
+          ? `Checked in at ${zone.name}`
+          : "Checked in",
+    data: record,
+  });
+});
+
+/**
+ * Today's staff check-in ("in") or check-out ("out") for one user — shared
+ * by self check-in and the kiosk. Throws on a repeated or out-of-order action.
+ */
+export const recordSelfCheck = async ({
+  user,
+  instituteId,
+  timezone,
+  action,
+  markedVia,
+  source,
+}) => {
   const now = new Date();
 
   const filter = {
     instituteId,
-    userId: req.user._id,
+    userId: user._id,
     date: todayKey(timezone),
     classId: null,
   };
@@ -341,8 +373,8 @@ export const selfCheck = asyncHandler(async (req, res) => {
           checkIn: now,
           timezone,
           markedVia,
-          source: "web",
-          markedBy: req.user._id,
+          source,
+          markedBy: user._id,
         },
       },
       { upsert: true, new: true, runValidators: true }
@@ -350,17 +382,14 @@ export const selfCheck = asyncHandler(async (req, res) => {
 
     await awardActivityPoints({
       instituteId,
-      userId: req.user._id,
+      userId: user._id,
       source: "attendance",
       referenceType: "Attendance",
       referenceId: record._id,
       description: "Checked in",
     });
 
-    return sendSuccess(res, {
-      message: zone ? `Checked in at ${zone.name}` : "Checked in",
-      data: record,
-    });
+    return record;
   }
 
   if (!existing?.checkIn) {
@@ -378,11 +407,14 @@ export const selfCheck = asyncHandler(async (req, res) => {
 
   await existing.save();
 
-  return sendSuccess(res, {
-    message: "Checked out",
-    data: existing,
-  });
-});
+  return existing;
+};
+
+/** Today's staff attendance row for a user (used to pick in vs out at a kiosk). */
+export const todaysStaffRecord = (user, instituteId, timezone) =>
+  Attendance.findOne({ instituteId, userId: user._id, date: todayKey(timezone), classId: null });
+
+export { resolveTimezone };
 
 export const scanQr = asyncHandler(async (req, res) => {
   const code = String(req.body.code ?? "").trim();

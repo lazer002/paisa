@@ -15,6 +15,7 @@ import {
   searchMessages,
   deleteMessage,
   editMessage,
+  toggleReaction,
 } from "../controllers/messageController.js";
 
 import authenticate from "../middleware/authenticate.js";
@@ -29,6 +30,7 @@ import {
   addParticipantsSchema,
   sendMessageSchema,
   editMessageSchema,
+  reactionSchema,
 } from "../validators/communicationValidator.js";
 
 const router = express.Router();
@@ -140,6 +142,16 @@ messageItemRouter.put(
   }),
   body(editMessageSchema),
   editMessage
+);
+
+// Toggle the caller's emoji reaction (participants only — controller).
+messageItemRouter.post(
+  "/:publicId/reactions",
+  authorize({
+    anyPermissions: ["message:read"],
+  }),
+  body(reactionSchema),
+  toggleReaction
 );
 
 messageItemRouter.delete(

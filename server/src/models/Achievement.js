@@ -1034,8 +1034,9 @@ achievementSchema.virtual(
 achievementSchema.virtual(
   "hasCriteria"
 ).get(function () {
+  // criteria is absent when a query selects only some fields (e.g. populate).
   return (
-    this.criteria.length >
+    (this.criteria?.length ?? 0) >
     0
   );
 });

@@ -18,6 +18,7 @@ import {
   type LeaderboardPeriod,
 } from '@/features/platform/platformApi'
 import { ROLE_LABEL, type Role } from '@/config/roles'
+import RewardsPanel from '@/components/gamification/RewardsPanel'
 import { useGetUsersQuery, rid } from '@/features/users/usersApi'
 import { usePermission } from '@/lib/auth/usePermission'
 import PageHeader from '@/components/ui/PageHeader'
@@ -27,7 +28,7 @@ import {
   type Column,
 } from '@/components/ui/kit'
 
-type TabId = 'leaderboard' | 'achievements' | 'awards' | 'ledger'
+type TabId = 'leaderboard' | 'achievements' | 'awards' | 'rewards' | 'ledger'
 
 const RARITY_RING: Record<string, string> = {
   common: 'ring-gray-200',
@@ -305,6 +306,7 @@ export default function GamificationPage() {
           { id: 'leaderboard', label: 'Leaderboard' },
           { id: 'achievements', label: 'Achievements', count: achievements?.length },
           { id: 'awards', label: 'Recent Awards', count: awards?.length },
+          { id: 'rewards', label: 'Rewards' },
           ...(canReadLedger ? [{ id: 'ledger' as TabId, label: 'Points Ledger' }] : []),
         ]}
         active={tab}
@@ -463,6 +465,8 @@ export default function GamificationPage() {
           emptyHint="Award achievements to celebrate wins"
         />
       )}
+
+      {tab === 'rewards' && <RewardsPanel />}
 
       {tab === 'ledger' && canReadLedger && (
         <DataTable

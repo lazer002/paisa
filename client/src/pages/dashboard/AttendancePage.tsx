@@ -17,6 +17,8 @@ import {
   ClassCodePanel,
   OpenSessionPanel,
   GeofencePanel,
+  KioskScanHandler,
+  KiosksPanel,
 } from '@/components/attendance/AttendanceTools'
 import PageHeader from '@/components/ui/PageHeader'
 import { LoadingList, ErrorState } from '@/components/ui/StateViews'
@@ -349,9 +351,11 @@ export default function AttendancePage() {
       />
 
       {canSelfCheck && <SelfCheckPanel />}
+      {canSelfCheck && <KioskScanHandler />}
       {isStudent && <ClassCodePanel />}
       {canOpenSession && <OpenSessionPanel />}
       {can('geofence:create') && <GeofencePanel />}
+      {can('geofence:create') && <KiosksPanel />}
 
       {canMark ? (
         <MarkPanel classes={(classes ?? []) as ClassOption[]} />

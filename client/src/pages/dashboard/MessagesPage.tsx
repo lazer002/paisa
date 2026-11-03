@@ -9,6 +9,8 @@ import {
   useGetMessagesQuery,
   useSendMessageMutation,
   useEditMessageMutation,
+  useToggleReactionMutation,
+  REACTION_EMOJIS,
   useDeleteMessageMutation,
   useSearchMessagesQuery,
   useAddConversationParticipantsMutation,
@@ -102,6 +104,7 @@ export default function MessagesPage() {
   const [markRead] = useMarkConversationReadMutation()
   const [sendMessage] = useSendMessageMutation()
   const [editMessage, { isLoading: savingEdit }] = useEditMessageMutation()
+  const [toggleReaction] = useToggleReactionMutation()
   const [deleteMessage] = useDeleteMessageMutation()
   const [addParticipants, { isLoading: addingMembers }] = useAddConversationParticipantsMutation()
   const [leaveConversation] = useLeaveConversationMutation()
@@ -226,6 +229,15 @@ export default function MessagesPage() {
       setEditText('')
     } catch (e: unknown) {
       setToast({ msg: errMsg(e, 'Failed to edit message'), tone: 'critical' })
+    }
+  }
+
+  const react = async (m: ChatMessage, emoji: string) => {
+    if (!activeId) return
+    try {
+      await toggleReaction({ id: msgId(m), conversationId: activeId, emoji }).unwrap()
+    } catch (e: unknown) {
+      setToast({ msg: errMsg(e, 'Could not react'), tone: 'critical' })
     }
   }
 
@@ -514,8 +526,41 @@ export default function MessagesPage() {
                             {m.editedAt ? ' · edited' : ''}
                           </p>
                         </div>
-                        {!isEditing && (canEditThis || canDeleteThis) && (
+                        {Object.keys(m.reactionSummary ?? {}).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {Object.entries(m.reactionSummary ?? {}).map(([emoji, count]) => {
+                              const mineReacted = (m.reactions ?? []).some((r) => r.emoji === emoji && String(r.userId) === myId)
+                              return (
+                                <button
+                                  key={emoji}
+                                  onClick={() => react(m, emoji)}
+                                  aria-pressed={mineReacted}
+                                  className={`rounded-full px-1.5 py-0.5 text-xs ring-1 ${mineReacted ? 'bg-sky-50 ring-sky-200' : 'bg-white ring-gray-100'}`}
+                                >
+                                  {emoji} {count}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                        {isMine && !!m.seenBy?.length && (
+                          <p className="mt-0.5 text-[10px] text-gray-400">
+                            Seen by {m.seenBy.length > 3 ? `${m.seenBy.slice(0, 3).join(', ')} +${m.seenBy.length - 3}` : m.seenBy.join(', ')}
+                          </p>
+                        )}
+                        {!isEditing && (
                           <div className="mt-0.5 flex gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                            {REACTION_EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => react(m, emoji)}
+                                className="rounded px-1 text-xs hover:bg-gray-100"
+                                aria-label={`React ${emoji}`}
+                                title={`React ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
                             {canEditThis && (
                               <button
                                 onClick={() => startEdit(m)}

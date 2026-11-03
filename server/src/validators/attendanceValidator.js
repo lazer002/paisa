@@ -42,6 +42,18 @@ export const qrScanSchema = Joi.object({
   timezone,
 });
 
+export const kioskCheckSchema = Joi.object({
+  kioskId: Joi.string().trim().max(100).required(),
+  code: Joi.string().trim().length(8).required(),
+  timezone,
+});
+
+export const createKioskSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(100).required(),
+});
+
 export const validateMarkAttendance = bodyValidator(markAttendanceSchema);
+export const validateKioskCheck = bodyValidator(kioskCheckSchema);
+export const validateCreateKiosk = bodyValidator(createKioskSchema);
 export const validateSelfCheck = bodyValidator(selfCheckSchema);
 export const validateQrScan = bodyValidator(qrScanSchema);

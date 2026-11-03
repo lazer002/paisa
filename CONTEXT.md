@@ -363,7 +363,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Tests / questions / attempts | 5/5 + 4/4 + 5/5 | 90% | Server time limit + integrity events done 2026-11-02 · no camera proctoring |
 | Study materials | 4/4 | 85% | Abandoned (never-attached) uploads not cleaned up |
 | Live sessions | 6/7 | 75% | No recording (Jitsi embed + attendance done) |
-| Attendance | 5/5 | 88% | Device kiosk (QR image + camera scan + scan-link done 2026-11-02) |
+| Attendance | 9/9 | 95% | QR + camera scan (2026-11-02), kiosk check-in (2026-11-03) · no biometric hardware |
 | Certificates | 8/8 + public verify | 92% | Templates done 2026-11-02 |
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
@@ -376,10 +376,10 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | CRM leads/deals/contacts/customers | 5/6 + 4/4 + 4/4 + 4/4 | 90% | Lead scoring done 2026-11-03 |
 | CRM pipelines | 4/4 | 85% | Deals don't store a pipelineId yet (stage keys are global) |
 | CRM activities/tasks/notes | 4/4 + 5/5 + 4/4 | 80% | — |
-| Messaging | 9/9 + 3/3 | 90% | No reactions / read receipts per message |
+| Messaging | 10/10 + 4/4 | 95% | Reactions + "seen by" done 2026-11-03 |
 | Announcements / events | 4/5 + 4/5 | 80% | — |
 | Tickets | 12/12 | 86% | Merge needs the same requester (by design) |
-| Gamification | 10/10 | 80% | Auto points (assignment/test/attendance), streaks, week/month/all + role leaderboard, "My progress" (2026-11-02). No redeemable rewards / auto-awarded badges |
+| Gamification | 17/17 | 92% | Auto points, streaks, leaderboard (2026-11-02); automatic badges + rewards shop (2026-11-03) |
 | Reports | 10/10 | 80% | Per-role trend charts + breakdowns with date range and CSV/print of every chart (2026-11-02). No scheduled/emailed reports |
 | Files | 3/3 | 78% | S3 adapter is a stub |
 
@@ -528,6 +528,30 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-03 — Waves 14 + 15 (one run, owner: "fulfil the requirement, enhance later").**
+  Messaging: `POST /messages/:id/reactions {emoji}` toggles the caller's reaction (👍 ❤️ 😂 😮 😢 🙏; participants
+  only; `reactionSummary` recomputed; realtime `message:updated`); `GET /conversations/:id/messages` adds `seenBy`
+  (names) to the caller's own messages from participants' `lastReadAt` — no per-message writes. Gamification:
+  automatic badges (First steps, Century 100 pts, High achiever 500, On a roll 7-day streak, Unstoppable 30-day;
+  0 points each) checked when points are earned and when someone opens their progress (backfills); rewards shop —
+  `Reward`/`RewardRedemption` models, `/gamification/rewards` CRUD (achievement:create|manage), redeem
+  (achievement:read; atomic stock, refuses when points are short, 400 `INSUFFICIENT_POINTS`/`REWARD_UNAVAILABLE`),
+  `/gamification/redemptions` (+ `/:id/handle` fulfil | cancel → refund + stock back, user notified). **Bugs fixed:**
+  manual "Award" always failed (UserAchievement requires `achievementSnapshot`, nothing set it), and
+  `GET /gamification/user-achievements` 500'd once any award existed (Achievement `hasCriteria` virtual read
+  `criteria.length` on a partial populate). Kiosk: `services/kiosk.js` (8-char code = HMAC of kiosk id + 30-s window,
+  current + previous window accepted), kiosks are `Device` rows (type kiosk; token hashed; admin = geofence:create
+  registers / lists / removes), public `GET /public/kiosk/:token` (rate-limited) for the screen,
+  `POST /attendance/kiosk-check {kioskId, code}` (attendance:create) checks in, or out when already in (source
+  `kiosk`); `recordSelfCheck` extracted from selfCheck and shared. Client: reaction picker + chips + "Seen by";
+  Gamification → Rewards tab; public `/kiosk/:token` page (rotating QR), Attendance → Attendance kiosks panel and
+  scan-link handling. Wave 15: client unit tests (`client/test/*.test.ts`, Node test runner with type-stripping —
+  needs Node ≥ 22.6; `npm test` in client) and `.github/workflows/ci.yml` (npm ci; server unit tests + syntax check;
+  client lint, tests, build; no secrets). Verified: server unit 89/89 (also without .env), client unit 4/4, wave14
+  live 34/34, smoke 171/171, flows 39/39, tenant 671/671 (0 leaks), waves 8/9/11/12a/13 live all green, client
+  lint + typecheck + build. Not eyeballed (Vite stopped for low memory). **Overall ≈ 88%**; open items need the owner:
+  working Razorpay/Resend keys, deals-in-pipeline decision, SMS/push/AI/i18n yes-or-no.
 
 - **2026-11-03 — Wave 13: lead scoring + payment reconciliation.** `services/leadScoring.js`: rule-based 0–100
   score with reasons (source weight, email/phone, stated interest, interactions in 30 days ×5 capped 25, recency

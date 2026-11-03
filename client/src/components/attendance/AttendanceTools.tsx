@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { LogIn, LogOut, MapPin, Trash2, KeyRound, Pencil, ScanLine, Maximize2 } from 'lucide-react'
 
+import api from '@/lib/api/axios'
 import QrScanner from './QrScanner'
 import { attendanceLink, canScanInPage, extractAttendanceCode } from './qr'
 
@@ -90,6 +91,103 @@ export function SelfCheckPanel() {
           <LogOut size={15} /> Check out
         </Button>
       </div>
+      {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
+    </Card>
+  )
+}
+
+/**
+ * Staff arriving from a scanned kiosk QR (?kiosk=CODE&k=KIOSK): check in or
+ * out once, then drop the parameters. Renders only the result.
+ */
+export function KioskScanHandler() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [result, setResult] = useState<ToastState>(null)
+  const code = searchParams.get('kiosk')
+  const kioskId = searchParams.get('k')
+  const used = useRef(false)
+
+  useEffect(() => {
+    if (!code || !kioskId || used.current) return
+    used.current = true
+    setSearchParams({}, { replace: true })
+    api
+      .post('/attendance/kiosk-check', { kioskId, code, timezone: browserTimezone() })
+      .then((res) => setResult({ msg: res.data.message, tone: 'success' }))
+      .catch((e) =>
+        setResult({
+          msg: (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Kiosk check-in failed',
+          tone: 'critical',
+        }),
+      )
+  }, [code, kioskId, setSearchParams])
+
+  return result ? <Toast message={result.msg} tone={result.tone} onDone={() => setResult(null)} /> : null
+}
+
+/** Admin: attendance kiosks (screens showing a rotating check-in QR). */
+export function KiosksPanel() {
+  const [kiosks, setKiosks] = useState<{ publicId: string; name: string; lastSeenAt: string | null }[]>([])
+  const [name, setName] = useState('')
+  const [created, setCreated] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastState>(null)
+
+  const load = useCallback(
+    () =>
+      api
+        .get('/attendance/kiosks')
+        .then((res) => setKiosks(res.data.data))
+        .catch(() => setToast({ msg: 'Could not load kiosks', tone: 'critical' })),
+    [],
+  )
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const add = async () => {
+    if (!name.trim()) return
+    try {
+      const res = await api.post('/attendance/kiosks', { name: name.trim() })
+      setCreated(`${window.location.origin}${res.data.data.path}`)
+      setName('')
+      await load()
+    } catch (e) {
+      setToast({ msg: errorMessage((e as { response?: unknown }).response, 'Could not add the kiosk'), tone: 'critical' })
+    }
+  }
+
+  const remove = async (id: string) => {
+    if (!window.confirm('Remove this kiosk? Its screen stops working.')) return
+    await api.delete(`/attendance/kiosks/${id}`)
+    await load()
+  }
+
+  return (
+    <Card title="Attendance kiosks" hint="A screen at the entrance shows a QR that changes every 30 s; staff scan it with their phone to check in or out">
+      <div className="flex gap-2">
+        <input className={`${inputCls} max-w-xs`} placeholder="Kiosk name, e.g. Main gate" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button onClick={add} disabled={!name.trim()}>Add kiosk</Button>
+      </div>
+      {created && (
+        <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          Open this link on the kiosk screen (shown only once):
+          <span className="mt-1 block select-all break-all font-mono text-xs">{created}</span>
+        </div>
+      )}
+      {kiosks.length > 0 && (
+        <div className="divide-y divide-gray-50 rounded-xl border border-gray-100">
+          {kiosks.map((k) => (
+            <div key={k.publicId} className="flex items-center justify-between px-3 py-2 text-sm">
+              <span className="text-gray-700">
+                {k.name}
+                <span className="ml-2 text-xs text-gray-400">{k.lastSeenAt ? `last online ${new Date(k.lastSeenAt).toLocaleString()}` : 'never opened'}</span>
+              </span>
+              <button onClick={() => remove(k.publicId)} className="text-xs font-medium text-rose-600 hover:underline">Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
       {toast && <Toast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </Card>
   )

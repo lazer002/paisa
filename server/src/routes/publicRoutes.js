@@ -6,6 +6,7 @@
 import express from "express";
 
 import { verifyCertificate } from "../controllers/publicController.js";
+import { kioskDisplay } from "../controllers/kioskController.js";
 
 import {
   createRateLimiter,
@@ -68,6 +69,14 @@ router.get(
   redisLimiter,
   memoryLimiter,
   verifyCertificate
+);
+
+// The attendance kiosk screen fetches its rotating code (token in the URL).
+router.get(
+  "/kiosk/:token",
+  redisLimiter,
+  memoryLimiter,
+  kioskDisplay
 );
 
 export default router;

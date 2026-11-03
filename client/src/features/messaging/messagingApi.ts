@@ -52,8 +52,15 @@ export interface ChatMessage {
   status: string
   attachments?: ChatAttachment[]
   editedAt?: string | null
+  /** emoji → count */
+  reactionSummary?: Record<string, number>
+  reactions?: { userId: string; emoji: string }[]
+  /** On your own messages: names of participants who have read it. */
+  seenBy?: string[]
   createdAt: string
 }
+
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
 export interface ChatAttachment {
   fileId?: string | null
@@ -138,6 +145,10 @@ export const messagingApi = createApi({
       query: ({ id, text }) => ({ url: `/messages/${id}`, method: 'PUT', body: { text } }),
       invalidatesTags: (r, e, { conversationId }) => [{ type: 'Message', id: conversationId }],
     }),
+    toggleReaction: builder.mutation<ChatMessage, { id: string; conversationId: string; emoji: string }>({
+      query: ({ id, emoji }) => ({ url: `/messages/${id}/reactions`, method: 'POST', body: { emoji } }),
+      invalidatesTags: (r, e, { conversationId }) => [{ type: 'Message', id: conversationId }],
+    }),
     deleteMessage: builder.mutation<void, { id: string; conversationId: string }>({
       query: ({ id }) => ({ url: `/messages/${id}`, method: 'DELETE' }),
       invalidatesTags: (r, e, { conversationId }) => [
@@ -177,6 +188,7 @@ export const {
   useGetMessagesQuery,
   useSendMessageMutation,
   useEditMessageMutation,
+  useToggleReactionMutation,
   useDeleteMessageMutation,
   useSearchMessagesQuery,
   useGetLiveSessionsQuery,

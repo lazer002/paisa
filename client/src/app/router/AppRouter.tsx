@@ -7,6 +7,7 @@ import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import VerifyCertificatePage from '@/pages/VerifyCertificatePage'
+import KioskPage from '@/pages/KioskPage'
 import DashboardLayout from '@/app/layouts/DashboardLayout'
 
 import DashboardHomePage from '@/pages/dashboard/DashboardHomePage'
@@ -56,6 +57,8 @@ export function AppRouter() {
         {/* Public certificate verification: outside AuthGuard on purpose. */}
         <Route path="/verify" element={<VerifyCertificatePage />} />
         <Route path="/verify/:code" element={<VerifyCertificatePage />} />
+        {/* Attendance kiosk screen: public, its token is in the URL. */}
+        <Route path="/kiosk/:token" element={<KioskPage />} />
 
         <Route element={<AuthGuard />}>
           <Route element={<RoleGuard />}>

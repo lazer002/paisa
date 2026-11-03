@@ -15,6 +15,7 @@ import { ROLES } from "../config/constants.js";
 import {
   getLeaderboard as getRankedLeaderboard,
   getMySummary,
+  achievementSnapshotOf,
 } from "../services/gamificationService.js";
 
 import { resolveRef } from "../utils/resolveRef.js";
@@ -248,6 +249,8 @@ export const awardAchievement = asyncHandler(
       userId: resolvedUserId,
 
       achievementId: achievement._id,
+
+      achievementSnapshot: achievementSnapshotOf(achievement),
 
       status: "earned",
 

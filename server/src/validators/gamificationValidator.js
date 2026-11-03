@@ -52,3 +52,29 @@ export const awardPointsSchema = Joi.object({
   points: Joi.number().invalid(0).required(),
   reason: optStr(1000),
 });
+
+/* ---------- rewards ---------- */
+
+const rewardFields = {
+  description: optStr(1000),
+  cost: Joi.number().integer().min(1).max(1000000),
+  // null = unlimited
+  stock: Joi.number().integer().min(0).allow(null),
+  status: optOneOf(["active", "inactive"]),
+};
+
+export const createRewardSchema = Joi.object({
+  ...rewardFields,
+  name: str(150).required(),
+  cost: rewardFields.cost.required(),
+});
+
+export const updateRewardSchema = Joi.object({
+  ...rewardFields,
+  name: str(150),
+});
+
+export const handleRedemptionSchema = Joi.object({
+  action: oneOf(["fulfil", "cancel"]).required(),
+  note: optStr(500),
+});
