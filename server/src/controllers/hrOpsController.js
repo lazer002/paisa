@@ -129,6 +129,8 @@ export const createSalaryStructure = asyncHandler(
 
       effectiveTo: effectiveTo || null,
 
+      autoTds: req.body.autoTds === true,
+
       status: "active",
     });
 
@@ -183,6 +185,7 @@ export const updateSalaryStructure = asyncHandler(
       "effectiveFrom",
       "effectiveTo",
       "status",
+      "autoTds",
     ];
 
     const updates = {};

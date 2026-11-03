@@ -19,6 +19,7 @@ import Button from '@/components/ui/button'
 import Badge from '@/components/ui/badge'
 import Modal from '@/components/ui/Modal'
 import PayrollRunPanel from '@/components/hr-payroll/PayrollRunPanel'
+import TaxPanel from '@/components/tax/TaxPanel'
 import { printPayslip } from '@/components/hr-payroll/printPayslip'
 
 const STATUS_COLOR: Record<string, 'green' | 'blue' | 'gray' | 'red'> = {
@@ -140,7 +141,7 @@ export default function PayrollPage() {
   const canRun = can('payroll:create')
   // Finance (accountant) records the payment: "paid" only (server rule).
   const canMarkPaid = !canManage && can('finance:manage')
-  const [tab, setTab] = useState<'records' | 'run'>('records')
+  const [tab, setTab] = useState<'records' | 'run' | 'tax'>('records')
 
   const { data: payrolls, isLoading, isError, refetch } = useGetPayrollsQuery()
   const [updateStatus] = useUpdatePayrollStatusMutation()
@@ -186,15 +187,19 @@ export default function PayrollPage() {
         ) : undefined}
       />
 
-      {canRun && (
-        <Tabs
-          tabs={[{ id: 'records' as const, label: 'Payroll records' }, { id: 'run' as const, label: 'Run payroll' }]}
-          active={tab}
-          onChange={setTab}
-        />
-      )}
+      <Tabs
+        tabs={[
+          { id: 'records' as const, label: isOwnOnly ? 'Payslips' : 'Payroll records' },
+          ...(canRun ? [{ id: 'run' as const, label: 'Run payroll' }] : []),
+          { id: 'tax' as const, label: 'Income tax' },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
 
       {tab === 'run' && canRun && <PayrollRunPanel />}
+
+      {tab === 'tax' && <TaxPanel />}
 
       {tab === 'records' && rowError && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{rowError}</div>}
 

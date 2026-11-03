@@ -34,6 +34,7 @@ import paymentRoutes from "./paymentRoutes.js";
 import subscriptionRoutes from "./subscriptionRoutes.js";
 import auditRoutes from "./auditRoutes.js";
 import jobRoutes from "./jobRoutes.js";
+import taxRoutes from "./taxRoutes.js";
 import geofenceRoutes from "./geofenceRoutes.js";
 import qrSessionRoutes from "./qrSessionRoutes.js";
 import contactRoutes from "./contactRoutes.js";
@@ -97,6 +98,7 @@ const AUDIT_CATEGORY_BY_RESOURCE = Object.freeze({
   "employee-documents": "hr",
   "salary-structures": "payroll",
   payroll: "payroll",
+  tax: "payroll",
   invoices: "finance",
   payments: "finance",
   subscriptions: "finance",
@@ -329,6 +331,12 @@ router.use(
 router.use(
   "/jobs",
   jobRoutes
+);
+
+// Income tax declarations and annual statements
+router.use(
+  "/tax",
+  taxRoutes
 );
 
 router.use(

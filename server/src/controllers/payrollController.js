@@ -16,6 +16,7 @@ import { User } from "../models/User.js";
 import { resolveRef } from "../utils/resolveRef.js";
 import { sendInBackground } from "../services/emailService.js";
 import { sendPayslipReadyEmail } from "../services/transactionalEmails.js";
+import { applyTds, projectedTdsFor } from "../services/taxService.js";
 
 import {
   computeAttendanceBreakdown,
@@ -250,12 +251,27 @@ const calculateFor = async ({
     lastWorkingDate: employee.lastWorkingDate,
   });
 
-  const salary = computeSalary({ structure, breakdown, units });
+  let salary = computeSalary({ structure, breakdown, units });
+
+  // Automatic TDS from the tax declaration (opt-in per structure; a
+  // structure that already has an income-tax component keeps it).
+  let tds = null;
+  if (structure.autoTds && !(salary.deductions.tax > 0)) {
+    tds = await projectedTdsFor({
+      userId: employee.userId,
+      instituteId: employee.instituteId,
+      month,
+      year,
+      monthSalary: salary,
+    });
+    salary = applyTds(salary, tds.amount);
+  }
 
   return {
     structure,
     breakdown,
     salary,
+    tds,
     units,
     period: { start, end },
   };
@@ -267,7 +283,7 @@ const payrollFields = ({
   month,
   year,
 }) => {
-  const { structure, breakdown, salary, period, units } = calculation;
+  const { structure, breakdown, salary, period, units, tds } = calculation;
 
   return {
     month,
@@ -297,6 +313,8 @@ const payrollFields = ({
         publicId: structure.publicId,
         name: structure.name,
       },
+      // How auto TDS was worked out (null when the structure doesn't use it).
+      tds: tds ?? null,
       generatedAt: new Date(),
     },
   };

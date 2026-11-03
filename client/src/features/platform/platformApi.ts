@@ -166,6 +166,8 @@ export interface SalaryStructure {
   baseSalary: number
   components?: SalaryComponent[]
   payFrequency?: string
+  /** Deduct income tax (TDS) automatically from the tax declaration. */
+  autoTds?: boolean
   status: string
   createdAt: string
 }

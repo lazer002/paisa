@@ -87,6 +87,7 @@ export default function HROpsPage() {
   const [name, setName] = useState('')
   const [baseSalary, setBaseSalary] = useState('')
   const [payFrequency, setPayFrequency] = useState('monthly')
+  const [autoTds, setAutoTds] = useState(false)
   const [components, setComponents] = useState<SalaryComponent[]>([])
 
   const [reviewEmployee, setReviewEmployee] = useState('')
@@ -116,7 +117,7 @@ export default function HROpsPage() {
 
   const openCreateStructure = () => {
     setEditingStructureId(null)
-    setName(''); setBaseSalary(''); setPayFrequency('monthly'); setComponents([])
+    setName(''); setBaseSalary(''); setPayFrequency('monthly'); setComponents([]); setAutoTds(false)
     setShowStructure(true)
   }
 
@@ -125,6 +126,7 @@ export default function HROpsPage() {
     setName(s.name ?? '')
     setBaseSalary(String(s.baseSalary ?? ''))
     setPayFrequency(s.payFrequency ?? 'monthly')
+    setAutoTds(!!s.autoTds)
     setComponents(s.components ?? [])
     setShowStructure(true)
   }
@@ -140,7 +142,7 @@ export default function HROpsPage() {
       setToast({ msg: 'Every component needs a code and a name', tone: 'critical' })
       return
     }
-    const payload = { name, baseSalary: Number(baseSalary), payFrequency, components }
+    const payload = { name, baseSalary: Number(baseSalary), payFrequency, components, autoTds }
     try {
       if (editingStructureId) {
         await updateStructure({ id: editingStructureId, payload }).unwrap()
@@ -508,6 +510,15 @@ export default function HROpsPage() {
           <Field label="Components">
             <SalaryComponentsEditor value={components} onChange={setComponents} />
           </Field>
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input type="checkbox" className="mt-0.5" checked={autoTds} onChange={(e) => setAutoTds(e.target.checked)} />
+            <span>
+              Deduct income tax (TDS) automatically
+              <span className="block text-xs text-gray-400">
+                Each month: the year's projected tax from the employee's declaration (new regime if none), minus tax already deducted, spread over the months left. Skipped when a component already deducts income tax.
+              </span>
+            </span>
+          </label>
         </div>
       </ModalShell>
 

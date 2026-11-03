@@ -45,6 +45,8 @@ const salaryFields = {
   payFrequency: optOneOf(PAY_FREQUENCIES),
   effectiveFrom: optDate(),
   effectiveTo: optDate(),
+  // Deduct income tax (TDS) automatically from the employee's declaration.
+  autoTds: Joi.boolean(),
 };
 
 export const createSalaryStructureSchema = Joi.object({

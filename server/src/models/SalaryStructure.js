@@ -423,6 +423,14 @@ publicId: {
         default: "monthly",
       },
 
+      // Deduct income tax (TDS) each month from the employee's tax
+      // declaration (services/taxService.js), unless a component already
+      // deducts income tax.
+      autoTds: {
+        type: Boolean,
+        default: false,
+      },
+
       currency: {
         type: String,
         trim: true,

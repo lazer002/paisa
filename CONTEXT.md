@@ -368,7 +368,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | People | 17/20 | 88% | — |
 | Departments | 4/4 | 88% | — |
 | Leaves | 11/11 | 85% | Attendance sync not verified |
-| Payroll | 9/9 | 88% | No tax regime / Form 16 |
+| Payroll | 9/9 + tax 6/6 | 94% | Tax regimes, declarations, auto TDS, annual statement done 2026-11-03 · no official Form 16 (TRACES) |
 | Salary structures / reviews | 10/10 | 88% | Goals + weighted goal score + PIP + employee progress done 2026-11-03 |
 | Employee documents | 4/4 | 85% | — |
 | Invoices & payments | 5/6 + 6/7 | 80% | Real checkout untested · no reconciliation |
@@ -528,6 +528,26 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-03 — Wave 12b: income tax.** `config/incomeTax.js` holds slabs per financial year: FY 2025-26 per Finance
+  Act 2025 (new: ₹75k std deduction, nil up to ₹12 L taxable via 87A with marginal relief, surcharge capped 25%;
+  old: ₹50k std, 87A up to ₹5 L, caps 80C 1.5 L, 80D 75k, home loan 2 L, 80CCD(1B) 50k); **FY 2026-27 is ASSUMED
+  identical — update it when that Finance Act is known**; unknown years fall back to the latest (`rulesAssumed`).
+  `services/incomeTax.js` (pure: taxable income, slab tax, rebate, surcharge without marginal relief, 4% cess,
+  regime comparison, monthly TDS) — 9 unit tests incl. hand-checked cases. `TaxDeclaration` model (regime, 80C/
+  80D/HRA/home loan/NPS/other, PAN; HR-verified = locked). `/api/tax`: GET/PUT `/declaration` (own, payroll:read),
+  GET `/statement` (own; others for payroll:create|update|manage or finance:read), POST `/estimate`, GET
+  `/declarations` (managers), POST `/declarations/:id/verify` {reopen?} (payroll:update|manage).
+  `services/taxService.js`: year-to-date from processed/approved/paid payroll; **auto TDS** when a salary structure
+  has `autoTds: true` and no income-tax component — projected annual tax (actual earlier months + this month × months
+  left) minus TDS so far, spread over the months left; the working is stored in `calculation.tds`; default off, so
+  existing payroll is unchanged. Annual statement (Form 16 style, not the official TRACES Form 16): months, totals,
+  computation, TDS, balance/refund, regime comparison, full-year projection; printable. Client: Payroll → Income tax
+  tab (declaration, statement + print, team declarations with verify/reopen and per-person statements); salary
+  structure editor has the auto-TDS switch. Verified: unit 78/78, wave12b live 25/25 (old-regime TDS ₹7,827/month
+  matches the hand calculation; switching to new regime → 0), wave12a 14/14, smoke 171/171, flows 39/39, tenant
+  671/671 (0 leaks), client lint + typecheck + build. Not eyeballed: the Vite server was stopped by the system for
+  low memory, so no screenshots of the new screens this wave.
 
 - **2026-11-03 — Wave 12a: review goals + performance improvement plans.** `PUT /reviews/:id` now takes typed
   `goals` [{title, description, dueDate, status, progress 0–100, weight 0–100}] (→ `goalScore` = weighted average
