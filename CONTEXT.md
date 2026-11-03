@@ -381,7 +381,7 @@ Audit scripts + JSON: session scratchpad `audit/` (not in the repo).
 | Tickets | 12/12 | 86% | Merge needs the same requester (by design) |
 | Gamification | 17/17 | 92% | Auto points, streaks, leaderboard (2026-11-02); automatic badges + rewards shop (2026-11-03) |
 | Reports | 10/10 | 80% | Per-role trend charts + breakdowns with date range and CSV/print of every chart (2026-11-02). No scheduled/emailed reports |
-| Files | 3/3 | 78% | S3 adapter is a stub |
+| Files | 3/3 | 92% | S3 / S3-compatible storage done 2026-11-03 (keys are placeholders) |
 
 Not built anywhere: SMS/push, i18n, AI features (scheduled jobs done 2026-11-02 Wave 9, attendance QR Wave 10). Unused models: Device,
 AttendanceEvent, Streak, Leaderboard (CRMNote.js and the stray Invoice.js were deleted 2026-11-01).
@@ -528,6 +528,16 @@ assignments · B2 Reports for all nav roles · B3 nav/permission reconciliation 
 teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employees CRUD · F3 HR panel CRUD.
 
 ## 12. Session log (newest first)
+
+- **2026-11-03 — S3 storage.** `services/storage/s3Storage.js` implemented (no AWS SDK, as decided): AWS Signature V4
+  with node:crypto (`signS3Request`, verified against the AWS docs GET-object example signature), PUT/HEAD/GET/DELETE
+  on `https://<bucket>.s3.<region>.amazonaws.com/<key>` or path-style `<S3_ENDPOINT>/<bucket>/<key>` for R2/MinIO/
+  Spaces; same key layout and interface as local storage; `createReadStream` streams the GET body; missing settings
+  → `STORAGE_NOT_CONFIGURED`. Turn on with `STORAGE_PROVIDER=s3` + `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`,
+  `S3_SECRET_ACCESS_KEY` (+ `S3_ENDPOINT` for non-AWS) and restart; files already stored keep working (each File
+  records its provider). Local `.env` has empty placeholders with `STORAGE_PROVIDER=local`. Verified: unit 93/93
+  (4 new: AWS vector, full save/exists/read/remove against a signature-checking fake S3, unsafe keys, config/URLs),
+  smoke 171/171. Not run against a real bucket (no keys yet).
 
 - **2026-11-03 — Key placeholders.** Added `server/.env.example` (committed; `.gitignore` now has `!.env.example`)
   documenting every integration key, and empty placeholders in the local `server/.env` for Razorpay webhook,
