@@ -529,6 +529,12 @@ teacher+student, announcements for counselor) · F1 Students CRUD · F2 Employee
 
 ## 12. Session log (newest first)
 
+- **2026-11-03 — Key placeholders.** Added `server/.env.example` (committed; `.gitignore` now has `!.env.example`)
+  documenting every integration key, and empty placeholders in the local `server/.env` for Razorpay webhook,
+  Resend (`RESEND_API_KEY`, `EMAIL_FROM`), `FRONTEND_URL`, S3 and SMS. Empty = feature off (emails logged, no
+  S3/SMS); the owner's rejected Razorpay test pair is kept until they paste real keys. To go live with a service:
+  fill its keys in `server/.env` and restart the API.
+
 - **2026-11-03 — Waves 14 + 15 (one run, owner: "fulfil the requirement, enhance later").**
   Messaging: `POST /messages/:id/reactions {emoji}` toggles the caller's reaction (👍 ❤️ 😂 😮 😢 🙏; participants
   only; `reactionSummary` recomputed; realtime `message:updated`); `GET /conversations/:id/messages` adds `seenBy`
